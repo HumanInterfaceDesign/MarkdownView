@@ -1,6 +1,6 @@
 # MarkdownView
 
-A high-performance markdown rendering library for iOS, macOS, and visionOS. Inspired by [Lakr233/MarkdownView](https://github.com/Lakr233/MarkdownView).
+A high-performance markdown rendering library for iOS, macOS, and visionOS.
 
 ## Features
 
@@ -128,3 +128,7 @@ The library is split into two modules:
 ## License
 
 MIT
+
+# Inspiration
+
+Inspired by [Lakr233/MarkdownView](https://github.com/Lakr233/MarkdownView)
