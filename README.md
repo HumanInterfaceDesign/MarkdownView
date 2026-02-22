@@ -6,7 +6,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 
 - Full GFM (GitHub Flavored Markdown) support: headings, lists, tables, blockquotes, task lists, and more
 - Native syntax highlighting powered by [tree-sitter](https://tree-sitter.github.io/) — no JavaScript runtime overhead
-- 12 languages: Python, JavaScript, TypeScript, TSX, Go, Rust, C++, Java, Ruby, Bash, JSON, HTML, CSS
+- 14 languages: Swift, C, Python, JavaScript, TypeScript, TSX, Go, Rust, C++, Java, Ruby, Bash, JSON, HTML, CSS
 - LaTeX math rendering
 - Comprehensive theming with fonts, colors, and spacing
 - UIKit and AppKit support via a single API
