@@ -11,6 +11,8 @@ import TreeSitterTypeScript
 import TreeSitterTSX
 import TreeSitterGo
 import TreeSitterRust
+import TreeSitterSwift
+import TreeSitterC
 import TreeSitterCPP
 import TreeSitterJava
 import TreeSitterRuby
@@ -112,6 +114,9 @@ public final class CodeHighlighter {
             }
         }
 
+        register(["swift"]) {
+            try makeConfig(tree_sitter_swift(), name: "Swift")
+        }
         register(["python", "py", "python3"]) {
             try makeConfig(tree_sitter_python(), name: "Python")
         }
@@ -132,7 +137,10 @@ public final class CodeHighlighter {
         register(["rust", "rs"]) {
             try makeConfig(tree_sitter_rust(), name: "Rust")
         }
-        register(["c", "h", "cpp", "c++", "cc", "cxx", "hpp"]) {
+        register(["c", "h"]) {
+            try makeConfig(tree_sitter_c(), name: "C")
+        }
+        register(["cpp", "c++", "cc", "cxx", "hpp"]) {
             try makeConfig(tree_sitter_cpp(), name: "CPP")
         }
         register(["java"]) {
