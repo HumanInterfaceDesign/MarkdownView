@@ -9,6 +9,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - 14 languages: Swift, C, Python, JavaScript, TypeScript, TSX, Go, Rust, C++, Java, Ruby, Bash, JSON, HTML, CSS
 - LaTeX math rendering
 - Comprehensive theming with fonts, colors, and spacing
+- Text selection with long-press, double-tap, and triple-tap gestures
 - UIKit and AppKit support via a single API
 
 ## Performance
