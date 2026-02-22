@@ -9,7 +9,7 @@ import Foundation
 
 private let kMinimalDistanceToMove: CGFloat = 3.0
 private let kMultiClickTimeThreshold: TimeInterval = 0.25
-private let kLongPressDelay: TimeInterval = 0.5
+private let kLongPressDelay: TimeInterval = 0.35
 
 extension LTXLabel {
     func setInteractionStateToBegin(initialLocation: CGPoint) {
