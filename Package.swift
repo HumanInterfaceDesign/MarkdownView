@@ -17,7 +17,6 @@ let package = Package(
         .library(name: "MarkdownParser", targets: ["MarkdownParser"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Lakr233/Litext", from: "0.5.6"),
         .package(url: "https://github.com/mgriebling/SwiftMath", from: "1.7.3"),
         .package(url: "https://github.com/tree-sitter/swift-tree-sitter", from: "0.9.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-python", "0.23.0"..<"0.25.0"),
@@ -37,6 +36,10 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.7.1"),
     ],
     targets: [
+        .target(
+            name: "Litext",
+            resources: [.process("Resources")]
+        ),
         .target(
             name: "MarkdownView",
             dependencies: [
