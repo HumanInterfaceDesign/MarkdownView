@@ -77,9 +77,12 @@ extension MarkdownTextView {
         )
     }
 
-    @objc func handleImageDidLoad(_: Notification) {
+    @objc func handleImageDidLoad(_ notification: Notification) {
         // Re-render current document so newly cached images appear
         guard !document.blocks.isEmpty else { return }
+        #if DEBUG
+            print("[MarkdownTextView] handleImageDidLoad: \(notification.object ?? "nil"), re-rendering \(document.blocks.count) blocks")
+        #endif
         use(document)
     }
 
@@ -90,6 +93,8 @@ extension MarkdownTextView {
         // there might be a large of unknown empty whitespace inside the table
         // thus we hereby call the autoreleasepool to avoid large memory consumption
         autoreleasepool { updateTextExecute() }
+
+        invalidateIntrinsicContentSize()
 
         #if canImport(UIKit)
             layoutIfNeeded()

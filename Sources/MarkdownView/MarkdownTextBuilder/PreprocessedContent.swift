@@ -7,6 +7,7 @@
 
 import Foundation
 import MarkdownParser
+import os.log
 
 public extension MarkdownTextView {
     final class PreprocessedContent {
@@ -44,6 +45,7 @@ public extension MarkdownTextView {
                 rendered = parserResult.render(theme: theme)
                 highlightMaps = parserResult.render(theme: theme)
             }
+            preloadImages(in: blocks)
         }
 
         /// Fills in math-rendered content from main thread after background init.
@@ -61,10 +63,17 @@ public extension MarkdownTextView {
             highlightMaps = .init()
         }
 
+        private static let log = Logger(subsystem: "MarkdownView", category: "PreprocessedContent")
+
         /// Kick off async image loading for all image URLs in the document.
         private func preloadImages(in blocks: [MarkdownBlockNode]) {
             var urls = Set<String>()
             visitImageURLs(in: blocks, urls: &urls)
+            #if DEBUG
+                if !urls.isEmpty {
+                    Self.log.info("preloadImages: \(urls.count) image URL(s) found")
+                }
+            #endif
             for url in urls {
                 ImageLoader.shared.loadImage(from: url) { _ in }
             }

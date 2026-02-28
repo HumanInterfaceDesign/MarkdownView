@@ -111,9 +111,15 @@ extension MarkdownInlineNode {
 
             // Check if image is already cached
             if let image = ImageLoader.shared.cachedImage(for: source) {
+                #if DEBUG
+                    print("[InlineNode] .image HIT cache, calling renderImage for: \(source)")
+                #endif
                 return Self.renderImage(image, source: source, altText: altText, theme: theme)
             }
 
+            #if DEBUG
+                print("[InlineNode] .image MISS cache, showing placeholder for: \(source)")
+            #endif
             // Show placeholder with link while loading
             let placeholderText = altText.isEmpty ? source : altText
             return NSAttributedString(
@@ -236,6 +242,10 @@ extension MarkdownInlineNode {
                 runOffsetX += CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil)
             }
 
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            CTLineGetTypographicBounds(line, &ascent, &descent, nil)
+
             let rect = CGRect(
                 x: lineOrigin.x + runOffsetX,
                 y: lineOrigin.y,
@@ -243,7 +253,17 @@ extension MarkdownInlineNode {
                 height: imageSize.height
             )
 
+            #if DEBUG
+                print("[renderImage] callback fired: rect=\(rect) ascent=\(ascent) descent=\(descent) imageSize=\(imageSize)")
+            #endif
+
             context.saveGState()
+
+            // Debug: draw a red rectangle to verify the callback fires and coordinates are correct
+            #if DEBUG
+                context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 0.3))
+                context.fill(rect)
+            #endif
 
             #if canImport(UIKit)
                 context.translateBy(x: 0, y: rect.origin.y + rect.size.height)

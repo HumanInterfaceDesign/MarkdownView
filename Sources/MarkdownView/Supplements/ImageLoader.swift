@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os.log
 
 #if canImport(UIKit)
     import UIKit
@@ -24,6 +25,7 @@ public final class ImageLoader {
     private let session: URLSession
     private var inFlightTasks: [URL: URLSessionDataTask] = [:]
     private let lock = NSLock()
+    private static let log = Logger(subsystem: "MarkdownView", category: "ImageLoader")
 
     private init() {
         cache.countLimit = 128
@@ -45,6 +47,9 @@ public final class ImageLoader {
 
         // Check memory cache
         if let cached = cache.object(forKey: cacheKey) {
+            #if DEBUG
+                Self.log.info("cache hit: \(urlString)")
+            #endif
             completion(cached)
             return
         }
@@ -72,6 +77,9 @@ public final class ImageLoader {
         }
         lock.unlock()
 
+        #if DEBUG
+            Self.log.info("downloading: \(urlString)")
+        #endif
         let task = session.dataTask(with: url) { [weak self] data, _, error in
             defer {
                 self?.lock.lock()
@@ -80,10 +88,16 @@ public final class ImageLoader {
             }
 
             guard error == nil, let data, let image = PlatformImage(data: data) else {
+                #if DEBUG
+                    Self.log.warning("failed: \(urlString) error=\(error?.localizedDescription ?? "bad data")")
+                #endif
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
 
+            #if DEBUG
+                Self.log.info("loaded: \(urlString) size=\(image.size.width)x\(image.size.height)")
+            #endif
             self?.cache.setObject(image, forKey: cacheKey)
             DispatchQueue.main.async {
                 completion(image)

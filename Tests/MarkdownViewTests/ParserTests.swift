@@ -331,6 +331,22 @@ final class ParserTests: XCTestCase {
         XCTAssertTrue(result.mathContext.isEmpty)
     }
 
+    // MARK: - Image Parsing
+
+    func testParseImage() {
+        let result = parser.parse("![alt text](https://example.com/image.png)")
+        XCTAssertEqual(result.document.count, 1, "Document: \(result.document)")
+        guard case let .paragraph(content) = result.document.first else {
+            return XCTFail("Expected paragraph, got: \(result.document)")
+        }
+        XCTAssertFalse(content.isEmpty, "Paragraph should have inline content")
+        guard case let .image(source, children) = content.first else {
+            return XCTFail("Expected image node, got: \(content)")
+        }
+        XCTAssertEqual(source, "https://example.com/image.png")
+        XCTAssertFalse(children.isEmpty)
+    }
+
     // MARK: - Edge Cases
 
     func testEmptyDocument() {
