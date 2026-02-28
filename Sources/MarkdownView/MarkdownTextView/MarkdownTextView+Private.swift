@@ -68,6 +68,21 @@ extension MarkdownTextView {
             .store(in: &cancellables)
     }
 
+    func observeImageLoading() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleImageDidLoad(_:)),
+            name: ImageLoader.imageDidLoadNotification,
+            object: nil
+        )
+    }
+
+    @objc func handleImageDidLoad(_: Notification) {
+        // Re-render current document so newly cached images appear
+        guard !document.blocks.isEmpty else { return }
+        use(document)
+    }
+
     func use(_ content: PreprocessedContent) {
         assert(Thread.isMainThread)
         document = content

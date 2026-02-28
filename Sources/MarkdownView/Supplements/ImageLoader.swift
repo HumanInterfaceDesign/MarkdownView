@@ -16,6 +16,10 @@ import Foundation
 public final class ImageLoader {
     public static let shared = ImageLoader()
 
+    /// Posted on the main thread when an image finishes loading.
+    /// The `object` is the URL string (`String`).
+    public static let imageDidLoadNotification = Notification.Name("ImageLoader.imageDidLoad")
+
     private let cache = NSCache<NSString, PlatformImage>()
     private let session: URLSession
     private var inFlightTasks: [URL: URLSessionDataTask] = [:]
@@ -81,7 +85,13 @@ public final class ImageLoader {
             }
 
             self?.cache.setObject(image, forKey: cacheKey)
-            DispatchQueue.main.async { completion(image) }
+            DispatchQueue.main.async {
+                completion(image)
+                NotificationCenter.default.post(
+                    name: ImageLoader.imageDidLoadNotification,
+                    object: urlString
+                )
+            }
         }
 
         lock.lock()

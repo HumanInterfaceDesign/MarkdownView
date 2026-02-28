@@ -54,11 +54,16 @@ import MarkdownParser
             isAccessibilityElement = false
             accessibilityTraits = .staticText
             setupCombine()
+            observeImageLoading()
         }
 
         @available(*, unavailable)
         public required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
         }
 
         override public func layoutSubviews() {
@@ -152,11 +157,16 @@ import MarkdownParser
             setAccessibilityElement(false)
             setAccessibilityRole(.group)
             setupCombine()
+            observeImageLoading()
         }
 
         @available(*, unavailable)
         public required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
         }
 
         override public var isFlipped: Bool {
