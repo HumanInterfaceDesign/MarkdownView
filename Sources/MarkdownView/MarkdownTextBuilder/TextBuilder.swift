@@ -97,8 +97,15 @@ final class TextBuilder {
         var subviewCollector = [PlatformView]()
         var segments = [NSAttributedString]()
         segments.reserveCapacity(nodes.count)
+        let processors = makeProcessors()
         for node in nodes {
-            let segment = processBlock(node, context: context, subviews: &subviewCollector)
+            let segment = processBlock(
+                node,
+                context: context,
+                blockProcessor: processors.blockProcessor,
+                listProcessor: processors.listProcessor,
+                subviews: &subviewCollector
+            )
             segments.append(segment)
             text.append(segment)
         }
@@ -117,6 +124,7 @@ final class TextBuilder {
         var subviewCollector = [PlatformView]()
         var segments = [NSAttributedString]()
         segments.reserveCapacity(nodes.count)
+        let processors = makeProcessors()
 
         for change in changes {
             switch change {
@@ -130,12 +138,24 @@ final class TextBuilder {
                     collectSubviews(from: segment, into: &subviewCollector)
                 } else {
                     // Index out of range for cache — rebuild
-                    let segment = processBlock(nodes[newIndex], context: context, subviews: &subviewCollector)
+                    let segment = processBlock(
+                        nodes[newIndex],
+                        context: context,
+                        blockProcessor: processors.blockProcessor,
+                        listProcessor: processors.listProcessor,
+                        subviews: &subviewCollector
+                    )
                     segments.append(segment)
                     text.append(segment)
                 }
             case let .rebuild(newIndex):
-                let segment = processBlock(nodes[newIndex], context: context, subviews: &subviewCollector)
+                let segment = processBlock(
+                    nodes[newIndex],
+                    context: context,
+                    blockProcessor: processors.blockProcessor,
+                    listProcessor: processors.listProcessor,
+                    subviews: &subviewCollector
+                )
                 segments.append(segment)
                 text.append(segment)
             case .remove:
@@ -167,31 +187,36 @@ final class TextBuilder {
 // MARK: - Block Processing
 
 extension TextBuilder {
+    private func makeProcessors() -> (blockProcessor: BlockProcessor, listProcessor: ListProcessor) {
+        (
+            BlockProcessor(
+                theme: theme,
+                viewProvider: viewProvider,
+                context: context,
+                thematicBreakDrawing: thematicBreakDrawing,
+                codeDrawing: codeDrawing,
+                tableDrawing: tableDrawing,
+                blockquoteMarking: blockquoteMarking,
+                blockquoteDrawing: blockquoteDrawing
+            ),
+            ListProcessor(
+                theme: theme,
+                viewProvider: viewProvider,
+                context: context,
+                bulletDrawing: bulletDrawing,
+                numberedDrawing: numberedDrawing,
+                checkboxDrawing: checkboxDrawing
+            )
+        )
+    }
+
     private func processBlock(
         _ node: MarkdownBlockNode,
         context: MarkdownTextView.PreprocessedContent,
+        blockProcessor: BlockProcessor,
+        listProcessor: ListProcessor,
         subviews: inout [PlatformView]
     ) -> NSAttributedString {
-        let blockProcessor = BlockProcessor(
-            theme: theme,
-            viewProvider: viewProvider,
-            context: context,
-            thematicBreakDrawing: thematicBreakDrawing,
-            codeDrawing: codeDrawing,
-            tableDrawing: tableDrawing,
-            blockquoteMarking: blockquoteMarking,
-            blockquoteDrawing: blockquoteDrawing
-        )
-
-        let listProcessor = ListProcessor(
-            theme: theme,
-            viewProvider: viewProvider,
-            context: context,
-            bulletDrawing: bulletDrawing,
-            numberedDrawing: numberedDrawing,
-            checkboxDrawing: checkboxDrawing
-        )
-
         switch node {
         case let .heading(level, contents):
             return blockProcessor.processHeading(level: level, contents: contents)

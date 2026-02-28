@@ -19,7 +19,7 @@ private class ObjectPool<T: Equatable & Hashable> {
 
     func acquire() -> T {
         if !objects.isEmpty {
-            objects.removeFirst()
+            objects.removeLast()
         } else {
             factory()
         }
