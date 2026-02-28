@@ -12,8 +12,8 @@ import MarkdownParser
 enum ASTDiff {
     /// A change operation on the block array.
     enum Change {
-        /// Block at `index` in the new array is unchanged from the old array.
-        case keep(newIndex: Int)
+        /// Block at `oldIndex` is reused at `newIndex`.
+        case keep(oldIndex: Int, newIndex: Int)
         /// Block at `newIndex` was inserted or modified and needs rebuilding.
         case rebuild(newIndex: Int)
         /// Block at `oldIndex` was removed.
@@ -27,7 +27,9 @@ enum ASTDiff {
         new: [MarkdownBlockNode]
     ) -> [Change] {
         // Fast path: identical arrays
-        if old == new { return new.indices.map { .keep(newIndex: $0) } }
+        if old == new {
+            return new.indices.map { .keep(oldIndex: $0, newIndex: $0) }
+        }
 
         // Fast path: append-only (common for streaming LLM responses)
         if new.count >= old.count {
@@ -37,7 +39,7 @@ enum ASTDiff {
                 var changes: [Change] = []
                 changes.reserveCapacity(new.count)
                 for i in 0 ..< prefixMatch {
-                    changes.append(.keep(newIndex: i))
+                    changes.append(.keep(oldIndex: i, newIndex: i))
                 }
                 for i in prefixMatch ..< new.count {
                     changes.append(.rebuild(newIndex: i))
@@ -65,7 +67,7 @@ enum ASTDiff {
 
         // Common prefix — kept as-is
         for i in 0 ..< prefixLen {
-            changes.append(.keep(newIndex: i))
+            changes.append(.keep(oldIndex: i, newIndex: i))
         }
 
         // Removed blocks from old middle section
@@ -80,7 +82,12 @@ enum ASTDiff {
 
         // Common suffix — kept (but at new indices)
         for i in 0 ..< suffixLen {
-            changes.append(.keep(newIndex: new.count - suffixLen + i))
+            changes.append(
+                .keep(
+                    oldIndex: old.count - suffixLen + i,
+                    newIndex: new.count - suffixLen + i
+                )
+            )
         }
 
         return changes

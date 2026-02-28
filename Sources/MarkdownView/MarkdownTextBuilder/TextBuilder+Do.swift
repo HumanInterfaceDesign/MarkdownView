@@ -56,10 +56,10 @@ extension TextBuilder {
         return .init(x: lineOrigin.x, y: lineOrigin.y - descent, width: width, height: ascent + descent)
     }
 
-    static func build(
+    private static func configuredBuilder(
         view: MarkdownTextView,
         viewProvider: ReusableViewProvider
-    ) -> BuildResult {
+    ) -> TextBuilder {
         let context: MarkdownTextView.PreprocessedContent = view.document
         let theme: MarkdownTheme = view.theme
 
@@ -225,6 +225,23 @@ extension TextBuilder {
                 context.fillPath()
             }
 
-        return builder.build()
+        return builder
+    }
+
+    static func build(
+        view: MarkdownTextView,
+        viewProvider: ReusableViewProvider
+    ) -> BuildResult {
+        configuredBuilder(view: view, viewProvider: viewProvider).build()
+    }
+
+    static func buildIncremental(
+        view: MarkdownTextView,
+        viewProvider: ReusableViewProvider,
+        changes: [ASTDiff.Change],
+        cachedSegments: [NSAttributedString]
+    ) -> BuildResult {
+        configuredBuilder(view: view, viewProvider: viewProvider)
+            .buildIncremental(changes: changes, cachedSegments: cachedSegments)
     }
 }

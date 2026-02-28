@@ -36,6 +36,8 @@ import MarkdownParser
         }
 
         let viewProvider: ReusableViewProvider
+        var lastRenderedBlocks: [MarkdownBlockNode] = []
+        var lastBuildResult: TextBuilder.BuildResult?
 
         public init(viewProvider: ReusableViewProvider = .init()) {
             self.viewProvider = viewProvider
@@ -84,6 +86,8 @@ import MarkdownParser
         public func setMarkdownManually(_ content: PreprocessedContent) {
             assert(Thread.isMainThread)
             resetCombine()
+            lastRenderedBlocks.removeAll()
+            lastBuildResult = nil
             use(content)
         }
 
@@ -103,6 +107,8 @@ import MarkdownParser
 
         public func reset() {
             assert(Thread.isMainThread)
+            lastRenderedBlocks.removeAll()
+            lastBuildResult = nil
             use(.init())
             setupCombine()
         }
@@ -140,6 +146,8 @@ import MarkdownParser
         }
 
         let viewProvider: ReusableViewProvider
+        var lastRenderedBlocks: [MarkdownBlockNode] = []
+        var lastBuildResult: TextBuilder.BuildResult?
 
         public init(viewProvider: ReusableViewProvider = .init()) {
             self.viewProvider = viewProvider
@@ -197,6 +205,8 @@ import MarkdownParser
         public func setMarkdownManually(_ content: PreprocessedContent) {
             assert(Thread.isMainThread)
             resetCombine()
+            lastRenderedBlocks.removeAll()
+            lastBuildResult = nil
             use(content)
         }
 
@@ -216,6 +226,8 @@ import MarkdownParser
 
         public func reset() {
             assert(Thread.isMainThread)
+            lastRenderedBlocks.removeAll()
+            lastBuildResult = nil
             use(.init())
             setupCombine()
         }

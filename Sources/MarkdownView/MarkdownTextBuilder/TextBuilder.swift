@@ -109,8 +109,7 @@ final class TextBuilder {
     /// Build only specific block indices, reusing cached segments for unchanged blocks.
     func buildIncremental(
         changes: [ASTDiff.Change],
-        cachedSegments: [NSAttributedString],
-        cachedSubviews: [PlatformView]
+        cachedSegments: [NSAttributedString]
     ) -> BuildResult {
         assert(!previouslyBuilt, "TextBuilder can only be built once.")
         previouslyBuilt = true
@@ -119,17 +118,12 @@ final class TextBuilder {
         var segments = [NSAttributedString]()
         segments.reserveCapacity(nodes.count)
 
-        // Build a set of old subviews from cached segments for reuse tracking
-        let oldSubviewSet = Set(cachedSubviews.map { ObjectIdentifier($0) })
-        _ = oldSubviewSet // used for tracking
-
         for change in changes {
             switch change {
-            case let .keep(newIndex):
-                // Reuse the cached segment. We need to check if the cached index
-                // is the same block (it should be since keeps are in order).
-                if newIndex < cachedSegments.count {
-                    let segment = cachedSegments[newIndex]
+            case let .keep(oldIndex, newIndex):
+                // Reuse the previous segment for the matching old block.
+                if oldIndex < cachedSegments.count {
+                    let segment = cachedSegments[oldIndex]
                     segments.append(segment)
                     text.append(segment)
                     // Also collect any subviews from the cached segment
@@ -156,11 +150,17 @@ final class TextBuilder {
 
     /// Extract context views (CodeView, TableView) embedded in an attributed string.
     private func collectSubviews(from segment: NSAttributedString, into collector: inout [PlatformView]) {
+        collector.append(contentsOf: Self.contextViews(in: segment))
+    }
+
+    static func contextViews(in segment: NSAttributedString) -> [PlatformView] {
+        var views = [PlatformView]()
         segment.enumerateAttribute(.contextView, in: NSRange(location: 0, length: segment.length)) { value, _, _ in
             if let view = value as? PlatformView {
-                collector.append(view)
+                views.append(view)
             }
         }
+        return views
     }
 }
 

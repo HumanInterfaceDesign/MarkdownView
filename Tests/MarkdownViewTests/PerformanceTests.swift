@@ -191,6 +191,21 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
+    // MARK: - AST Diff Performance
+
+    func testASTDiffPerformance_AppendOnlyStreaming() {
+        let oldBlocks = (0 ..< 300).map {
+            MarkdownBlockNode.paragraph(content: [.text("Paragraph \($0)")])
+        }
+        let newBlocks = oldBlocks + (300 ..< 360).map {
+            MarkdownBlockNode.paragraph(content: [.text("Paragraph \($0)")])
+        }
+
+        measure {
+            _ = ASTDiff.diff(old: oldBlocks, new: newBlocks)
+        }
+    }
+
     // MARK: - End-to-End Performance
 
     func testEndToEnd_ParseAndPreprocess() {
