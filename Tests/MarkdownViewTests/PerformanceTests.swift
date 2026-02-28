@@ -68,6 +68,18 @@ final class PerformanceTests: XCTestCase {
         return md
     }
 
+    private func runOnMain<T>(_ work: @escaping () -> T) -> T {
+        if Thread.isMainThread {
+            return work()
+        }
+
+        var result: T?
+        DispatchQueue.main.sync {
+            result = work()
+        }
+        return result!
+    }
+
     // MARK: - Parsing Performance
 
     func testParsingPerformance_100Blocks() {
@@ -203,6 +215,42 @@ final class PerformanceTests: XCTestCase {
 
         measure {
             _ = ASTDiff.diff(old: oldBlocks, new: newBlocks)
+        }
+    }
+
+    func testPlainTextAppendFastPathPerformance_StreamingAppend() {
+        let initialMarkdown = "Hello"
+        let appendTokens = Array(" world from stream").map(String.init)
+        let parser = MarkdownParser()
+        let initialContent = MarkdownTextView.PreprocessedContent(
+            parserResult: parser.parse(initialMarkdown),
+            theme: .default
+        )
+        let view = runOnMain { MarkdownTextView() }
+
+        runOnMain {
+            view.document = initialContent
+            view.lastRawMarkdown = initialMarkdown
+            _ = view.makePlainTextAppendFastPath(for: initialMarkdown + appendTokens.joined())
+        }
+
+        measure {
+            runOnMain {
+                view.document = initialContent
+                view.lastRawMarkdown = initialMarkdown
+
+                var currentMarkdown = initialMarkdown
+
+                for token in appendTokens {
+                    currentMarkdown += token
+                    guard let nextContent = view.makePlainTextAppendFastPath(for: currentMarkdown) else {
+                        XCTFail("Expected plain-text fast path to succeed")
+                        return
+                    }
+                    view.document = nextContent
+                    view.lastRawMarkdown = currentMarkdown
+                }
+            }
         }
     }
 

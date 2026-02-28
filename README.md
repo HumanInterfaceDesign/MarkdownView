@@ -20,10 +20,13 @@ Syntax highlighting uses tree-sitter's native C parser instead of JavaScript-bas
 
 | Benchmark | Time |
 |---|---|
+| Plain-text stream append (steady-state) | <0.1 ms |
 | Highlight 50 lines | ~2 ms |
 | Highlight 500 lines | ~21 ms |
 | Parse 500 blocks | ~5 ms |
 | Parse + preprocess 300 blocks | ~3 ms |
+
+The plain-text streaming fast path applies to safe token appends that do not introduce new markdown syntax, allowing the view to skip reparsing and update only the trailing paragraph.
 
 ## Requirements
 
