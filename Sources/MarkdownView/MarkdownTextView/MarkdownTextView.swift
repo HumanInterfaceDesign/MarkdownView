@@ -13,6 +13,7 @@ import MarkdownParser
 
     public final class MarkdownTextView: UIView {
         public var linkHandler: ((LinkPayload, NSRange, CGPoint) -> Void)?
+        public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
 
         public internal(set) var document: PreprocessedContent = .init()
@@ -116,6 +117,7 @@ import MarkdownParser
 
     public final class MarkdownTextView: NSView {
         public var linkHandler: ((LinkPayload, NSRange, CGPoint) -> Void)?
+        public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
 
         public internal(set) var document: PreprocessedContent = .init()

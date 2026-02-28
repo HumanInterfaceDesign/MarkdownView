@@ -268,6 +268,8 @@ extension MarkdownInlineNode {
             LTXLineDrawingCallbackName: drawingCallback,
             kCTRunDelegateAttributeName as NSAttributedString.Key: attachment.runDelegate,
             .contextIdentifier: source,
+            .imageSource: source,
+            .link: source,
         ]
 
         return NSAttributedString(

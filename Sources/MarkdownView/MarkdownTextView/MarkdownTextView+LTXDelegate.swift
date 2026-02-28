@@ -52,6 +52,11 @@ import Litext
                 return
             }
 
+            if let source = highlightRegion.attributes[.imageSource] as? String {
+                imageTapHandler?(source, location)
+                return
+            }
+
             let link = highlightRegion.attributes[NSAttributedString.Key.link]
             let range = highlightRegion.stringRange
             if let url = link as? URL {
@@ -101,6 +106,11 @@ import Litext
 
             if let latexContent = highlightRegion.attributes[.mathLatexContent] as? String {
                 presentMathPreview(for: latexContent, theme: theme)
+                return
+            }
+
+            if let source = highlightRegion.attributes[.imageSource] as? String {
+                imageTapHandler?(source, location)
                 return
             }
 

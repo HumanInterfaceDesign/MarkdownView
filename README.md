@@ -97,6 +97,11 @@ class ViewController: UIViewController {
                 print("Tapped link: \(string)")
             }
         }
+
+        // Handle image taps
+        markdownView.imageTapHandler = { source, point in
+            print("Image tapped: \(source)")
+        }
     }
 }
 ```
