@@ -20,6 +20,8 @@ import Litext
         private(set) var heights: [CGFloat] = []
         private var theme: MarkdownTheme = .default
         private weak var delegate: LTXLabelDelegate?
+        /// Content hashes from previous configuration, for diff-based updates.
+        private var previousContentHashes: [Int] = []
 
         // MARK: - Cell Configuration
 
@@ -31,11 +33,30 @@ import Litext
         ) {
             let numberOfRows = contents.count
             let numberOfColumns = contents.first?.count ?? 0
+            let totalCells = numberOfRows * numberOfColumns
 
-            // Reset arrays
-            cellSizes = Array(repeating: .zero, count: numberOfRows * numberOfColumns)
-            cells.forEach { $0.removeFromSuperview() }
-            cells.removeAll()
+            // Compute content hashes for diffing
+            var newHashes = [Int]()
+            newHashes.reserveCapacity(totalCells)
+            for row in contents {
+                for cell in row {
+                    newHashes.append(cell.string.hashValue)
+                }
+            }
+
+            // Check if we can do a diff-based update (same grid dimensions)
+            let canDiff = previousContentHashes.count == totalCells
+                && cells.count == totalCells
+
+            if !canDiff {
+                // Full rebuild
+                cellSizes = Array(repeating: .zero, count: totalCells)
+                cells.forEach { $0.removeFromSuperview() }
+                cells.removeAll()
+            } else {
+                cellSizes = Array(repeating: .zero, count: totalCells)
+            }
+
             widths = Array(repeating: 0, count: numberOfColumns)
             heights = Array(repeating: 0, count: numberOfRows)
 
@@ -46,6 +67,17 @@ import Litext
                 for (column, cellString) in rowContent.enumerated() {
                     let index = row * rowContent.count + column
                     let isHeaderCell = row == 0
+
+                    // Skip update if content hasn't changed
+                    if canDiff, previousContentHashes[index] == newHashes[index] {
+                        let cell = cells[index]
+                        let cellSize = calculateCellSize(for: cell, cellPadding: cellPadding)
+                        cellSizes[index] = cellSize
+                        rowHeight = max(rowHeight, cellSize.height)
+                        widths[column] = max(widths[column], cellSize.width)
+                        continue
+                    }
+
                     let cell = createOrUpdateCell(
                         at: index,
                         with: cellString,
@@ -64,6 +96,8 @@ import Litext
 
                 heights[row] = rowHeight
             }
+
+            previousContentHashes = newHashes
         }
 
         // MARK: - Public Methods
@@ -182,6 +216,8 @@ import Litext
         private(set) var heights: [CGFloat] = []
         private var theme: MarkdownTheme = .default
         private weak var delegate: LTXLabelDelegate?
+        /// Content hashes from previous configuration, for diff-based updates.
+        private var previousContentHashes: [Int] = []
 
         func configureCells(
             for contents: [[NSAttributedString]],
@@ -191,10 +227,29 @@ import Litext
         ) {
             let numberOfRows = contents.count
             let numberOfColumns = contents.first?.count ?? 0
+            let totalCells = numberOfRows * numberOfColumns
 
-            cellSizes = Array(repeating: .zero, count: numberOfRows * numberOfColumns)
-            cells.forEach { $0.removeFromSuperview() }
-            cells.removeAll()
+            // Compute content hashes for diffing
+            var newHashes = [Int]()
+            newHashes.reserveCapacity(totalCells)
+            for row in contents {
+                for cell in row {
+                    newHashes.append(cell.string.hashValue)
+                }
+            }
+
+            // Check if we can do a diff-based update (same grid dimensions)
+            let canDiff = previousContentHashes.count == totalCells
+                && cells.count == totalCells
+
+            if !canDiff {
+                cellSizes = Array(repeating: .zero, count: totalCells)
+                cells.forEach { $0.removeFromSuperview() }
+                cells.removeAll()
+            } else {
+                cellSizes = Array(repeating: .zero, count: totalCells)
+            }
+
             widths = Array(repeating: 0, count: numberOfColumns)
             heights = Array(repeating: 0, count: numberOfRows)
 
@@ -204,6 +259,17 @@ import Litext
                 for (column, cellString) in rowContent.enumerated() {
                     let index = row * rowContent.count + column
                     let isHeaderCell = row == 0
+
+                    // Skip update if content hasn't changed
+                    if canDiff, previousContentHashes[index] == newHashes[index] {
+                        let cell = cells[index]
+                        let cellSize = calculateCellSize(for: cell, cellPadding: cellPadding)
+                        cellSizes[index] = cellSize
+                        rowHeight = max(rowHeight, cellSize.height)
+                        widths[column] = max(widths[column], cellSize.width)
+                        continue
+                    }
+
                     let cell = createOrUpdateCell(
                         at: index,
                         with: cellString,
@@ -221,6 +287,8 @@ import Litext
 
                 heights[row] = rowHeight
             }
+
+            previousContentHashes = newHashes
         }
 
         func setTheme(_ theme: MarkdownTheme) {

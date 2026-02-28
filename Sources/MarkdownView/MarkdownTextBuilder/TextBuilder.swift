@@ -86,6 +86,8 @@ final class TextBuilder {
     struct BuildResult {
         let document: NSAttributedString
         let subviews: [PlatformView]
+        /// Per-block attributed strings, parallel to the input block array.
+        let blockSegments: [NSAttributedString]
     }
 
     private var previouslyBuilt = false
@@ -93,11 +95,72 @@ final class TextBuilder {
         assert(!previouslyBuilt, "TextBuilder can only be built once.")
         previouslyBuilt = true
         var subviewCollector = [PlatformView]()
+        var segments = [NSAttributedString]()
+        segments.reserveCapacity(nodes.count)
         for node in nodes {
-            text.append(processBlock(node, context: context, subviews: &subviewCollector))
+            let segment = processBlock(node, context: context, subviews: &subviewCollector)
+            segments.append(segment)
+            text.append(segment)
         }
         text.fixAttributes(in: .init(location: 0, length: text.length))
-        return .init(document: text, subviews: subviewCollector)
+        return .init(document: text, subviews: subviewCollector, blockSegments: segments)
+    }
+
+    /// Build only specific block indices, reusing cached segments for unchanged blocks.
+    func buildIncremental(
+        changes: [ASTDiff.Change],
+        cachedSegments: [NSAttributedString],
+        cachedSubviews: [PlatformView]
+    ) -> BuildResult {
+        assert(!previouslyBuilt, "TextBuilder can only be built once.")
+        previouslyBuilt = true
+
+        var subviewCollector = [PlatformView]()
+        var segments = [NSAttributedString]()
+        segments.reserveCapacity(nodes.count)
+
+        // Build a set of old subviews from cached segments for reuse tracking
+        let oldSubviewSet = Set(cachedSubviews.map { ObjectIdentifier($0) })
+        _ = oldSubviewSet // used for tracking
+
+        for change in changes {
+            switch change {
+            case let .keep(newIndex):
+                // Reuse the cached segment. We need to check if the cached index
+                // is the same block (it should be since keeps are in order).
+                if newIndex < cachedSegments.count {
+                    let segment = cachedSegments[newIndex]
+                    segments.append(segment)
+                    text.append(segment)
+                    // Also collect any subviews from the cached segment
+                    collectSubviews(from: segment, into: &subviewCollector)
+                } else {
+                    // Index out of range for cache — rebuild
+                    let segment = processBlock(nodes[newIndex], context: context, subviews: &subviewCollector)
+                    segments.append(segment)
+                    text.append(segment)
+                }
+            case let .rebuild(newIndex):
+                let segment = processBlock(nodes[newIndex], context: context, subviews: &subviewCollector)
+                segments.append(segment)
+                text.append(segment)
+            case .remove:
+                // Nothing to add — block was removed
+                break
+            }
+        }
+
+        text.fixAttributes(in: .init(location: 0, length: text.length))
+        return .init(document: text, subviews: subviewCollector, blockSegments: segments)
+    }
+
+    /// Extract context views (CodeView, TableView) embedded in an attributed string.
+    private func collectSubviews(from segment: NSAttributedString, into collector: inout [PlatformView]) {
+        segment.enumerateAttribute(.contextView, in: NSRange(location: 0, length: segment.length)) { value, _, _ in
+            if let view = value as? PlatformView {
+                collector.append(view)
+            }
+        }
     }
 }
 

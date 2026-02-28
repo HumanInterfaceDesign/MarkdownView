@@ -27,9 +27,12 @@ import Litext
 
         var highlightMap: CodeHighlighter.HighlightMap = .init()
 
+        private var cachedLineCount: Int = 1
+
         var content: String = "" {
             didSet {
                 guard oldValue != content else { return }
+                cachedLineCount = CodeViewConfiguration.lineCount(of: content)
                 textView.attributedText = highlightMap.apply(to: content, with: theme)
                 lineNumberView.updateForContent(content)
                 updateLineNumberView()
@@ -59,6 +62,8 @@ import Litext
             super.init(frame: frame)
             configureSubviews()
             updateLineNumberView()
+            isAccessibilityElement = false
+            accessibilityElements = []
         }
 
         @available(*, unavailable)
@@ -68,6 +73,19 @@ import Litext
 
         static func intrinsicHeight(for content: String, theme: MarkdownTheme = .default) -> CGFloat {
             CodeViewConfiguration.intrinsicHeight(for: content, theme: theme)
+        }
+
+        override var accessibilityLabel: String? {
+            get {
+                let lang = language.isEmpty ? "Code" : language
+                return "\(lang) code block"
+            }
+            set { /* read-only */ }
+        }
+
+        override var accessibilityValue: String? {
+            get { content }
+            set { /* read-only */ }
         }
 
         override func layoutSubviews() {
@@ -80,7 +98,9 @@ import Litext
             let labelSize = languageLabel.intrinsicContentSize
             let barHeight = labelSize.height + CodeViewConfiguration.barPadding * 2
             let textSize = textView.intrinsicContentSize
-            let supposedHeight = Self.intrinsicHeight(for: content, theme: theme)
+            let supposedHeight = CodeViewConfiguration.intrinsicHeight(
+                for: content, lineCount: cachedLineCount, theme: theme
+            )
 
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
 
@@ -114,7 +134,7 @@ import Litext
             let font = theme.fonts.code
             lineNumberView.textColor = theme.colors.body.withAlphaComponent(0.5)
 
-            let lineCount = max(content.components(separatedBy: .newlines).count, 1)
+            let lineCount = max(cachedLineCount, 1)
             let textViewContentHeight = textView.intrinsicContentSize.height
 
             lineNumberView.configure(
@@ -159,9 +179,12 @@ import Litext
 
         var highlightMap: CodeHighlighter.HighlightMap = .init()
 
+        private var cachedLineCount: Int = 1
+
         var content: String = "" {
             didSet {
                 guard oldValue != content else { return }
+                cachedLineCount = CodeViewConfiguration.lineCount(of: content)
                 textView.attributedText = highlightMap.apply(to: content, with: theme)
                 lineNumberView.updateForContent(content)
                 updateLineNumberView()
@@ -203,6 +226,7 @@ import Litext
             super.init(frame: frame)
             configureSubviews()
             updateLineNumberView()
+            setAccessibilityElement(false)
         }
 
         @available(*, unavailable)
@@ -212,6 +236,15 @@ import Litext
 
         override var isFlipped: Bool {
             true
+        }
+
+        override func accessibilityLabel() -> String? {
+            let lang = language.isEmpty ? "Code" : language
+            return "\(lang) code block"
+        }
+
+        override func accessibilityValue() -> Any? {
+            content
         }
 
         static func intrinsicHeight(for content: String, theme: MarkdownTheme = .default) -> CGFloat {
@@ -228,7 +261,9 @@ import Litext
             let labelSize = languageLabel.intrinsicContentSize
             let barHeight = labelSize.height + CodeViewConfiguration.barPadding * 2
             let textSize = textView.intrinsicContentSize
-            let supposedHeight = Self.intrinsicHeight(for: content, theme: theme)
+            let supposedHeight = CodeViewConfiguration.intrinsicHeight(
+                for: content, lineCount: cachedLineCount, theme: theme
+            )
 
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
 
@@ -258,7 +293,7 @@ import Litext
             let font = theme.fonts.code
             lineNumberView.textColor = theme.colors.body.withAlphaComponent(0.5)
 
-            let lineCount = max(content.components(separatedBy: .newlines).count, 1)
+            let lineCount = max(cachedLineCount, 1)
             let textViewContentHeight = textView.intrinsicContentSize.height
 
             lineNumberView.configure(

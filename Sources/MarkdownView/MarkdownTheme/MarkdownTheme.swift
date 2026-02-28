@@ -127,6 +127,18 @@ public struct MarkdownTheme: Equatable {
 
     public var table: Table = .init()
 
+    public struct Image: Equatable {
+        public var cornerRadius: CGFloat = 4
+        public var maxWidthFraction: CGFloat = 1.0
+        #if canImport(UIKit)
+            public var placeholderColor = UIColor.systemGray5
+        #elseif canImport(AppKit)
+            public var placeholderColor = NSColor.windowBackgroundColor
+        #endif
+    }
+
+    public var image: Image = .init()
+
     public init() {}
 }
 

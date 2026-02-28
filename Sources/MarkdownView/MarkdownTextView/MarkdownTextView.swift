@@ -29,9 +29,15 @@ import MarkdownParser
         var contextViews: [UIView] = []
         var cancellables = Set<AnyCancellable>()
         let contentSubject = CurrentValueSubject<PreprocessedContent, Never>(.init())
+        let rawContentSubject = PassthroughSubject<String, Never>()
         public var throttleInterval: TimeInterval? = 1 / 20 { // x fps
             didSet { setupCombine() }
         }
+
+        /// Cached per-block attributed strings from the last build, for incremental updates.
+        var cachedBlockSegments: [NSAttributedString] = []
+        /// Block nodes from the previous render, used for AST diffing.
+        var previousBlocks: [MarkdownBlockNode] = []
 
         let viewProvider: ReusableViewProvider
 
@@ -50,6 +56,8 @@ import MarkdownParser
                 textView.topAnchor.constraint(equalTo: topAnchor),
                 textView.bottomAnchor.constraint(equalTo: bottomAnchor),
             ])
+            isAccessibilityElement = false
+            accessibilityTraits = .staticText
             setupCombine()
         }
 
@@ -82,8 +90,20 @@ import MarkdownParser
             contentSubject.send(content)
         }
 
+        /// Sets raw markdown string. Parsing, syntax highlighting, and math rendering
+        /// are performed on a background queue. Cancels any in-flight preprocessing
+        /// when new content arrives.
+        public func setMarkdown(string: String) {
+            if cancellables.isEmpty || contentSubject.value.blocks.isEmpty == false {
+                setupRawCombine()
+            }
+            rawContentSubject.send(string)
+        }
+
         public func reset() {
             assert(Thread.isMainThread)
+            cachedBlockSegments = []
+            previousBlocks = []
             use(.init())
             setupCombine()
         }
@@ -114,9 +134,15 @@ import MarkdownParser
         var contextViews: [NSView] = []
         var cancellables = Set<AnyCancellable>()
         let contentSubject = CurrentValueSubject<PreprocessedContent, Never>(.init())
+        let rawContentSubject = PassthroughSubject<String, Never>()
         public var throttleInterval: TimeInterval? = 1 / 20 { // x fps
             didSet { setupCombine() }
         }
+
+        /// Cached per-block attributed strings from the last build, for incremental updates.
+        var cachedBlockSegments: [NSAttributedString] = []
+        /// Block nodes from the previous render, used for AST diffing.
+        var previousBlocks: [MarkdownBlockNode] = []
 
         let viewProvider: ReusableViewProvider
 
@@ -135,6 +161,8 @@ import MarkdownParser
                 textView.topAnchor.constraint(equalTo: topAnchor),
                 textView.bottomAnchor.constraint(equalTo: bottomAnchor),
             ])
+            setAccessibilityElement(false)
+            setAccessibilityRole(.group)
             setupCombine()
         }
 
@@ -176,8 +204,20 @@ import MarkdownParser
             contentSubject.send(content)
         }
 
+        /// Sets raw markdown string. Parsing, syntax highlighting, and math rendering
+        /// are performed on a background queue. Cancels any in-flight preprocessing
+        /// when new content arrives.
+        public func setMarkdown(string: String) {
+            if cancellables.isEmpty || contentSubject.value.blocks.isEmpty == false {
+                setupRawCombine()
+            }
+            rawContentSubject.send(string)
+        }
+
         public func reset() {
             assert(Thread.isMainThread)
+            cachedBlockSegments = []
+            previousBlocks = []
             use(.init())
             setupCombine()
         }

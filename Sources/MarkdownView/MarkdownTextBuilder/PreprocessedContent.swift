@@ -28,12 +28,82 @@ public extension MarkdownTextView {
             blocks = parserResult.document
             rendered = parserResult.render(theme: theme)
             highlightMaps = parserResult.render(theme: theme)
+            preloadImages(in: blocks)
+        }
+
+        /// Creates preprocessed content with code highlighting done on the calling thread
+        /// and math rendering deferred. Use this from background queues where UIKit trait
+        /// access is unavailable.
+        public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme, backgroundSafe: Bool) {
+            blocks = parserResult.document
+            if backgroundSafe {
+                // Code highlighting is thread-safe; math rendering needs main thread context
+                highlightMaps = parserResult.render(theme: theme)
+                rendered = .init()
+            } else {
+                rendered = parserResult.render(theme: theme)
+                highlightMaps = parserResult.render(theme: theme)
+            }
+        }
+
+        /// Fills in math-rendered content from main thread after background init.
+        public func completeMathRendering(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) -> PreprocessedContent {
+            PreprocessedContent(
+                blocks: blocks,
+                rendered: parserResult.render(theme: theme),
+                highlightMaps: highlightMaps
+            )
         }
 
         public init() {
             blocks = .init()
             rendered = .init()
             highlightMaps = .init()
+        }
+
+        /// Kick off async image loading for all image URLs in the document.
+        private func preloadImages(in blocks: [MarkdownBlockNode]) {
+            var urls = Set<String>()
+            visitImageURLs(in: blocks, urls: &urls)
+            for url in urls {
+                ImageLoader.shared.loadImage(from: url) { _ in }
+            }
+        }
+    }
+}
+
+private func visitImageURLs(in blocks: [MarkdownBlockNode], urls: inout Set<String>) {
+    for block in blocks {
+        switch block {
+        case let .paragraph(inlines):
+            visitInlineImages(in: inlines, urls: &urls)
+        case let .heading(_, inlines):
+            visitInlineImages(in: inlines, urls: &urls)
+        case let .blockquote(children):
+            visitImageURLs(in: children, urls: &urls)
+        case let .bulletedList(_, items):
+            for item in items { visitImageURLs(in: item.children, urls: &urls) }
+        case let .numberedList(_, _, items):
+            for item in items { visitImageURLs(in: item.children, urls: &urls) }
+        case let .taskList(_, items):
+            for item in items { visitImageURLs(in: item.children, urls: &urls) }
+        default:
+            break
+        }
+    }
+}
+
+private func visitInlineImages(in inlines: [MarkdownInlineNode], urls: inout Set<String>) {
+    for inline in inlines {
+        switch inline {
+        case let .image(source, _):
+            urls.insert(source)
+        case let .emphasis(children), let .strong(children), let .strikethrough(children):
+            visitInlineImages(in: children, urls: &urls)
+        case let .link(_, children):
+            visitInlineImages(in: children, urls: &urls)
+        default:
+            break
         }
     }
 }

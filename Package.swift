@@ -33,6 +33,10 @@ let package = Package(
         .package(url: "https://github.com/tree-sitter/tree-sitter-json", from: "0.24.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-html", from: "0.23.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-css", "0.23.0"..<"0.25.0"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-c-sharp", "0.23.0"..<"0.25.0"),
+        .package(url: "https://github.com/fwcd/tree-sitter-kotlin", from: "0.3.8"),
+        .package(url: "https://github.com/HumanInterfaceDesign/tree-sitter-sql", branch: "main"),
+        .package(url: "https://github.com/HumanInterfaceDesign/tree-sitter-yaml", branch: "master"),
         .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.7.1"),
     ],
     targets: [
@@ -61,6 +65,10 @@ let package = Package(
                 .product(name: "TreeSitterJSON", package: "tree-sitter-json"),
                 .product(name: "TreeSitterHTML", package: "tree-sitter-html"),
                 .product(name: "TreeSitterCSS", package: "tree-sitter-css"),
+                .product(name: "TreeSitterCSharp", package: "tree-sitter-c-sharp"),
+                .product(name: "TreeSitterKotlin", package: "tree-sitter-kotlin"),
+                .product(name: "TreeSitterSql", package: "tree-sitter-sql"),
+                .product(name: "TreeSitterYAML", package: "tree-sitter-yaml"),
             ],
             resources: [.process("Resources")]
         ),

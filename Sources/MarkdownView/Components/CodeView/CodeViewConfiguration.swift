@@ -18,8 +18,19 @@ enum CodeViewConfiguration {
     static let lineNumberWidth: CGFloat = 40
     static let lineNumberPadding: CGFloat = 8
 
+    /// Count newlines in O(n) without allocating an array of substrings.
+    static func lineCount(of string: String) -> Int {
+        guard !string.isEmpty else { return 1 }
+        var count = 1
+        for char in string.utf8 {
+            if char == UInt8(ascii: "\n") { count += 1 }
+        }
+        return count
+    }
+
     static func intrinsicHeight(
         for content: String,
+        lineCount: Int? = nil,
         theme: MarkdownTheme = .default
     ) -> CGFloat {
         let font = theme.fonts.code
@@ -29,7 +40,7 @@ enum CodeViewConfiguration {
             let lineHeight = font.ascender + abs(font.descender) + font.leading
         #endif
         let barHeight = lineHeight + barPadding * 2
-        let numberOfRows = content.components(separatedBy: .newlines).count
+        let numberOfRows = lineCount ?? Self.lineCount(of: content)
         let codeHeight = lineHeight * CGFloat(numberOfRows)
             + codePadding * 2
             + codeLineSpacing * CGFloat(max(numberOfRows - 1, 0))

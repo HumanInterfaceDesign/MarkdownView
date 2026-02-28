@@ -28,6 +28,8 @@ public class LTXTextLayout: NSObject {
 
     public var containerSize: CGSize {
         didSet {
+            cachedSuggestedSize = nil
+            cachedSuggestedSizeConstraint = nil
             generateLayout()
         }
     }
@@ -37,6 +39,8 @@ public class LTXTextLayout: NSObject {
     private var framesetter: CTFramesetter
     private var lines: [CTLine]?
     private var _highlightRegions: [Int: LTXHighlightRegion]
+    private var cachedSuggestedSize: CGSize?
+    private var cachedSuggestedSizeConstraint: CGSize?
 
     public class func textLayout(
         withAttributedString attributedString: NSAttributedString
@@ -57,17 +61,29 @@ public class LTXTextLayout: NSObject {
     deinit {}
 
     public func invalidateLayout() {
+        cachedSuggestedSize = nil
+        cachedSuggestedSizeConstraint = nil
         generateLayout()
     }
 
     public func suggestContainerSize(withSize size: CGSize) -> CGSize {
-        CTFramesetterSuggestFrameSizeWithConstraints(
+        if let cachedSuggestedSize,
+           let cachedSuggestedSizeConstraint,
+           cachedSuggestedSizeConstraint.width == size.width,
+           cachedSuggestedSizeConstraint.height == size.height
+        {
+            return cachedSuggestedSize
+        }
+        let result = CTFramesetterSuggestFrameSizeWithConstraints(
             framesetter,
             CFRange(location: 0, length: 0),
             nil,
             size,
             nil
         )
+        cachedSuggestedSize = result
+        cachedSuggestedSizeConstraint = size
+        return result
     }
 
     public func draw(in context: CGContext) {

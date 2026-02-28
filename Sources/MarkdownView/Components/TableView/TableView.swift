@@ -52,11 +52,17 @@ import Litext
         override init(frame: CGRect) {
             super.init(frame: frame)
             configureSubviews()
+            isAccessibilityElement = false
         }
 
         @available(*, unavailable)
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        override var accessibilityLabel: String? {
+            get { "Table, \(numberOfRows) rows, \(numberOfColumns) columns" }
+            set { /* read-only */ }
         }
 
         // MARK: - Setup
@@ -272,6 +278,7 @@ import Litext
         override init(frame: CGRect) {
             super.init(frame: frame)
             configureSubviews()
+            setAccessibilityElement(false)
         }
 
         @available(*, unavailable)
@@ -281,6 +288,10 @@ import Litext
 
         override var isFlipped: Bool {
             true
+        }
+
+        override func accessibilityLabel() -> String? {
+            "Table, \(numberOfRows) rows, \(numberOfColumns) columns"
         }
 
         // MARK: - Setup

@@ -35,9 +35,16 @@ import Litext
             viewProvider.reorderViews(matching: contextViews)
             contextViews.removeAll()
 
-            let artifacts = TextBuilder.build(view: self, viewProvider: viewProvider)
+            let artifacts = TextBuilder.build(
+                view: self,
+                viewProvider: viewProvider,
+                cachedSegments: cachedBlockSegments,
+                previousBlocks: previousBlocks
+            )
             textView.attributedText = artifacts.document
             contextViews = artifacts.subviews
+            cachedBlockSegments = artifacts.blockSegments
+            previousBlocks = document.blocks
 
             for view in artifacts.subviews {
                 if let view = view as? CodeView {
@@ -79,9 +86,16 @@ import Litext
             viewProvider.reorderViews(matching: contextViews)
             contextViews.removeAll()
 
-            let artifacts = TextBuilder.build(view: self, viewProvider: viewProvider)
+            let artifacts = TextBuilder.build(
+                view: self,
+                viewProvider: viewProvider,
+                cachedSegments: cachedBlockSegments,
+                previousBlocks: previousBlocks
+            )
             textView.attributedText = artifacts.document
             contextViews = artifacts.subviews
+            cachedBlockSegments = artifacts.blockSegments
+            previousBlocks = document.blocks
 
             for view in artifacts.subviews {
                 if let view = view as? CodeView {

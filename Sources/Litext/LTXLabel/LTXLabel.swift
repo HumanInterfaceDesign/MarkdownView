@@ -88,6 +88,7 @@ public class LTXLabel: LTXPlatformView, Identifiable {
         override public init(frame: CGRect) {
             super.init(frame: frame)
             registerNotificationCenterForSelectionDeduplicate()
+            configureAccessibility()
 
             backgroundColor = .clear
             #if !os(tvOS) && !os(watchOS)
@@ -115,6 +116,7 @@ public class LTXLabel: LTXPlatformView, Identifiable {
         override public init(frame: CGRect) {
             super.init(frame: frame)
             registerNotificationCenterForSelectionDeduplicate()
+            configureAccessibility()
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
         }

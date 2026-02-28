@@ -6,22 +6,24 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 
 - Full GFM (GitHub Flavored Markdown) support: headings, lists, tables, blockquotes, task lists, and more
 - Native syntax highlighting powered by [tree-sitter](https://tree-sitter.github.io/) — no JavaScript runtime overhead
-- 14 languages: Swift, C, Python, JavaScript, TypeScript, TSX, Go, Rust, C++, Java, Ruby, Bash, JSON, HTML, CSS
+- 19 languages: Swift, C, C++, C#, Python, JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, Ruby, Bash, SQL, YAML, JSON, HTML, CSS
 - LaTeX math rendering
+- Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
 - Text selection with long-press, double-tap, and triple-tap gestures
+- VoiceOver accessibility for text, code blocks, tables, and math content
 - UIKit and AppKit support via a single API
 
 ## Performance
 
-Syntax highlighting uses tree-sitter's native C parser instead of JavaScript-based solutions like highlight.js. This eliminates the JavaScriptCore runtime entirely and produces color ranges directly from semantic parse trees.
+Syntax highlighting uses tree-sitter's native C parser instead of JavaScript-based solutions like highlight.js. This eliminates the JavaScriptCore runtime entirely and produces color ranges directly from semantic parse trees. Language parsers are initialized lazily — only the languages actually used are loaded.
 
 | Benchmark | Time |
 |---|---|
-| Highlight 50 lines | ~3 ms |
+| Highlight 50 lines | ~2 ms |
 | Highlight 500 lines | ~21 ms |
-| Parse 500 blocks | ~3 ms |
-| Parse + preprocess 300 blocks | ~12 ms |
+| Parse 500 blocks | ~5 ms |
+| Parse + preprocess 300 blocks | ~3 ms |
 
 ## Requirements
 

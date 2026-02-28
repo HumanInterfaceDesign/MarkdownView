@@ -20,6 +20,10 @@ import TreeSitterBash
 import TreeSitterJSON
 import TreeSitterHTML
 import TreeSitterCSS
+import TreeSitterCSharp
+import TreeSitterKotlin
+import TreeSitterSql
+import TreeSitterYAML
 
 #if canImport(UIKit)
     import UIKit
@@ -104,13 +108,15 @@ public final class CodeHighlighter {
         return try LanguageConfiguration(tsLanguage, name: name)
     }
 
-    private static let languageRegistry: [String: LanguageConfiguration] = {
-        var registry: [String: LanguageConfiguration] = [:]
+    /// Factory closures that create language configurations on demand.
+    /// Only the requested language is initialized, avoiding the cost of loading all 15 parsers.
+    private static let languageFactories: [String: () -> LanguageConfiguration?] = {
+        var factories: [String: () -> LanguageConfiguration?] = [:]
 
-        func register(_ aliases: [String], _ factory: () throws -> LanguageConfiguration) {
-            guard let config = try? factory() else { return }
+        func register(_ aliases: [String], _ factory: @escaping () throws -> LanguageConfiguration) {
+            let lazyFactory: () -> LanguageConfiguration? = { try? factory() }
             for alias in aliases {
-                registry[alias] = config
+                factories[alias] = lazyFactory
             }
         }
 
@@ -161,9 +167,44 @@ public final class CodeHighlighter {
         register(["css"]) {
             try makeConfig(tree_sitter_css(), name: "CSS")
         }
-
-        return registry
+        register(["csharp", "c#", "cs"]) {
+            try makeConfig(tree_sitter_c_sharp(), name: "CSharp",
+                           bundleName: "TreeSitterCSharp_TreeSitterCSharp")
+        }
+        register(["kotlin", "kt", "kts"]) {
+            try makeConfig(tree_sitter_kotlin(), name: "Kotlin",
+                           bundleName: "TreeSitterKotlin_TreeSitterKotlin")
+        }
+        register(["sql"]) {
+            try makeConfig(tree_sitter_sql(), name: "SQL",
+                           bundleName: "TreeSitterSql_TreeSitterSql")
+        }
+        register(["yaml", "yml"]) {
+            try makeConfig(tree_sitter_yaml(), name: "YAML",
+                           bundleName: "TreeSitterYAML_TreeSitterYAML")
+        }
+        return factories
     }()
+
+    /// Cache of already-initialized language configurations.
+    private static var resolvedLanguages: [String: LanguageConfiguration] = [:]
+    private static let resolvedLanguagesLock = NSLock()
+
+    private static func languageConfiguration(for alias: String) -> LanguageConfiguration? {
+        resolvedLanguagesLock.lock()
+        defer { resolvedLanguagesLock.unlock() }
+
+        if let cached = resolvedLanguages[alias] {
+            return cached
+        }
+        guard let factory = languageFactories[alias],
+              let config = factory() else {
+            return nil
+        }
+        // Cache for all aliases that share this factory
+        resolvedLanguages[alias] = config
+        return config
+    }
 
     // MARK: - Capture-to-Color Theme Map
 
@@ -251,7 +292,7 @@ public final class CodeHighlighter {
         guard !content.isEmpty else { return [:] }
 
         let lang = language.lowercased()
-        guard let config = Self.languageRegistry[lang] else { return [:] }
+        guard let config = Self.languageConfiguration(for: lang) else { return [:] }
         guard let query = config.queries[.highlights] else { return [:] }
 
         let parser = Parser()

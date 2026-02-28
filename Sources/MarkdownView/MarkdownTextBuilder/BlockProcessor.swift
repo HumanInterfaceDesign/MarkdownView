@@ -96,7 +96,7 @@ final class BlockProcessor {
         codeView.content = content
         let drawer = codeDrawing!
         let text = buildWithParagraphSync(modifier: { paragraph in
-            let height = CodeView.intrinsicHeight(for: content, theme: self.theme)
+            let height = CodeViewConfiguration.intrinsicHeight(for: content, theme: self.theme)
             paragraph.minimumLineHeight = height
         }) {
             .init(string: LTXReplacementText, attributes: [

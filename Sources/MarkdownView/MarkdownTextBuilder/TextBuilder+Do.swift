@@ -8,6 +8,7 @@
 import CoreText
 import Foundation
 import Litext
+import MarkdownParser
 
 #if canImport(UIKit)
     import UIKit
@@ -56,7 +57,12 @@ extension TextBuilder {
         return .init(x: lineOrigin.x, y: lineOrigin.y - descent, width: width, height: ascent + descent)
     }
 
-    static func build(view: MarkdownTextView, viewProvider: ReusableViewProvider) -> BuildResult {
+    static func build(
+        view: MarkdownTextView,
+        viewProvider: ReusableViewProvider,
+        cachedSegments: [NSAttributedString] = [],
+        previousBlocks: [MarkdownBlockNode] = []
+    ) -> BuildResult {
         let context: MarkdownTextView.PreprocessedContent = view.document
         let theme: MarkdownTheme = view.theme
 
@@ -76,7 +82,7 @@ extension TextBuilder {
             return textColor
         }
 
-        return TextBuilder(nodes: context.blocks, context: context, viewProvider: viewProvider)
+        let builder = TextBuilder(nodes: context.blocks, context: context, viewProvider: viewProvider)
             .withTheme(theme)
             .withBulletDrawing { context, line, lineOrigin, depth in
                 let radius: CGFloat = 3
@@ -221,6 +227,20 @@ extension TextBuilder {
                 context.addPath(roundedPath)
                 context.fillPath()
             }
-            .build()
+
+        // Use incremental build when we have cached data from a previous render
+        if !previousBlocks.isEmpty, !cachedSegments.isEmpty {
+            let changes = ASTDiff.diff(old: previousBlocks, new: context.blocks)
+            let hasChanges = changes.contains { if case .keep = $0 { return false } else { return true } }
+            if hasChanges {
+                return builder.buildIncremental(
+                    changes: changes,
+                    cachedSegments: cachedSegments,
+                    cachedSubviews: view.contextViews
+                )
+            }
+        }
+
+        return builder.build()
     }
 }
