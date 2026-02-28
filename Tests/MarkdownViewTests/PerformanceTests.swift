@@ -218,6 +218,23 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
+    func testIncrementalParsingPerformance_MixedTailReparse() {
+        let paragraphs = (0 ..< 12).map { "Paragraph \($0)" }
+        let previous = paragraphs.joined(separator: "\n\n")
+        let new = previous + "\n\n```swift\nlet streamed = 1\n```"
+        let parser = MarkdownParser()
+        let previousResult = parser.parse(previous)
+
+        measure {
+            let result = parser.parseIncremental(
+                previousMarkdown: previous,
+                newMarkdown: new,
+                previousBlocks: previousResult.document
+            )
+            XCTAssertNotNil(result)
+        }
+    }
+
     func testPlainTextAppendFastPathPerformance_StreamingAppend() {
         let initialMarkdown = "Hello"
         let appendTokens = Array(" world from stream").map(String.init)

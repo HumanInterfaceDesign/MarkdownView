@@ -11,12 +11,25 @@ import Litext
 import MarkdownParser
 
 extension MarkdownTextView {
+    struct IncrementalParsingContext {
+        let previousRawMarkdown: String
+        let previousContent: PreprocessedContent
+        let previousRanges: [MarkdownParser.RootBlockRange]?
+    }
+
     enum RawMarkdownUpdate {
         case ready(content: PreprocessedContent, rawMarkdown: String)
-        case parse(markdown: String, theme: MarkdownTheme)
-        case parsed(
+        case parse(markdown: String, theme: MarkdownTheme, incrementalContext: IncrementalParsingContext?)
+        case parsedFull(
             result: MarkdownParser.ParseResult,
             content: PreprocessedContent,
+            theme: MarkdownTheme,
+            rawMarkdown: String
+        )
+        case parsedIncremental(
+            result: MarkdownParser.IncrementalParseResult,
+            tailContent: PreprocessedContent,
+            context: IncrementalParsingContext,
             theme: MarkdownTheme,
             rawMarkdown: String
         )
@@ -65,30 +78,55 @@ extension MarkdownTextView {
         pipeline
             .map { [weak self] markdown -> RawMarkdownUpdate in
                 guard let self else {
-                    return .parse(markdown: markdown, theme: .default)
+                    return .parse(markdown: markdown, theme: .default, incrementalContext: nil)
                 }
                 if let content = self.makePlainTextAppendFastPath(for: markdown) {
                     return .ready(content: content, rawMarkdown: markdown)
                 }
-                return .parse(markdown: markdown, theme: self.theme)
+                return .parse(
+                    markdown: markdown,
+                    theme: self.theme,
+                    incrementalContext: self.makeIncrementalParsingContext()
+                )
             }
             .receive(on: Self.preprocessingQueue)
             .map { update -> RawMarkdownUpdate in
                 switch update {
                 case .ready:
                     return update
-                case let .parse(markdown, theme):
+                case let .parse(markdown, theme, incrementalContext):
                     let parser = MarkdownParser()
+                    if let incrementalContext,
+                       let result = parser.parseIncremental(
+                           previousMarkdown: incrementalContext.previousRawMarkdown,
+                           newMarkdown: markdown,
+                           previousBlocks: incrementalContext.previousContent.blocks,
+                           previousRanges: incrementalContext.previousRanges
+                       ) {
+                        let tailContent = PreprocessedContent(
+                            parserResult: result.tailResult,
+                            theme: theme,
+                            backgroundSafe: true
+                        )
+                        return .parsedIncremental(
+                            result: result,
+                            tailContent: tailContent,
+                            context: incrementalContext,
+                            theme: theme,
+                            rawMarkdown: markdown
+                        )
+                    }
+
                     let result = parser.parse(markdown)
                     // Code highlighting runs on background; math rendering deferred to main
                     let content = PreprocessedContent(parserResult: result, theme: theme, backgroundSafe: true)
-                    return .parsed(
+                    return .parsedFull(
                         result: result,
                         content: content,
                         theme: theme,
                         rawMarkdown: markdown
                     )
-                case .parsed:
+                case .parsedFull, .parsedIncremental:
                     return update
                 }
             }
@@ -98,17 +136,43 @@ extension MarkdownTextView {
                 switch update {
                 case let .ready(content, rawMarkdown):
                     self.lastRawMarkdown = rawMarkdown
+                    self.lastRootBlockRanges = nil
                     self.use(content)
-                case let .parsed(result, content, theme, rawMarkdown):
+                case let .parsedFull(result, content, theme, rawMarkdown):
                     // Complete math rendering on main thread where UI context is available
                     let finalContent = content.completeMathRendering(parserResult: result, theme: theme)
                     self.lastRawMarkdown = rawMarkdown
+                    self.lastRootBlockRanges = nil
                     self.use(finalContent)
+                case let .parsedIncremental(result, tailContent, context, theme, rawMarkdown):
+                    let completedTailContent = tailContent.completeMathRendering(
+                        parserResult: result.tailResult,
+                        theme: theme
+                    )
+                    let mergedContent = PreprocessedContent.incrementalMerged(
+                        prefix: context.previousContent,
+                        stablePrefixBlockCount: result.stablePrefixBlockCount,
+                        tail: completedTailContent
+                    )
+                    self.lastRawMarkdown = rawMarkdown
+                    self.lastRootBlockRanges = result.blockRanges
+                    self.use(mergedContent)
                 case .parse:
                     assertionFailure("Unexpected raw markdown parse request on main thread")
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func makeIncrementalParsingContext() -> IncrementalParsingContext? {
+        assert(Thread.isMainThread)
+        guard let lastRawMarkdown else { return nil }
+        guard !document.blocks.isEmpty else { return nil }
+        return .init(
+            previousRawMarkdown: lastRawMarkdown,
+            previousContent: document,
+            previousRanges: lastRootBlockRanges
+        )
     }
 
     func makePlainTextAppendFastPath(for markdown: String) -> PreprocessedContent? {

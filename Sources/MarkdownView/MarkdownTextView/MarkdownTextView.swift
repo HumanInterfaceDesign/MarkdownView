@@ -37,6 +37,7 @@ import MarkdownParser
 
         let viewProvider: ReusableViewProvider
         var lastRawMarkdown: String?
+        var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
         var lastBuildResult: TextBuilder.BuildResult?
 
@@ -88,6 +89,7 @@ import MarkdownParser
             assert(Thread.isMainThread)
             resetCombine()
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             lastRenderedBlocks.removeAll()
             lastBuildResult = nil
             use(content)
@@ -95,6 +97,7 @@ import MarkdownParser
 
         public func setMarkdown(_ content: PreprocessedContent) {
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             contentSubject.send(content)
         }
 
@@ -111,6 +114,7 @@ import MarkdownParser
         public func reset() {
             assert(Thread.isMainThread)
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             lastRenderedBlocks.removeAll()
             lastBuildResult = nil
             use(.init())
@@ -151,6 +155,7 @@ import MarkdownParser
 
         let viewProvider: ReusableViewProvider
         var lastRawMarkdown: String?
+        var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
         var lastBuildResult: TextBuilder.BuildResult?
 
@@ -211,6 +216,7 @@ import MarkdownParser
             assert(Thread.isMainThread)
             resetCombine()
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             lastRenderedBlocks.removeAll()
             lastBuildResult = nil
             use(content)
@@ -218,6 +224,7 @@ import MarkdownParser
 
         public func setMarkdown(_ content: PreprocessedContent) {
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             contentSubject.send(content)
         }
 
@@ -234,6 +241,7 @@ import MarkdownParser
         public func reset() {
             assert(Thread.isMainThread)
             lastRawMarkdown = nil
+            lastRootBlockRanges = nil
             lastRenderedBlocks.removeAll()
             lastBuildResult = nil
             use(.init())
