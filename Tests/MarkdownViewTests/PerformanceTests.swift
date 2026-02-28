@@ -80,6 +80,61 @@ final class PerformanceTests: XCTestCase {
         return result!
     }
 
+    private func makeRawBenchmarkView() -> MarkdownTextView {
+        runOnMain {
+            let view = MarkdownTextView()
+            view.throttleInterval = nil
+            view.setupRawCombine()
+            return view
+        }
+    }
+
+    private func sendRawMarkdownAndWait(
+        _ markdown: String,
+        to view: MarkdownTextView,
+        timeout: TimeInterval = 2
+    ) {
+        if Thread.isMainThread {
+            view.setMarkdown(string: markdown)
+
+            let deadline = Date().addingTimeInterval(timeout)
+            while view.lastRawMarkdown != markdown, Date() < deadline {
+                _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.001))
+            }
+
+            XCTAssertEqual(view.lastRawMarkdown, markdown)
+            return
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let deadline = Date().addingTimeInterval(timeout)
+        var timedOut = false
+
+        func poll() {
+            if view.lastRawMarkdown == markdown {
+                semaphore.signal()
+                return
+            }
+            if Date() >= deadline {
+                timedOut = true
+                semaphore.signal()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) {
+                poll()
+            }
+        }
+
+        DispatchQueue.main.async {
+            view.setMarkdown(string: markdown)
+            poll()
+        }
+
+        let waitResult = semaphore.wait(timeout: .now() + timeout + 0.5)
+        XCTAssertEqual(waitResult, .success)
+        XCTAssertFalse(timedOut, "Timed out waiting for markdown update: \(markdown.prefix(32))")
+    }
+
     // MARK: - Parsing Performance
 
     func testParsingPerformance_100Blocks() {
@@ -232,6 +287,62 @@ final class PerformanceTests: XCTestCase {
                 previousBlocks: previousResult.document
             )
             XCTAssertNotNil(result)
+        }
+    }
+
+    func testIncrementalParsingPerformance_StableTailVsOpenFenceTail() {
+        let paragraphs = (0 ..< 12).map { "Paragraph \($0)" }
+        let previous = paragraphs.joined(separator: "\n\n")
+        let stableTail = previous + " extended"
+        let openFenceTail = previous + "\n\n```swift\nlet streamed = 1"
+        let parser = MarkdownParser()
+        let previousResult = parser.parse(previous)
+
+        measure {
+            let stableResult = parser.parseIncremental(
+                previousMarkdown: previous,
+                newMarkdown: stableTail,
+                previousBlocks: previousResult.document
+            )
+            let openFenceResult = parser.parseIncremental(
+                previousMarkdown: previous,
+                newMarkdown: openFenceTail,
+                previousBlocks: previousResult.document
+            )
+
+            XCTAssertNotNil(stableResult)
+            XCTAssertNotNil(openFenceResult)
+
+            if let stableResult, let openFenceResult {
+                XCTAssertGreaterThan(
+                    stableResult.stablePrefixBlockCount,
+                    openFenceResult.stablePrefixBlockCount
+                )
+            }
+        }
+    }
+
+    func testMarkdownTextViewPerformance_StableTailStreamingUpdate() {
+        let paragraphs = (0 ..< 12).map { "Paragraph \($0)" }
+        let previous = paragraphs.joined(separator: "\n\n")
+        let stableTail = previous + " extended"
+
+        measure {
+            let view = makeRawBenchmarkView()
+            sendRawMarkdownAndWait(previous, to: view)
+            sendRawMarkdownAndWait(stableTail, to: view)
+        }
+    }
+
+    func testMarkdownTextViewPerformance_OpenFenceTailStreamingUpdate() {
+        let paragraphs = (0 ..< 12).map { "Paragraph \($0)" }
+        let previous = paragraphs.joined(separator: "\n\n")
+        let openFenceTail = previous + "\n\n```swift\nlet streamed = 1"
+
+        measure {
+            let view = makeRawBenchmarkView()
+            sendRawMarkdownAndWait(previous, to: view)
+            sendRawMarkdownAndWait(openFenceTail, to: view)
         }
     }
 

@@ -120,7 +120,7 @@ public class MarkdownParser {
         guard !ranges.isEmpty else { return nil }
 
         let tailRootBlockCount = preferredTailRootBlockCount(
-            previousMarkdown: previousMarkdown,
+            newMarkdown: newMarkdown,
             previousBlocks: previousBlocks,
             ranges: ranges
         )
@@ -203,30 +203,30 @@ private extension MarkdownParser {
     }
 
     func preferredTailRootBlockCount(
-        previousMarkdown: String,
+        newMarkdown: String,
         previousBlocks: [MarkdownBlockNode],
         ranges: [RootBlockRange]
     ) -> Int {
-        var count = min(3, ranges.count)
+        var count = 1
 
-        let complexTail = previousBlocks.suffix(3).contains { block in
-            switch block {
+        if let lastBlock = previousBlocks.last {
+            switch lastBlock {
             case .blockquote, .bulletedList, .numberedList, .taskList, .codeBlock, .table:
-                return true
+                count = 2
             case .paragraph, .heading, .thematicBreak:
-                return false
+                break
             }
         }
-        if complexTail {
-            count = min(5, ranges.count)
+
+        let suffix = String(newMarkdown.suffix(2048))
+        if suffixContainsContinuationMarkers(suffix) {
+            count = max(count, 4)
+        }
+        if suffixContainsOpenFence(suffix) {
+            count = max(count, 5)
         }
 
-        let suffix = String(previousMarkdown.suffix(2048))
-        if suffixContainsOpenFence(suffix) || suffixContainsContinuationMarkers(suffix) {
-            count = min(max(count, 8), ranges.count)
-        }
-
-        return max(count, 1)
+        return min(max(count, 1), ranges.count)
     }
 
     func suffixContainsOpenFence(_ suffix: String) -> Bool {
@@ -241,6 +241,10 @@ private extension MarkdownParser {
     }
 
     func suffixContainsContinuationMarkers(_ suffix: String) -> Bool {
+        if suffixContainsOpenTable(suffix) {
+            return true
+        }
+
         guard let lastNonEmptyLine = suffix
             .split(separator: "\n", omittingEmptySubsequences: false)
             .reversed()
@@ -253,7 +257,6 @@ private extension MarkdownParser {
             || trimmed.hasPrefix("- ")
             || trimmed.hasPrefix("* ")
             || trimmed.hasPrefix("+ ")
-            || trimmed.hasPrefix("|")
         {
             return true
         }
@@ -261,6 +264,47 @@ private extension MarkdownParser {
             of: #"^\d+\.\s"#,
             options: .regularExpression
         ) != nil
+    }
+
+    func suffixContainsOpenTable(_ suffix: String) -> Bool {
+        let lastBlock = suffix.components(separatedBy: "\n\n").last ?? suffix
+        let lines = lastBlock
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard let header = lines.first, header.hasPrefix("|") else {
+            return false
+        }
+        guard lines.count >= 2 else {
+            return true
+        }
+        guard isTableSeparatorLine(lines[1]) else {
+            return true
+        }
+
+        for line in lines.dropFirst(2) where !line.hasPrefix("|") {
+            return true
+        }
+        return false
+    }
+
+    func isTableSeparatorLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|") else {
+            return false
+        }
+
+        let cells = trimmed
+            .split(separator: "|", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+
+        guard !cells.isEmpty else { return false }
+
+        return cells.allSatisfy { cell in
+            let stripped = cell.replacingOccurrences(of: ":", with: "")
+            return !stripped.isEmpty && stripped.allSatisfy { $0 == "-" }
+        }
     }
 
     func maxMathIdentifier<S: Sequence>(in blocks: S) -> Int where S.Element == MarkdownBlockNode {
