@@ -77,9 +77,13 @@ extension MarkdownTextView {
         )
     }
 
-    @objc func handleImageDidLoad(_: Notification) {
+    @objc func handleImageDidLoad(_ notification: Notification) {
         // Re-render current document so newly cached images appear
         guard !document.blocks.isEmpty else { return }
+        if let imageSource = notification.object as? String,
+           !document.imageSources.contains(imageSource) {
+            return
+        }
         use(document)
     }
 

@@ -116,6 +116,36 @@ final class HighlighterTests: XCTestCase {
         XCTAssertTrue(content.highlightMaps.isEmpty)
     }
 
+    func testPreprocessedContentCollectsImageSources() {
+        let parser = MarkdownParser()
+        let result = parser.parse("![alt](https://example.com/a.png)")
+        let content = MarkdownTextView.PreprocessedContent(
+            parserResult: result,
+            theme: .default
+        )
+
+        XCTAssertEqual(content.imageSources, Set(["https://example.com/a.png"]))
+    }
+
+    func testPreprocessedContentCollectsNestedImageSources() {
+        let parser = MarkdownParser()
+        let md = """
+        > ![one](https://example.com/one.png)
+
+        - [link ![two](https://example.com/two.png)](https://example.com)
+        """
+        let result = parser.parse(md)
+        let content = MarkdownTextView.PreprocessedContent(
+            parserResult: result,
+            theme: .default
+        )
+
+        XCTAssertEqual(
+            content.imageSources,
+            Set(["https://example.com/one.png", "https://example.com/two.png"])
+        )
+    }
+
     func testPreprocessedContentNestedCodeBlock() {
         let parser = MarkdownParser()
         // Use a blockquote followed by a code block to test BFS traversal

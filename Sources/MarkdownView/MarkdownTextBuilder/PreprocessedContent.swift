@@ -14,22 +14,26 @@ public extension MarkdownTextView {
         public let blocks: [MarkdownBlockNode]
         public let rendered: RenderedTextContent.Map
         public let highlightMaps: [Int: CodeHighlighter.HighlightMap]
+        let imageSources: Set<String>
 
         public init(
             blocks: [MarkdownBlockNode],
             rendered: RenderedTextContent.Map,
-            highlightMaps: [Int: CodeHighlighter.HighlightMap]
+            highlightMaps: [Int: CodeHighlighter.HighlightMap],
+            imageSources: Set<String> = []
         ) {
             self.blocks = blocks
             self.rendered = rendered
             self.highlightMaps = highlightMaps
+            self.imageSources = imageSources
         }
 
         public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) {
             blocks = parserResult.document
             rendered = parserResult.render(theme: theme)
             highlightMaps = parserResult.render(theme: theme)
-            preloadImages(in: blocks)
+            imageSources = Self.collectImageSources(in: blocks)
+            preloadImages()
         }
 
         /// Creates preprocessed content with code highlighting done on the calling thread
@@ -45,7 +49,8 @@ public extension MarkdownTextView {
                 rendered = parserResult.render(theme: theme)
                 highlightMaps = parserResult.render(theme: theme)
             }
-            preloadImages(in: blocks)
+            imageSources = Self.collectImageSources(in: blocks)
+            preloadImages()
         }
 
         /// Fills in math-rendered content from main thread after background init.
@@ -53,7 +58,8 @@ public extension MarkdownTextView {
             PreprocessedContent(
                 blocks: blocks,
                 rendered: parserResult.render(theme: theme),
-                highlightMaps: highlightMaps
+                highlightMaps: highlightMaps,
+                imageSources: imageSources
             )
         }
 
@@ -61,20 +67,25 @@ public extension MarkdownTextView {
             blocks = .init()
             rendered = .init()
             highlightMaps = .init()
+            imageSources = []
         }
 
         private static let log = Logger(subsystem: "MarkdownView", category: "PreprocessedContent")
 
-        /// Kick off async image loading for all image URLs in the document.
-        private func preloadImages(in blocks: [MarkdownBlockNode]) {
+        static func collectImageSources(in blocks: [MarkdownBlockNode]) -> Set<String> {
             var urls = Set<String>()
             visitImageURLs(in: blocks, urls: &urls)
+            return urls
+        }
+
+        /// Kick off async image loading for all image URLs in the document.
+        private func preloadImages() {
             #if DEBUG
-                if !urls.isEmpty {
-                    Self.log.info("preloadImages: \(urls.count) image URL(s) found")
+                if !imageSources.isEmpty {
+                    Self.log.info("preloadImages: \(self.imageSources.count) image URL(s) found")
                 }
             #endif
-            for url in urls {
+            for url in imageSources {
                 ImageLoader.shared.loadImage(from: url) { _ in }
             }
         }
