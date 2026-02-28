@@ -37,14 +37,10 @@ import Litext
 
             let artifacts = TextBuilder.build(
                 view: self,
-                viewProvider: viewProvider,
-                cachedSegments: cachedBlockSegments,
-                previousBlocks: previousBlocks
+                viewProvider: viewProvider
             )
             textView.attributedText = artifacts.document
             contextViews = artifacts.subviews
-            cachedBlockSegments = artifacts.blockSegments
-            previousBlocks = document.blocks
 
             for view in artifacts.subviews {
                 if let view = view as? CodeView {
@@ -88,14 +84,10 @@ import Litext
 
             let artifacts = TextBuilder.build(
                 view: self,
-                viewProvider: viewProvider,
-                cachedSegments: cachedBlockSegments,
-                previousBlocks: previousBlocks
+                viewProvider: viewProvider
             )
             textView.attributedText = artifacts.document
             contextViews = artifacts.subviews
-            cachedBlockSegments = artifacts.blockSegments
-            previousBlocks = document.blocks
 
             for view in artifacts.subviews {
                 if let view = view as? CodeView {

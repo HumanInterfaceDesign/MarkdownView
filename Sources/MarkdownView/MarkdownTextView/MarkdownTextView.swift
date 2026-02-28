@@ -34,11 +34,6 @@ import MarkdownParser
             didSet { setupCombine() }
         }
 
-        /// Cached per-block attributed strings from the last build, for incremental updates.
-        var cachedBlockSegments: [NSAttributedString] = []
-        /// Block nodes from the previous render, used for AST diffing.
-        var previousBlocks: [MarkdownBlockNode] = []
-
         let viewProvider: ReusableViewProvider
 
         public init(viewProvider: ReusableViewProvider = .init()) {
@@ -102,8 +97,6 @@ import MarkdownParser
 
         public func reset() {
             assert(Thread.isMainThread)
-            cachedBlockSegments = []
-            previousBlocks = []
             use(.init())
             setupCombine()
         }
@@ -138,11 +131,6 @@ import MarkdownParser
         public var throttleInterval: TimeInterval? = 1 / 20 { // x fps
             didSet { setupCombine() }
         }
-
-        /// Cached per-block attributed strings from the last build, for incremental updates.
-        var cachedBlockSegments: [NSAttributedString] = []
-        /// Block nodes from the previous render, used for AST diffing.
-        var previousBlocks: [MarkdownBlockNode] = []
 
         let viewProvider: ReusableViewProvider
 
@@ -216,8 +204,6 @@ import MarkdownParser
 
         public func reset() {
             assert(Thread.isMainThread)
-            cachedBlockSegments = []
-            previousBlocks = []
             use(.init())
             setupCombine()
         }

@@ -8,7 +8,6 @@
 import CoreText
 import Foundation
 import Litext
-import MarkdownParser
 
 #if canImport(UIKit)
     import UIKit
@@ -59,9 +58,7 @@ extension TextBuilder {
 
     static func build(
         view: MarkdownTextView,
-        viewProvider: ReusableViewProvider,
-        cachedSegments: [NSAttributedString] = [],
-        previousBlocks: [MarkdownBlockNode] = []
+        viewProvider: ReusableViewProvider
     ) -> BuildResult {
         let context: MarkdownTextView.PreprocessedContent = view.document
         let theme: MarkdownTheme = view.theme
@@ -227,19 +224,6 @@ extension TextBuilder {
                 context.addPath(roundedPath)
                 context.fillPath()
             }
-
-        // Use incremental build when we have cached data from a previous render
-        if !previousBlocks.isEmpty, !cachedSegments.isEmpty {
-            let changes = ASTDiff.diff(old: previousBlocks, new: context.blocks)
-            let hasChanges = changes.contains { if case .keep = $0 { return false } else { return true } }
-            if hasChanges {
-                return builder.buildIncremental(
-                    changes: changes,
-                    cachedSegments: cachedSegments,
-                    cachedSubviews: view.contextViews
-                )
-            }
-        }
 
         return builder.build()
     }
