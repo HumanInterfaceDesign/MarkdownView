@@ -173,7 +173,7 @@
                     #if !targetEnvironment(macCatalyst) && !os(tvOS) && !os(watchOS)
                         showSelectionMenuController()
                     #endif
-                } else if selectionRange == nil || selectionRange!.length == 0 {
+                } else {
                     clearSelection()
                 }
             }
