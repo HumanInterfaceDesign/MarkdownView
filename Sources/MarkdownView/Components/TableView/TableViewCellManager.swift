@@ -20,8 +20,10 @@ import Litext
         private(set) var heights: [CGFloat] = []
         private var theme: MarkdownTheme = .default
         private weak var delegate: LTXLabelDelegate?
-        /// Content hashes from previous configuration, for diff-based updates.
-        private var previousContentHashes: [Int] = []
+        /// Styled content fingerprints from previous configuration, for diff-based updates.
+        private var previousContentFingerprints: [Int] = []
+        private var previousMaximumCellWidth: CGFloat = 0
+        private var previousCellPadding: CGFloat = 0
 
         // MARK: - Cell Configuration
 
@@ -35,27 +37,36 @@ import Litext
             let numberOfColumns = contents.first?.count ?? 0
             let totalCells = numberOfRows * numberOfColumns
 
-            // Compute content hashes for diffing
-            var newHashes = [Int]()
-            newHashes.reserveCapacity(totalCells)
-            for row in contents {
-                for cell in row {
-                    newHashes.append(cell.string.hashValue)
+            // Compute styled content fingerprints for diffing.
+            var newFingerprints = [Int]()
+            newFingerprints.reserveCapacity(totalCells)
+            for (row, rowContent) in contents.enumerated() {
+                let isHeaderCell = row == 0
+                let themeSignature = makeThemeSignature(isHeader: isHeaderCell)
+                for cell in rowContent {
+                    newFingerprints.append(
+                        makeContentFingerprint(for: cell, themeSignature: themeSignature)
+                    )
                 }
             }
 
             // Check if we can do a diff-based update (same grid dimensions)
-            let canDiff = previousContentHashes.count == totalCells
+            let canDiff = previousContentFingerprints.count == totalCells
                 && cells.count == totalCells
+            let canReuseCachedSizes = canDiff
+                && previousMaximumCellWidth == maximumCellWidth
+                && previousCellPadding == cellPadding
+            let previousCellSizes = cellSizes
 
             if !canDiff {
-                // Full rebuild
-                cellSizes = Array(repeating: .zero, count: totalCells)
-                cells.forEach { $0.removeFromSuperview() }
-                cells.removeAll()
-            } else {
-                cellSizes = Array(repeating: .zero, count: totalCells)
+                if cells.count > totalCells {
+                    let removedCells = cells[totalCells...]
+                    removedCells.forEach { $0.removeFromSuperview() }
+                    cells.removeLast(removedCells.count)
+                }
+                cellSizes.removeAll(keepingCapacity: true)
             }
+            cellSizes = Array(repeating: .zero, count: totalCells)
 
             widths = Array(repeating: 0, count: numberOfColumns)
             heights = Array(repeating: 0, count: numberOfRows)
@@ -69,9 +80,18 @@ import Litext
                     let isHeaderCell = row == 0
 
                     // Skip update if content hasn't changed
-                    if canDiff, previousContentHashes[index] == newHashes[index] {
+                    if canDiff, previousContentFingerprints[index] == newFingerprints[index] {
                         let cell = cells[index]
-                        let cellSize = calculateCellSize(for: cell, cellPadding: cellPadding)
+                        if cell.preferredMaxLayoutWidth != maximumCellWidth {
+                            cell.preferredMaxLayoutWidth = maximumCellWidth
+                        }
+                        let cellSize: CGSize = if canReuseCachedSizes,
+                                                 let previousCellSize = previousCellSizes[safe: index]
+                        {
+                            previousCellSize
+                        } else {
+                            calculateCellSize(for: cell, cellPadding: cellPadding)
+                        }
                         cellSizes[index] = cellSize
                         rowHeight = max(rowHeight, cellSize.height)
                         widths[column] = max(widths[column], cellSize.width)
@@ -97,7 +117,9 @@ import Litext
                 heights[row] = rowHeight
             }
 
-            previousContentHashes = newHashes
+            previousContentFingerprints = newFingerprints
+            previousMaximumCellWidth = maximumCellWidth
+            previousCellPadding = cellPadding
         }
 
         // MARK: - Public Methods
@@ -136,6 +158,7 @@ import Litext
                 cell = cells[index]
             }
 
+            cell.preferredMaxLayoutWidth = maximumWidth
             cell.attributedText = attributedText
 
             if isHeader {
@@ -204,6 +227,18 @@ import Litext
                 }
             }
         }
+
+        private func makeThemeSignature(isHeader: Bool) -> Int {
+            var hasher = Hasher()
+            hasher.combine(isHeader)
+            if isHeader {
+                hasher.combine(theme.fonts.bold.fontName)
+                hasher.combine(theme.fonts.bold.pointSize)
+            } else {
+                hasher.combine(theme.colors.body.resolvedTableCacheSignature)
+            }
+            return hasher.finalize()
+        }
     }
 
 #elseif canImport(AppKit)
@@ -216,8 +251,10 @@ import Litext
         private(set) var heights: [CGFloat] = []
         private var theme: MarkdownTheme = .default
         private weak var delegate: LTXLabelDelegate?
-        /// Content hashes from previous configuration, for diff-based updates.
-        private var previousContentHashes: [Int] = []
+        /// Styled content fingerprints from previous configuration, for diff-based updates.
+        private var previousContentFingerprints: [Int] = []
+        private var previousMaximumCellWidth: CGFloat = 0
+        private var previousCellPadding: CGFloat = 0
 
         func configureCells(
             for contents: [[NSAttributedString]],
@@ -229,26 +266,36 @@ import Litext
             let numberOfColumns = contents.first?.count ?? 0
             let totalCells = numberOfRows * numberOfColumns
 
-            // Compute content hashes for diffing
-            var newHashes = [Int]()
-            newHashes.reserveCapacity(totalCells)
-            for row in contents {
-                for cell in row {
-                    newHashes.append(cell.string.hashValue)
+            // Compute styled content fingerprints for diffing.
+            var newFingerprints = [Int]()
+            newFingerprints.reserveCapacity(totalCells)
+            for (row, rowContent) in contents.enumerated() {
+                let isHeaderCell = row == 0
+                let themeSignature = makeThemeSignature(isHeader: isHeaderCell)
+                for cell in rowContent {
+                    newFingerprints.append(
+                        makeContentFingerprint(for: cell, themeSignature: themeSignature)
+                    )
                 }
             }
 
             // Check if we can do a diff-based update (same grid dimensions)
-            let canDiff = previousContentHashes.count == totalCells
+            let canDiff = previousContentFingerprints.count == totalCells
                 && cells.count == totalCells
+            let canReuseCachedSizes = canDiff
+                && previousMaximumCellWidth == maximumCellWidth
+                && previousCellPadding == cellPadding
+            let previousCellSizes = cellSizes
 
             if !canDiff {
-                cellSizes = Array(repeating: .zero, count: totalCells)
-                cells.forEach { $0.removeFromSuperview() }
-                cells.removeAll()
-            } else {
-                cellSizes = Array(repeating: .zero, count: totalCells)
+                if cells.count > totalCells {
+                    let removedCells = cells[totalCells...]
+                    removedCells.forEach { $0.removeFromSuperview() }
+                    cells.removeLast(removedCells.count)
+                }
+                cellSizes.removeAll(keepingCapacity: true)
             }
+            cellSizes = Array(repeating: .zero, count: totalCells)
 
             widths = Array(repeating: 0, count: numberOfColumns)
             heights = Array(repeating: 0, count: numberOfRows)
@@ -261,9 +308,18 @@ import Litext
                     let isHeaderCell = row == 0
 
                     // Skip update if content hasn't changed
-                    if canDiff, previousContentHashes[index] == newHashes[index] {
+                    if canDiff, previousContentFingerprints[index] == newFingerprints[index] {
                         let cell = cells[index]
-                        let cellSize = calculateCellSize(for: cell, cellPadding: cellPadding)
+                        if cell.preferredMaxLayoutWidth != maximumCellWidth {
+                            cell.preferredMaxLayoutWidth = maximumCellWidth
+                        }
+                        let cellSize: CGSize = if canReuseCachedSizes,
+                                                 let previousCellSize = previousCellSizes[safe: index]
+                        {
+                            previousCellSize
+                        } else {
+                            calculateCellSize(for: cell, cellPadding: cellPadding)
+                        }
                         cellSizes[index] = cellSize
                         rowHeight = max(rowHeight, cellSize.height)
                         widths[column] = max(widths[column], cellSize.width)
@@ -288,7 +344,9 @@ import Litext
                 heights[row] = rowHeight
             }
 
-            previousContentHashes = newHashes
+            previousContentFingerprints = newFingerprints
+            previousMaximumCellWidth = maximumCellWidth
+            previousCellPadding = cellPadding
         }
 
         func setTheme(_ theme: MarkdownTheme) {
@@ -324,6 +382,7 @@ import Litext
                 cell = cells[index]
             }
 
+            cell.preferredMaxLayoutWidth = maximumWidth
             cell.attributedText = attributedText
 
             if isHeader {
@@ -391,6 +450,66 @@ import Litext
                     applyCellNormalStyling(to: cell)
                 }
             }
+        }
+
+        private func makeThemeSignature(isHeader: Bool) -> Int {
+            var hasher = Hasher()
+            hasher.combine(isHeader)
+            if isHeader {
+                hasher.combine(theme.fonts.bold.fontName)
+                hasher.combine(theme.fonts.bold.pointSize)
+            } else {
+                hasher.combine(theme.colors.body.resolvedTableCacheSignature)
+            }
+            return hasher.finalize()
+        }
+    }
+#endif
+
+private func makeContentFingerprint(
+    for attributedText: NSAttributedString,
+    themeSignature: Int
+) -> Int {
+    var hasher = Hasher()
+    hasher.combine(themeSignature)
+    hasher.combine(attributedText.string)
+    hasher.combine(attributedText.length)
+
+    attributedText.enumerateAttributes(
+        in: NSRange(location: 0, length: attributedText.length),
+        options: []
+    ) { attributes, range, _ in
+        hasher.combine(range.location)
+        hasher.combine(range.length)
+
+        for key in attributes.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            hasher.combine(key.rawValue)
+            if let value = attributes[key] {
+                hasher.combine(String(reflecting: value))
+            }
+        }
+    }
+
+    return hasher.finalize()
+}
+
+#if canImport(UIKit)
+    private extension UIColor {
+        var resolvedTableCacheSignature: String {
+            if let components = cgColor.components {
+                return components.map { String(format: "%.6f", $0) }.joined(separator: ",")
+            }
+            return description
+        }
+    }
+#elseif canImport(AppKit)
+    private extension NSColor {
+        var resolvedTableCacheSignature: String {
+            let resolved = usingColorSpace(.deviceRGB) ?? self
+            guard let components = resolved.cgColor.components else {
+                return description
+            }
+            return components.map { String(format: "%.6f", $0) }.joined(separator: ",")
         }
     }
 #endif
