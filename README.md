@@ -51,7 +51,11 @@ Then add `"MarkdownView"` as a dependency of your target.
 
 ### UIKit
 
+<details>
+<summary>Show UIKit example</summary>
+
 ```swift
+import UIKit
 import MarkdownParser
 import MarkdownView
 
@@ -111,7 +115,85 @@ class ViewController: UIViewController {
 }
 ```
 
+</details>
+
+### SwiftUI
+
+Wrap `MarkdownTextView` in `UIViewRepresentable` when you want to use it from SwiftUI on iOS or visionOS.
+
+<details>
+<summary>Show SwiftUI example</summary>
+
+```swift
+import SwiftUI
+import MarkdownParser
+import MarkdownView
+
+struct MarkdownTextViewRepresentable: UIViewRepresentable {
+    let markdown: String
+    var theme: MarkdownTheme = .default
+
+    func makeUIView(context: Context) -> MarkdownTextView {
+        let view = MarkdownTextView()
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        return view
+    }
+
+    func updateUIView(_ uiView: MarkdownTextView, context: Context) {
+        uiView.theme = theme
+        let parser = MarkdownParser()
+        let result = parser.parse(markdown)
+        let content = MarkdownTextView.PreprocessedContent(
+            parserResult: result,
+            theme: theme
+        )
+        uiView.setMarkdown(content)
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: MarkdownTextView,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width, width > 0 else {
+            return uiView.intrinsicContentSize
+        }
+        return uiView.boundingSize(for: width)
+    }
+}
+
+struct ContentView: View {
+    private let markdown = """
+    # Hello, SwiftUI!
+
+    This `MarkdownTextView` is wrapped with `UIViewRepresentable`.
+
+    ```swift
+    struct GreetingView: View {
+        var body: some View {
+            Text("Hello from MarkdownView")
+        }
+    }
+    ```
+    """
+
+    var body: some View {
+        ScrollView {
+            MarkdownTextViewRepresentable(markdown: markdown)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+        }
+    }
+}
+```
+
+</details>
+
 ### Theming
+
+<details>
+<summary>Show theming example</summary>
 
 ```swift
 var theme = MarkdownTheme()
@@ -130,6 +212,8 @@ theme.scaleFont(by: .large)
 
 markdownView.theme = theme
 ```
+
+</details>
 
 ## Architecture
 
