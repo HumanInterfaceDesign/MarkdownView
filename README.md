@@ -49,6 +49,9 @@ Then add `"MarkdownView"` as a dependency of your target.
 
 ## Usage
 
+<img width="551" height="319" alt="image" src="https://github.com/user-attachments/assets/25f4bb26-e719-4ff3-9e82-7c081dd52583" />
+
+
 ### UIKit
 
 <details>
@@ -159,7 +162,8 @@ struct MarkdownTextViewRepresentable: UIViewRepresentable {
         guard let width = proposal.width, width > 0 else {
             return uiView.intrinsicContentSize
         }
-        return uiView.boundingSize(for: width)
+        let measuredSize = uiView.boundingSize(for: width)
+        return CGSize(width: width, height: measuredSize.height)
     }
 }
 
