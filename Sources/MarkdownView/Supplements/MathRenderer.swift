@@ -112,7 +112,7 @@ public enum MathRenderer {
         }
 
         #if canImport(UIKit)
-            let result = image.withRenderingMode(.alwaysTemplate).withTintColor(.label)
+            let result: UIImage = image.withTintColor(.label, renderingMode: .alwaysTemplate)
         #elseif canImport(AppKit)
             image.isTemplate = true
             let result = image
