@@ -360,6 +360,17 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testHeaderBarHeightsFitTheirButtons() {
+        XCTAssertGreaterThanOrEqual(
+            DiffViewConfiguration.barHeight(theme: .default),
+            DiffViewConfiguration.buttonSize.height
+        )
+        XCTAssertGreaterThanOrEqual(
+            CodeViewConfiguration.barHeight(theme: .default),
+            CodeViewConfiguration.buttonSize.height
+        )
+    }
+
     private func makeContent(from markdown: String) -> MarkdownTextView.PreprocessedContent {
         let result = parser.parse(markdown)
         return MarkdownTextView.PreprocessedContent(

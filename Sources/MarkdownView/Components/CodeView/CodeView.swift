@@ -14,6 +14,9 @@ import Litext
         var theme: MarkdownTheme = .default {
             didSet {
                 languageLabel.font = theme.fonts.code
+                languageLabel.textColor = theme.colors.body
+                copyButton.tintColor = theme.colors.body
+                previewButton.tintColor = theme.colors.body
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 updateLineNumberView()
             }
@@ -96,7 +99,7 @@ import Litext
 
         override var intrinsicContentSize: CGSize {
             let labelSize = languageLabel.intrinsicContentSize
-            let barHeight = labelSize.height + CodeViewConfiguration.barPadding * 2
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
             let textSize = textView.intrinsicContentSize
             let supposedHeight = CodeViewConfiguration.intrinsicHeight(
                 for: content, lineCount: cachedLineCount, theme: theme
@@ -166,6 +169,9 @@ import Litext
         var theme: MarkdownTheme = .default {
             didSet {
                 languageLabel.font = theme.fonts.code
+                languageLabel.textColor = theme.colors.body
+                copyButton.contentTintColor = theme.colors.body
+                previewButton.contentTintColor = theme.colors.body
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 updateLineNumberView()
             }
@@ -259,7 +265,7 @@ import Litext
 
         override var intrinsicContentSize: CGSize {
             let labelSize = languageLabel.intrinsicContentSize
-            let barHeight = labelSize.height + CodeViewConfiguration.barPadding * 2
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
             let textSize = textView.intrinsicContentSize
             let supposedHeight = CodeViewConfiguration.intrinsicHeight(
                 for: content, lineCount: cachedLineCount, theme: theme

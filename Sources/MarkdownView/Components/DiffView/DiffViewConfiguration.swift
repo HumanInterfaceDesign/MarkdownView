@@ -16,7 +16,7 @@ enum DiffViewConfiguration {
     static let separatorWidth: CGFloat = 1
     static let cornerRadius: CGFloat = 10
     static let minimumLineNumberText = "0"
-    static let buttonSize = CGSize(width: 44, height: 44)
+    static let buttonSize = CGSize(width: 32, height: 32)
 
     static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
         let font = theme.fonts.code
@@ -25,7 +25,7 @@ enum DiffViewConfiguration {
         #elseif canImport(AppKit)
             let lineHeight = font.ascender + abs(font.descender) + font.leading
         #endif
-        return lineHeight + barPadding * 2
+        return max(lineHeight + barPadding * 2, buttonSize.height)
     }
 
     static func lineCount(of block: DiffRenderBlock) -> Int {

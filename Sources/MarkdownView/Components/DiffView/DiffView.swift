@@ -596,7 +596,6 @@ private func makeSideBySideAttributedText(
         }
 
         override var intrinsicContentSize: CGSize {
-            let barHeight = DiffViewConfiguration.barHeight(theme: theme)
             let titleWidth = titleLabel.intrinsicContentSize.width
             let textSize = textView.intrinsicContentSize
             let gutterWidth = gutterView.intrinsicContentSize.width
@@ -695,6 +694,7 @@ private func makeSideBySideAttributedText(
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
+            scrollView.setContentOffset(.zero, animated: false)
             setNeedsLayout()
             invalidateIntrinsicContentSize()
         }
@@ -758,7 +758,7 @@ private func makeSideBySideAttributedText(
                 textSize.width + DiffViewConfiguration.horizontalPadding * 2
             )
             let containerHeight = max(
-                bounds.height,
+                scrollView.bounds.height,
                 textSize.height + DiffViewConfiguration.verticalPadding * 2
             )
 
@@ -773,7 +773,10 @@ private func makeSideBySideAttributedText(
                 ),
                 height: textSize.height
             )
-            scrollView.contentSize = contentContainerView.bounds.size
+            scrollView.contentSize = CGSize(
+                width: contentContainerView.bounds.width,
+                height: scrollView.bounds.height
+            )
         }
     }
 
@@ -1296,6 +1299,7 @@ private func makeSideBySideAttributedText(
             barView.layer?.backgroundColor = theme.diff.fileHeaderBackground.cgColor
             titleLabel.font = theme.fonts.code
             titleLabel.textColor = theme.diff.fileHeaderText
+            copyButton.contentTintColor = theme.diff.fileHeaderText
         }
 
         @objc private func handleCopy(_: Any?) {
@@ -1331,6 +1335,8 @@ private func makeSideBySideAttributedText(
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
+            scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
             needsLayout = true
             invalidateIntrinsicContentSize()
         }
@@ -1394,7 +1400,7 @@ private func makeSideBySideAttributedText(
                 textSize.width + DiffViewConfiguration.horizontalPadding * 2
             )
             let containerHeight = max(
-                bounds.height,
+                scrollView.bounds.height,
                 textSize.height + DiffViewConfiguration.verticalPadding * 2
             )
 

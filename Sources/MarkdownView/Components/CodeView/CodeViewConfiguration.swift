@@ -13,6 +13,7 @@ import Litext
 
 enum CodeViewConfiguration {
     static let barPadding: CGFloat = 8
+    static let buttonSize = CGSize(width: 32, height: 32)
     static let codePadding: CGFloat = 8
     static let codeLineSpacing: CGFloat = 4
     static let lineNumberWidth: CGFloat = 40
@@ -33,18 +34,28 @@ enum CodeViewConfiguration {
         lineCount: Int? = nil,
         theme: MarkdownTheme = .default
     ) -> CGFloat {
+        let barHeight = Self.barHeight(theme: theme)
         let font = theme.fonts.code
         #if canImport(UIKit)
             let lineHeight = font.lineHeight
         #elseif canImport(AppKit)
             let lineHeight = font.ascender + abs(font.descender) + font.leading
         #endif
-        let barHeight = lineHeight + barPadding * 2
         let numberOfRows = lineCount ?? Self.lineCount(of: content)
         let codeHeight = lineHeight * CGFloat(numberOfRows)
             + codePadding * 2
             + codeLineSpacing * CGFloat(max(numberOfRows - 1, 0))
         return ceil(barHeight + codeHeight)
+    }
+
+    static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
+        let font = theme.fonts.code
+        #if canImport(UIKit)
+            let lineHeight = font.lineHeight
+        #elseif canImport(AppKit)
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
+        #endif
+        return max(lineHeight + barPadding * 2, buttonSize.height)
     }
 }
 
@@ -68,6 +79,7 @@ enum CodeViewConfiguration {
 
         private func setupBarView() {
             barView.backgroundColor = .gray.withAlphaComponent(0.05)
+            languageLabel.textColor = theme.colors.body
             addSubview(barView)
             barView.addSubview(languageLabel)
         }
@@ -83,6 +95,7 @@ enum CodeViewConfiguration {
                 withConfiguration: UIImage.SymbolConfiguration(scale: .small)
             )
             previewButton.setImage(previewImage, for: .normal)
+            previewButton.tintColor = theme.colors.body
             previewButton.addTarget(self, action: #selector(handlePreview(_:)), for: .touchUpInside)
             barView.addSubview(previewButton)
         }
@@ -93,6 +106,7 @@ enum CodeViewConfiguration {
                 withConfiguration: UIImage.SymbolConfiguration(scale: .small)
             )
             copyButton.setImage(copyImage, for: .normal)
+            copyButton.tintColor = theme.colors.body
             copyButton.addTarget(self, action: #selector(handleCopy(_:)), for: .touchUpInside)
             barView.addSubview(copyButton)
         }
@@ -121,7 +135,7 @@ enum CodeViewConfiguration {
 
         func performLayout() {
             let labelSize = languageLabel.intrinsicContentSize
-            let barHeight = max(languageLabel.font?.lineHeight ?? 16, labelSize.height) + CodeViewConfiguration.barPadding * 2
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
 
             layoutBarView(barHeight: barHeight, labelSize: labelSize)
             layoutButtons()
@@ -130,7 +144,7 @@ enum CodeViewConfiguration {
         }
 
         private func layoutButtons() {
-            let buttonSize = CGSize(width: 44, height: 44)
+            let buttonSize = CodeViewConfiguration.buttonSize
             let hasPreview = previewAction != nil
 
             if hasPreview {
@@ -221,6 +235,7 @@ enum CodeViewConfiguration {
         private func setupBarView() {
             barView.wantsLayer = true
             barView.layer?.backgroundColor = NSColor.gray.withAlphaComponent(0.05).cgColor
+            languageLabel.textColor = theme.colors.body
             addSubview(barView)
             barView.addSubview(languageLabel)
         }
@@ -238,6 +253,7 @@ enum CodeViewConfiguration {
             previewButton.action = #selector(handlePreview(_:))
             previewButton.bezelStyle = .inline
             previewButton.isBordered = false
+            previewButton.contentTintColor = theme.colors.body
             barView.addSubview(previewButton)
         }
 
@@ -249,6 +265,7 @@ enum CodeViewConfiguration {
             copyButton.action = #selector(handleCopy(_:))
             copyButton.bezelStyle = .inline
             copyButton.isBordered = false
+            copyButton.contentTintColor = theme.colors.body
             barView.addSubview(copyButton)
         }
 
@@ -284,9 +301,7 @@ enum CodeViewConfiguration {
 
         func performLayout() {
             let labelSize = languageLabel.intrinsicContentSize
-            let font = languageLabel.font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
-            let lineHeight = font.ascender + abs(font.descender) + font.leading
-            let barHeight = max(lineHeight, labelSize.height) + CodeViewConfiguration.barPadding * 2
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
 
             layoutBarView(barHeight: barHeight, labelSize: labelSize)
             layoutButtons()
@@ -295,7 +310,7 @@ enum CodeViewConfiguration {
         }
 
         private func layoutButtons() {
-            let buttonSize = CGSize(width: 44, height: 44)
+            let buttonSize = CodeViewConfiguration.buttonSize
             let hasPreview = previewAction != nil
 
             if hasPreview {
