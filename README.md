@@ -9,6 +9,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - Full GFM (GitHub Flavored Markdown) support: headings, lists, tables, blockquotes, task lists, and more
 - Native syntax highlighting powered by [tree-sitter](https://tree-sitter.github.io/) — no JavaScript runtime overhead
 - 19 languages: Swift, C, C++, C#, Python, JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, Ruby, Bash, SQL, YAML, JSON, HTML, CSS
+- GitHub-style unified diff rendering for fenced `diff` blocks, with optional inner-language syntax highlighting
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
@@ -216,6 +217,22 @@ markdownView.theme = theme
 ```
 
 </details>
+
+### Unified Diffs
+
+Use a fenced code block whose first info-string token is `diff`. Add an optional second token to syntax-highlight the changed lines with a specific language.
+
+````md
+```diff swift
+@@ -11,7 +11,7 @@ export default function Home() {
+ <div>
+-  <h2>Design Engineer</h2>
++  <h2>Designer</h2>
+ </div>
+```
+````
+
+This renders as a dedicated diff view with hunk headers, dual line numbers, added/removed row styling, and inline change emphasis for paired edits.
 
 ## Architecture
 

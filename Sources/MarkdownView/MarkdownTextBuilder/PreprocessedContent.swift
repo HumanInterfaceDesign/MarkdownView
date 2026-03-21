@@ -14,6 +14,7 @@ public extension MarkdownTextView {
         public let blocks: [MarkdownBlockNode]
         public let rendered: RenderedTextContent.Map
         public let highlightMaps: [Int: CodeHighlighter.HighlightMap]
+        let diffRenderBlocks: [Int: DiffRenderBlock]
         let imageSources: Set<String>
 
         public init(
@@ -25,6 +26,21 @@ public extension MarkdownTextView {
             self.blocks = blocks
             self.rendered = rendered
             self.highlightMaps = highlightMaps
+            diffRenderBlocks = buildDiffRenderBlocks(from: blocks)
+            self.imageSources = imageSources
+        }
+
+        init(
+            blocks: [MarkdownBlockNode],
+            rendered: RenderedTextContent.Map,
+            highlightMaps: [Int: CodeHighlighter.HighlightMap],
+            diffRenderBlocks: [Int: DiffRenderBlock],
+            imageSources: Set<String> = []
+        ) {
+            self.blocks = blocks
+            self.rendered = rendered
+            self.highlightMaps = highlightMaps
+            self.diffRenderBlocks = diffRenderBlocks
             self.imageSources = imageSources
         }
 
@@ -32,6 +48,7 @@ public extension MarkdownTextView {
             blocks = parserResult.document
             rendered = parserResult.render(theme: theme)
             highlightMaps = parserResult.render(theme: theme)
+            diffRenderBlocks = parserResult.renderDiffBlocks()
             imageSources = Self.collectImageSources(in: blocks)
             preloadImages()
         }
@@ -44,10 +61,12 @@ public extension MarkdownTextView {
             if backgroundSafe {
                 // Code highlighting is thread-safe; math rendering needs main thread context
                 highlightMaps = parserResult.render(theme: theme)
+                diffRenderBlocks = parserResult.renderDiffBlocks()
                 rendered = .init()
             } else {
                 rendered = parserResult.render(theme: theme)
                 highlightMaps = parserResult.render(theme: theme)
+                diffRenderBlocks = parserResult.renderDiffBlocks()
             }
             imageSources = Self.collectImageSources(in: blocks)
             preloadImages()
@@ -59,6 +78,7 @@ public extension MarkdownTextView {
                 blocks: blocks,
                 rendered: parserResult.render(theme: theme),
                 highlightMaps: highlightMaps,
+                diffRenderBlocks: diffRenderBlocks,
                 imageSources: imageSources
             )
         }
@@ -67,6 +87,7 @@ public extension MarkdownTextView {
             blocks = .init()
             rendered = .init()
             highlightMaps = .init()
+            diffRenderBlocks = .init()
             imageSources = []
         }
 
@@ -95,10 +116,19 @@ public extension MarkdownTextView {
                 highlightMaps[key] = value
             }
 
+            var diffRenderBlocks = retainedDiffRenderBlocks(
+                from: stablePrefixBlocks,
+                available: prefix.diffRenderBlocks
+            )
+            for (key, value) in tail.diffRenderBlocks {
+                diffRenderBlocks[key] = value
+            }
+
             let content = PreprocessedContent(
                 blocks: mergedBlocks,
                 rendered: rendered,
                 highlightMaps: highlightMaps,
+                diffRenderBlocks: diffRenderBlocks,
                 imageSources: collectImageSources(in: mergedBlocks)
             )
             content.preloadImages()
@@ -210,11 +240,16 @@ public extension MarkdownParser.ParseResult {
     func render(theme: MarkdownTheme) -> [Int: CodeHighlighter.HighlightMap] {
         var highlightMaps = [Int: CodeHighlighter.HighlightMap]()
         visitCodeBlocks(in: document) { fenceInfo, content in
+            guard DiffFenceInfo.parse(fenceInfo) == nil else { return }
             let key = CodeHighlighter.current.key(for: content, language: fenceInfo)
             let map = CodeHighlighter.current.highlight(key: key, content: content, language: fenceInfo)
             highlightMaps[key] = map
         }
         return highlightMaps
+    }
+
+    internal func renderDiffBlocks() -> [Int: DiffRenderBlock] {
+        buildDiffRenderBlocks(from: document)
     }
 }
 
@@ -224,12 +259,41 @@ private func retainedHighlightMaps(
 ) -> [Int: CodeHighlighter.HighlightMap] {
     var retained = [Int: CodeHighlighter.HighlightMap]()
     visitCodeBlocks(in: blocks) { fenceInfo, content in
+        guard DiffFenceInfo.parse(fenceInfo) == nil else { return }
         let key = CodeHighlighter.current.key(for: content, language: fenceInfo)
         if let existing = available[key] {
             retained[key] = existing
         }
     }
     return retained
+}
+
+private func retainedDiffRenderBlocks(
+    from blocks: [MarkdownBlockNode],
+    available: [Int: DiffRenderBlock]
+) -> [Int: DiffRenderBlock] {
+    var retained = [Int: DiffRenderBlock]()
+    visitCodeBlocks(in: blocks) { fenceInfo, content in
+        guard let diffFenceInfo = DiffFenceInfo.parse(fenceInfo) else { return }
+        let key = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
+        if let existing = available[key] {
+            retained[key] = existing
+        }
+    }
+    return retained
+}
+
+private func buildDiffRenderBlocks(from blocks: [MarkdownBlockNode]) -> [Int: DiffRenderBlock] {
+    var diffRenderBlocks = [Int: DiffRenderBlock]()
+    visitCodeBlocks(in: blocks) { fenceInfo, content in
+        guard let diffFenceInfo = DiffFenceInfo.parse(fenceInfo) else { return }
+        let key = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
+        guard let renderBlock = UnifiedDiffParser.renderBlock(content: content, fenceInfo: diffFenceInfo) else {
+            return
+        }
+        diffRenderBlocks[key] = renderBlock
+    }
+    return diffRenderBlocks
 }
 
 private func retainedRenderedContexts(

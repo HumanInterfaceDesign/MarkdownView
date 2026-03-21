@@ -139,6 +139,76 @@ public struct MarkdownTheme: Equatable {
 
     public var image: Image = .init()
 
+    public struct Diff: Equatable {
+        #if canImport(UIKit)
+            public var gutterBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
+                dark: UIColor(red: 0.114, green: 0.122, blue: 0.145, alpha: 1)
+            )
+            public var gutterText = UIColor.secondaryLabel
+            public var separatorColor = UIColor.separator.withAlphaComponent(0.4)
+            public var addedLineBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.882, green: 0.969, blue: 0.910, alpha: 1),
+                dark: UIColor(red: 0.067, green: 0.251, blue: 0.145, alpha: 1)
+            )
+            public var removedLineBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.992, green: 0.902, blue: 0.902, alpha: 1),
+                dark: UIColor(red: 0.345, green: 0.118, blue: 0.141, alpha: 1)
+            )
+            public var addedHighlightBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.741, green: 0.894, blue: 0.776, alpha: 1),
+                dark: UIColor(red: 0.094, green: 0.408, blue: 0.231, alpha: 1)
+            )
+            public var removedHighlightBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.973, green: 0.737, blue: 0.737, alpha: 1),
+                dark: UIColor(red: 0.522, green: 0.176, blue: 0.200, alpha: 1)
+            )
+            public var hunkHeaderBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.875, green: 0.933, blue: 0.992, alpha: 1),
+                dark: UIColor(red: 0.067, green: 0.208, blue: 0.341, alpha: 1)
+            )
+            public var hunkHeaderText = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
+                dark: UIColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
+            )
+            public var annotationText = UIColor.secondaryLabel
+        #elseif canImport(AppKit)
+            public var gutterBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
+                dark: NSColor(red: 0.114, green: 0.122, blue: 0.145, alpha: 1)
+            )
+            public var gutterText = NSColor.secondaryLabelColor
+            public var separatorColor = NSColor.separatorColor.withAlphaComponent(0.4)
+            public var addedLineBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.882, green: 0.969, blue: 0.910, alpha: 1),
+                dark: NSColor(red: 0.067, green: 0.251, blue: 0.145, alpha: 1)
+            )
+            public var removedLineBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.992, green: 0.902, blue: 0.902, alpha: 1),
+                dark: NSColor(red: 0.345, green: 0.118, blue: 0.141, alpha: 1)
+            )
+            public var addedHighlightBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.741, green: 0.894, blue: 0.776, alpha: 1),
+                dark: NSColor(red: 0.094, green: 0.408, blue: 0.231, alpha: 1)
+            )
+            public var removedHighlightBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.973, green: 0.737, blue: 0.737, alpha: 1),
+                dark: NSColor(red: 0.522, green: 0.176, blue: 0.200, alpha: 1)
+            )
+            public var hunkHeaderBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.875, green: 0.933, blue: 0.992, alpha: 1),
+                dark: NSColor(red: 0.067, green: 0.208, blue: 0.341, alpha: 1)
+            )
+            public var hunkHeaderText = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
+                dark: NSColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
+            )
+            public var annotationText = NSColor.secondaryLabelColor
+        #endif
+    }
+
+    public var diff: Diff = .init()
+
     public init() {}
 }
 
@@ -161,6 +231,10 @@ public extension MarkdownTheme {
 
     static var defaultValueTable: Table {
         Table()
+    }
+
+    static var defaultValueDiff: Diff {
+        Diff()
     }
 }
 

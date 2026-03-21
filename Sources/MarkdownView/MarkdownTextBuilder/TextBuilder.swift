@@ -24,6 +24,7 @@ final class TextBuilder {
     private var checkboxDrawing: CheckboxDrawingCallback?
     private var thematicBreakDrawing: DrawingCallback?
     private var codeDrawing: DrawingCallback?
+    private var diffDrawing: DiffDrawingCallback?
     private var tableDrawing: DrawingCallback?
     private var blockquoteMarking: BlockquoteMarkingCallback?
     private var blockquoteDrawing: BlockquoteDrawingCallback?
@@ -65,6 +66,11 @@ final class TextBuilder {
 
     func withCodeDrawing(_ drawing: @escaping DrawingCallback) -> TextBuilder {
         codeDrawing = drawing
+        return self
+    }
+
+    func withDiffDrawing(_ drawing: @escaping DiffDrawingCallback) -> TextBuilder {
+        diffDrawing = drawing
         return self
     }
 
@@ -195,6 +201,7 @@ extension TextBuilder {
                 context: context,
                 thematicBreakDrawing: thematicBreakDrawing,
                 codeDrawing: codeDrawing,
+                diffDrawing: diffDrawing,
                 tableDrawing: tableDrawing,
                 blockquoteMarking: blockquoteMarking,
                 blockquoteDrawing: blockquoteDrawing
@@ -231,6 +238,14 @@ extension TextBuilder {
         case .thematicBreak:
             return blockProcessor.processThematicBreak()
         case let .codeBlock(language, content):
+            if let diffFenceInfo = DiffFenceInfo.parse(language) {
+                let diffKey = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
+                if let renderBlock = context.diffRenderBlocks[diffKey] {
+                    let result = blockProcessor.processDiffBlock(renderBlock: renderBlock)
+                    subviews.append(result.1)
+                    return result.0
+                }
+            }
             let highlightKey = CodeHighlighter.current.key(for: content, language: language)
             let highlightMap = context.highlightMaps[highlightKey]
             let result = blockProcessor.processCodeBlock(

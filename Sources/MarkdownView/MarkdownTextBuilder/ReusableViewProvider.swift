@@ -51,6 +51,10 @@ public final class ReusableViewProvider {
         TableView(frame: .zero)
     }
 
+    private let diffViewPool: ObjectPool<DiffView> = .init {
+        DiffView(frame: .zero)
+    }
+
     private let lock = NSLock()
 
     public init() {}
@@ -66,6 +70,7 @@ public final class ReusableViewProvider {
     func removeAll() {
         codeViewPool.objects.removeAll()
         tableViewPool.objects.removeAll()
+        diffViewPool.objects.removeAll()
     }
 
     func acquireCodeView() -> CodeView {
@@ -84,6 +89,14 @@ public final class ReusableViewProvider {
         tableViewPool.stash(tableView)
     }
 
+    func acquireDiffView() -> DiffView {
+        diffViewPool.acquire()
+    }
+
+    func stashDiffView(_ diffView: DiffView) {
+        diffViewPool.stash(diffView)
+    }
+
     func reorderViews(matching sequence: [PlatformView]) {
         // we adjust the sequence of stashed views to match the order
         // afterwards when TextBuilder visit a node requesting new view
@@ -91,8 +104,10 @@ public final class ReusableViewProvider {
 
         let orderedCodeView = sequence.compactMap { $0 as? CodeView }
         let orderedTableView = sequence.compactMap { $0 as? TableView }
+        let orderedDiffView = sequence.compactMap { $0 as? DiffView }
 
         codeViewPool.reorder(matching: orderedCodeView)
         tableViewPool.reorder(matching: orderedTableView)
+        diffViewPool.reorder(matching: orderedDiffView)
     }
 }

@@ -74,6 +74,23 @@ final class ParserTests: XCTestCase {
         XCTAssertTrue(content.contains("plain code"))
     }
 
+    func testParseDiffCodeBlockPreservesFullFenceInfo() {
+        let md = """
+        ```diff swift
+        @@ -1 +1 @@
+        -foo
+        +bar
+        ```
+        """
+        let result = parser.parse(md)
+        XCTAssertEqual(result.document.count, 1)
+        guard case let .codeBlock(fenceInfo, content) = result.document.first else {
+            return XCTFail("Expected code block")
+        }
+        XCTAssertEqual(fenceInfo, "diff swift")
+        XCTAssertTrue(content.contains("@@ -1 +1 @@"))
+    }
+
     func testParseThematicBreak() {
         let result = parser.parse("---")
         XCTAssertEqual(result.document.count, 1)

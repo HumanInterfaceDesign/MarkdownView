@@ -20,6 +20,7 @@ extension TextBuilder {
     typealias NumberedDrawingCallback = (CGContext, CTLine, CGPoint, Int) -> Void
     typealias BlockquoteMarkingCallback = (CGContext, CTLine, CGPoint) -> Void
     typealias BlockquoteDrawingCallback = (CGContext, CTLine, CGPoint) -> Void
+    typealias DiffDrawingCallback = (CGContext, CTLine, CGPoint) -> Void
 }
 
 // MARK: - RenderText

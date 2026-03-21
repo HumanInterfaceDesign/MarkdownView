@@ -20,6 +20,7 @@ final class BlockProcessor {
     private let context: MarkdownTextView.PreprocessedContent
     private let thematicBreakDrawing: TextBuilder.DrawingCallback?
     private let codeDrawing: TextBuilder.DrawingCallback?
+    private let diffDrawing: TextBuilder.DiffDrawingCallback?
     private let tableDrawing: TextBuilder.DrawingCallback?
     private let blockquoteMarking: TextBuilder.BlockquoteMarkingCallback?
     private let blockquoteDrawing: TextBuilder.BlockquoteDrawingCallback?
@@ -30,6 +31,7 @@ final class BlockProcessor {
         context: MarkdownTextView.PreprocessedContent,
         thematicBreakDrawing: TextBuilder.DrawingCallback?,
         codeDrawing: TextBuilder.DrawingCallback?,
+        diffDrawing: TextBuilder.DiffDrawingCallback?,
         tableDrawing: TextBuilder.DrawingCallback?,
         blockquoteMarking: TextBuilder.BlockquoteMarkingCallback?,
         blockquoteDrawing: TextBuilder.BlockquoteDrawingCallback?
@@ -39,6 +41,7 @@ final class BlockProcessor {
         self.context = context
         self.thematicBreakDrawing = thematicBreakDrawing
         self.codeDrawing = codeDrawing
+        self.diffDrawing = diffDrawing
         self.tableDrawing = tableDrawing
         self.blockquoteMarking = blockquoteMarking
         self.blockquoteDrawing = blockquoteDrawing
@@ -107,6 +110,28 @@ final class BlockProcessor {
             ])
         }
         return (text, codeView)
+    }
+
+    func processDiffBlock(
+        renderBlock: DiffRenderBlock
+    ) -> (NSAttributedString, DiffView) {
+        let diffView = viewProvider.acquireDiffView()
+        diffView.theme = theme
+        diffView.renderBlock = renderBlock
+        let drawer = diffDrawing!
+
+        let text = buildWithParagraphSync(modifier: { paragraph in
+            let height = DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: self.theme)
+            paragraph.minimumLineHeight = height
+        }) {
+            .init(string: LTXReplacementText, attributes: [
+                .font: theme.fonts.body,
+                .ltxAttachment: LTXAttachment.hold(attrString: diffView.attributedStringRepresentation()),
+                .ltxLineDrawingCallback: LTXLineDrawingAction { drawer($0, $1, $2) },
+                .contextView: diffView,
+            ])
+        }
+        return (text, diffView)
     }
 
     func processBlockquote(_ children: [MarkdownBlockNode]) -> NSAttributedString {

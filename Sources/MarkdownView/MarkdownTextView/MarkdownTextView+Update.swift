@@ -66,6 +66,10 @@ extension MarkdownTextView {
                 viewProvider.stashTableView(view)
                 continue
             }
+            if let view = view as? DiffView {
+                viewProvider.stashDiffView(view)
+                continue
+            }
             assertionFailure()
         }
 
@@ -94,6 +98,9 @@ extension MarkdownTextView {
 
         for view in artifacts.subviews {
             if let view = view as? CodeView {
+                view.textView.delegate = self
+            }
+            if let view = view as? DiffView {
                 view.textView.delegate = self
             }
         }

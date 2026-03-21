@@ -180,6 +180,28 @@ extension TextBuilder {
                 )
                 codeView.previewAction = view.codePreviewHandler
             }
+            .withDiffDrawing { [weak view] _, line, lineOrigin in
+                guard let view else { return }
+                guard let firstRun = line.glyphRuns().first else { return }
+                let attributes = firstRun.attributes
+                guard let diffView = attributes[.contextView] as? DiffView else {
+                    assertionFailure()
+                    return
+                }
+
+                if diffView.superview != view { view.addSubview(diffView) }
+                let intrinsicContentSize = diffView.intrinsicContentSize
+                let lineBoundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
+                var leftIndent: CGFloat = 0
+                if let paragraphStyle = attributes[.paragraphStyle] as? NSParagraphStyle {
+                    leftIndent = paragraphStyle.headIndent
+                }
+
+                diffView.frame = .init(
+                    origin: .init(x: lineOrigin.x + leftIndent, y: view.bounds.height - lineBoundingBox.maxY),
+                    size: .init(width: view.bounds.width - leftIndent, height: intrinsicContentSize.height)
+                )
+            }
             .withTableDrawing { [weak view] _, line, lineOrigin in
                 guard let view else { return }
                 guard let firstRun = line.glyphRuns().first else { return }
