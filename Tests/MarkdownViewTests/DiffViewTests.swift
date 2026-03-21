@@ -83,6 +83,35 @@ final class DiffViewTests: XCTestCase {
         XCTAssertNil(renderBlock.rows[3].newLineNumber)
     }
 
+    func testDiffRenderBlockPreservesFileHeaderRows() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/components/screens/home/index.tsx b/components/screens/home/index.tsx
+            index 1234567..89abcde 100644
+            --- a/components/screens/home/index.tsx
+            +++ b/components/screens/home/index.tsx
+            @@ -11,2 +11,2 @@ export default function Home() {
+            -  <h2>Design Engineer</h2>
+            +  <h2>Designer</h2>
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.rows[0].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[0].text, "diff --git a/components/screens/home/index.tsx b/components/screens/home/index.tsx")
+        XCTAssertEqual(renderBlock.rows[1].kind, .fileMetadata)
+        XCTAssertEqual(renderBlock.rows[2].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[3].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[4].kind, .hunkHeader)
+        XCTAssertEqual(renderBlock.rows[5].kind, .removed)
+        XCTAssertEqual(renderBlock.rows[6].kind, .added)
+    }
+
     func testInlineDiffEmphasisPairsRemovedAndAddedRowsByIndex() {
         let content = makeContent(
             from: """

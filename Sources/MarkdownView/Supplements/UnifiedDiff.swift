@@ -23,6 +23,8 @@ struct DiffFenceInfo: Hashable {
 
 struct DiffRenderBlock {
     enum RowKind: Hashable {
+        case fileHeader
+        case fileMetadata
         case hunkHeader
         case context
         case removed
@@ -69,6 +71,7 @@ enum UnifiedDiffParser {
 private extension UnifiedDiffParser {
     struct ParsedBlock {
         let language: String?
+        let preambleRows: [ParsedRow]
         let hunks: [ParsedHunk]
     }
 
@@ -100,15 +103,19 @@ private extension UnifiedDiffParser {
             .replacingOccurrences(of: "\r", with: "\n")
         let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
+        var preambleRows: [ParsedRow] = []
         var hunks: [ParsedHunk] = []
         var index = 0
 
-        func isIgnorablePreambleLine(_ line: String) -> Bool {
-            if line.isEmpty { return true }
-            return line.hasPrefix("diff --git ")
-                || line.hasPrefix("index ")
+        func preambleRowKind(for line: String) -> DiffRenderBlock.RowKind? {
+            if line.isEmpty { return nil }
+            if line.hasPrefix("diff --git ")
                 || line.hasPrefix("--- ")
                 || line.hasPrefix("+++ ")
+            {
+                return .fileHeader
+            }
+            if line.hasPrefix("index ")
                 || line.hasPrefix("new file mode ")
                 || line.hasPrefix("deleted file mode ")
                 || line.hasPrefix("rename from ")
@@ -117,6 +124,10 @@ private extension UnifiedDiffParser {
                 || line.hasPrefix("new mode ")
                 || line.hasPrefix("similarity index ")
                 || line.hasPrefix("dissimilarity index ")
+            {
+                return .fileMetadata
+            }
+            return nil
         }
 
         while index < lines.count {
@@ -125,7 +136,15 @@ private extension UnifiedDiffParser {
                 index += 1
                 continue
             }
-            if isIgnorablePreambleLine(line) {
+            if let rowKind = preambleRowKind(for: line) {
+                preambleRows.append(
+                    .init(
+                        kind: rowKind,
+                        oldLineNumber: nil,
+                        newLineNumber: nil,
+                        text: line
+                    )
+                )
                 index += 1
                 continue
             }
@@ -157,7 +176,7 @@ private extension UnifiedDiffParser {
                 if parseHunkHeader(currentLine) != nil {
                     break
                 }
-                if isIgnorablePreambleLine(currentLine) {
+                if preambleRowKind(for: currentLine) != nil {
                     return nil
                 }
 
@@ -230,11 +249,20 @@ private extension UnifiedDiffParser {
         }
 
         guard !hunks.isEmpty else { return nil }
-        return .init(language: language, hunks: hunks)
+        return .init(language: language, preambleRows: preambleRows, hunks: hunks)
     }
 
     static func buildRenderedRows(from block: ParsedBlock) -> [DiffRenderBlock.Row] {
-        var rows: [DiffRenderBlock.Row] = []
+        var rows: [DiffRenderBlock.Row] = block.preambleRows.map {
+            .init(
+                kind: $0.kind,
+                oldLineNumber: nil,
+                newLineNumber: nil,
+                text: $0.text,
+                syntaxHighlights: [:],
+                emphasizedRanges: []
+            )
+        }
 
         for hunk in block.hunks {
             rows.append(

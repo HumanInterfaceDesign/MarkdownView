@@ -8,12 +8,12 @@ import Foundation
 
 enum DiffViewConfiguration {
     static let verticalPadding: CGFloat = CodeViewConfiguration.codePadding
-    static let horizontalPadding: CGFloat = CodeViewConfiguration.codePadding
+    static let horizontalPadding: CGFloat = 12
     static let gutterPadding: CGFloat = CodeViewConfiguration.lineNumberPadding
     static let columnSpacing: CGFloat = 8
-    static let markerColumnWidth: CGFloat = 18
+    static let markerColumnWidth: CGFloat = 20
     static let separatorWidth: CGFloat = 1
-    static let cornerRadius: CGFloat = 8
+    static let cornerRadius: CGFloat = 10
     static let minimumLineNumberText = "0"
 
     static func lineCount(of block: DiffRenderBlock) -> Int {

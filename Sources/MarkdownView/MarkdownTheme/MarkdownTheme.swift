@@ -143,66 +143,98 @@ public struct MarkdownTheme: Equatable {
         #if canImport(UIKit)
             public var gutterBackground = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
-                dark: UIColor(red: 0.114, green: 0.122, blue: 0.145, alpha: 1)
+                dark: UIColor(red: 0.094, green: 0.106, blue: 0.125, alpha: 1)
             )
             public var gutterText = UIColor.secondaryLabel
-            public var separatorColor = UIColor.separator.withAlphaComponent(0.4)
+            public var separatorColor = UIColor.separator.withAlphaComponent(0.18)
+            public var borderColor = UIColor.separator.withAlphaComponent(0.22)
+            public var fileHeaderBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1),
+                dark: UIColor(red: 0.141, green: 0.149, blue: 0.176, alpha: 1)
+            )
+            public var fileHeaderText = UIColor.label
+            public var fileMetadataText = UIColor.secondaryLabel
             public var addedLineBackground = CodeHighlighter.dynamicColor(
-                light: UIColor(red: 0.882, green: 0.969, blue: 0.910, alpha: 1),
-                dark: UIColor(red: 0.067, green: 0.251, blue: 0.145, alpha: 1)
+                light: UIColor(red: 0.894, green: 0.973, blue: 0.918, alpha: 1),
+                dark: UIColor(red: 0.075, green: 0.247, blue: 0.153, alpha: 1)
             )
             public var removedLineBackground = CodeHighlighter.dynamicColor(
-                light: UIColor(red: 0.992, green: 0.902, blue: 0.902, alpha: 1),
-                dark: UIColor(red: 0.345, green: 0.118, blue: 0.141, alpha: 1)
+                light: UIColor(red: 0.992, green: 0.918, blue: 0.918, alpha: 1),
+                dark: UIColor(red: 0.325, green: 0.133, blue: 0.153, alpha: 1)
             )
             public var addedHighlightBackground = CodeHighlighter.dynamicColor(
-                light: UIColor(red: 0.741, green: 0.894, blue: 0.776, alpha: 1),
-                dark: UIColor(red: 0.094, green: 0.408, blue: 0.231, alpha: 1)
+                light: UIColor(red: 0.769, green: 0.918, blue: 0.808, alpha: 1),
+                dark: UIColor(red: 0.102, green: 0.388, blue: 0.239, alpha: 1)
             )
             public var removedHighlightBackground = CodeHighlighter.dynamicColor(
-                light: UIColor(red: 0.973, green: 0.737, blue: 0.737, alpha: 1),
-                dark: UIColor(red: 0.522, green: 0.176, blue: 0.200, alpha: 1)
+                light: UIColor(red: 0.976, green: 0.773, blue: 0.773, alpha: 1),
+                dark: UIColor(red: 0.490, green: 0.184, blue: 0.212, alpha: 1)
             )
             public var hunkHeaderBackground = CodeHighlighter.dynamicColor(
-                light: UIColor(red: 0.875, green: 0.933, blue: 0.992, alpha: 1),
-                dark: UIColor(red: 0.067, green: 0.208, blue: 0.341, alpha: 1)
+                light: UIColor(red: 0.871, green: 0.929, blue: 0.984, alpha: 1),
+                dark: UIColor(red: 0.078, green: 0.192, blue: 0.314, alpha: 1)
             )
             public var hunkHeaderText = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
                 dark: UIColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
             )
+            public var addedIndicatorText = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.114, green: 0.478, blue: 0.247, alpha: 1),
+                dark: UIColor(red: 0.451, green: 0.851, blue: 0.573, alpha: 1)
+            )
+            public var removedIndicatorText = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.773, green: 0.157, blue: 0.188, alpha: 1),
+                dark: UIColor(red: 0.973, green: 0.506, blue: 0.529, alpha: 1)
+            )
+            public var annotationIndicatorText = UIColor.secondaryLabel
             public var annotationText = UIColor.secondaryLabel
         #elseif canImport(AppKit)
             public var gutterBackground = CodeHighlighter.dynamicColor(
                 light: NSColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
-                dark: NSColor(red: 0.114, green: 0.122, blue: 0.145, alpha: 1)
+                dark: NSColor(red: 0.094, green: 0.106, blue: 0.125, alpha: 1)
             )
             public var gutterText = NSColor.secondaryLabelColor
-            public var separatorColor = NSColor.separatorColor.withAlphaComponent(0.4)
+            public var separatorColor = NSColor.separatorColor.withAlphaComponent(0.18)
+            public var borderColor = NSColor.separatorColor.withAlphaComponent(0.22)
+            public var fileHeaderBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1),
+                dark: NSColor(red: 0.141, green: 0.149, blue: 0.176, alpha: 1)
+            )
+            public var fileHeaderText = NSColor.labelColor
+            public var fileMetadataText = NSColor.secondaryLabelColor
             public var addedLineBackground = CodeHighlighter.dynamicColor(
-                light: NSColor(red: 0.882, green: 0.969, blue: 0.910, alpha: 1),
-                dark: NSColor(red: 0.067, green: 0.251, blue: 0.145, alpha: 1)
+                light: NSColor(red: 0.894, green: 0.973, blue: 0.918, alpha: 1),
+                dark: NSColor(red: 0.075, green: 0.247, blue: 0.153, alpha: 1)
             )
             public var removedLineBackground = CodeHighlighter.dynamicColor(
-                light: NSColor(red: 0.992, green: 0.902, blue: 0.902, alpha: 1),
-                dark: NSColor(red: 0.345, green: 0.118, blue: 0.141, alpha: 1)
+                light: NSColor(red: 0.992, green: 0.918, blue: 0.918, alpha: 1),
+                dark: NSColor(red: 0.325, green: 0.133, blue: 0.153, alpha: 1)
             )
             public var addedHighlightBackground = CodeHighlighter.dynamicColor(
-                light: NSColor(red: 0.741, green: 0.894, blue: 0.776, alpha: 1),
-                dark: NSColor(red: 0.094, green: 0.408, blue: 0.231, alpha: 1)
+                light: NSColor(red: 0.769, green: 0.918, blue: 0.808, alpha: 1),
+                dark: NSColor(red: 0.102, green: 0.388, blue: 0.239, alpha: 1)
             )
             public var removedHighlightBackground = CodeHighlighter.dynamicColor(
-                light: NSColor(red: 0.973, green: 0.737, blue: 0.737, alpha: 1),
-                dark: NSColor(red: 0.522, green: 0.176, blue: 0.200, alpha: 1)
+                light: NSColor(red: 0.976, green: 0.773, blue: 0.773, alpha: 1),
+                dark: NSColor(red: 0.490, green: 0.184, blue: 0.212, alpha: 1)
             )
             public var hunkHeaderBackground = CodeHighlighter.dynamicColor(
-                light: NSColor(red: 0.875, green: 0.933, blue: 0.992, alpha: 1),
-                dark: NSColor(red: 0.067, green: 0.208, blue: 0.341, alpha: 1)
+                light: NSColor(red: 0.871, green: 0.929, blue: 0.984, alpha: 1),
+                dark: NSColor(red: 0.078, green: 0.192, blue: 0.314, alpha: 1)
             )
             public var hunkHeaderText = CodeHighlighter.dynamicColor(
                 light: NSColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
                 dark: NSColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
             )
+            public var addedIndicatorText = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.114, green: 0.478, blue: 0.247, alpha: 1),
+                dark: NSColor(red: 0.451, green: 0.851, blue: 0.573, alpha: 1)
+            )
+            public var removedIndicatorText = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.773, green: 0.157, blue: 0.188, alpha: 1),
+                dark: NSColor(red: 0.973, green: 0.506, blue: 0.529, alpha: 1)
+            )
+            public var annotationIndicatorText = NSColor.secondaryLabelColor
             public var annotationText = NSColor.secondaryLabelColor
         #endif
     }

@@ -97,6 +97,8 @@ import Litext
 
         private func applyTheme() {
             backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08)
+            layer.borderWidth = 1
+            layer.borderColor = theme.diff.borderColor.cgColor
         }
 
         private func applyRenderBlock() {
@@ -125,6 +127,10 @@ import Litext
             for (index, row) in renderBlock.rows.enumerated() {
                 let rowRange = NSRange(location: result.length, length: row.text.utf16.count)
                 let baseColor: UIColor = switch row.kind {
+                case .fileHeader:
+                    theme.diff.fileHeaderText
+                case .fileMetadata:
+                    theme.diff.fileMetadataText
                 case .hunkHeader:
                     theme.diff.hunkHeaderText
                 case .annotation:
@@ -155,7 +161,7 @@ import Litext
                     theme.diff.removedHighlightBackground
                 case .added:
                     theme.diff.addedHighlightBackground
-                case .hunkHeader, .context, .annotation:
+                case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation:
                     nil
                 }
 
@@ -234,7 +240,7 @@ import Litext
 
         private static func selectionText(for row: DiffRenderBlock.Row) -> String {
             switch row.kind {
-            case .hunkHeader, .annotation:
+            case .fileHeader, .fileMetadata, .hunkHeader, .annotation:
                 row.text
             case .context:
                 " " + row.text
@@ -302,6 +308,8 @@ import Litext
 
         private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> UIColor? {
             switch kind {
+            case .fileHeader, .fileMetadata:
+                theme.diff.fileHeaderBackground
             case .hunkHeader:
                 theme.diff.hunkHeaderBackground
             case .removed:
@@ -420,6 +428,10 @@ import Litext
                     .font: font,
                     .foregroundColor: theme.diff.gutterText,
                 ]
+                let markerAttributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: markerColor(for: row.kind),
+                ]
 
                 drawNumber(
                     row.oldLineNumber,
@@ -444,7 +456,7 @@ import Litext
                         width: metrics.markerColumnWidth,
                         height: rect.height
                     ),
-                    attributes: textAttributes
+                    attributes: markerAttributes
                 )
             }
         }
@@ -510,13 +522,28 @@ import Litext
                 "+"
             case .annotation:
                 "\\"
-            case .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context:
                 nil
+            }
+        }
+
+        private func markerColor(for kind: DiffRenderBlock.RowKind) -> UIColor {
+            switch kind {
+            case .removed:
+                theme.diff.removedIndicatorText
+            case .added:
+                theme.diff.addedIndicatorText
+            case .annotation:
+                theme.diff.annotationIndicatorText
+            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+                theme.diff.gutterText
             }
         }
 
         private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> UIColor? {
             switch kind {
+            case .fileHeader, .fileMetadata:
+                theme.diff.fileHeaderBackground
             case .hunkHeader:
                 theme.diff.hunkHeaderBackground
             case .removed:
@@ -634,6 +661,8 @@ import Litext
 
         private func applyTheme() {
             layer?.backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08).cgColor
+            layer?.borderWidth = 1
+            layer?.borderColor = theme.diff.borderColor.cgColor
         }
 
         private func applyRenderBlock() {
@@ -662,6 +691,10 @@ import Litext
             for (index, row) in renderBlock.rows.enumerated() {
                 let rowRange = NSRange(location: result.length, length: row.text.utf16.count)
                 let baseColor: NSColor = switch row.kind {
+                case .fileHeader:
+                    theme.diff.fileHeaderText
+                case .fileMetadata:
+                    theme.diff.fileMetadataText
                 case .hunkHeader:
                     theme.diff.hunkHeaderText
                 case .annotation:
@@ -692,7 +725,7 @@ import Litext
                     theme.diff.removedHighlightBackground
                 case .added:
                     theme.diff.addedHighlightBackground
-                case .hunkHeader, .context, .annotation:
+                case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation:
                     nil
                 }
 
@@ -770,7 +803,7 @@ import Litext
 
         private static func selectionText(for row: DiffRenderBlock.Row) -> String {
             switch row.kind {
-            case .hunkHeader, .annotation:
+            case .fileHeader, .fileMetadata, .hunkHeader, .annotation:
                 row.text
             case .context:
                 " " + row.text
@@ -848,6 +881,8 @@ import Litext
 
         private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> NSColor? {
             switch kind {
+            case .fileHeader, .fileMetadata:
+                theme.diff.fileHeaderBackground
             case .hunkHeader:
                 theme.diff.hunkHeaderBackground
             case .removed:
@@ -956,6 +991,10 @@ import Litext
                     .font: font,
                     .foregroundColor: theme.diff.gutterText,
                 ]
+                let markerAttributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: markerColor(for: row.kind),
+                ]
 
                 drawNumber(
                     row.oldLineNumber,
@@ -980,7 +1019,7 @@ import Litext
                         width: metrics.markerColumnWidth,
                         height: rect.height
                     ),
-                    attributes: textAttributes
+                    attributes: markerAttributes
                 )
             }
         }
@@ -1046,13 +1085,28 @@ import Litext
                 "+"
             case .annotation:
                 "\\"
-            case .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context:
                 nil
+            }
+        }
+
+        private func markerColor(for kind: DiffRenderBlock.RowKind) -> NSColor {
+            switch kind {
+            case .removed:
+                theme.diff.removedIndicatorText
+            case .added:
+                theme.diff.addedIndicatorText
+            case .annotation:
+                theme.diff.annotationIndicatorText
+            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+                theme.diff.gutterText
             }
         }
 
         private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> NSColor? {
             switch kind {
+            case .fileHeader, .fileMetadata:
+                theme.diff.fileHeaderBackground
             case .hunkHeader:
                 theme.diff.hunkHeaderBackground
             case .removed:

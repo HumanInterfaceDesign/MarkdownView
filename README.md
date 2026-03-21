@@ -233,6 +233,7 @@ Use a fenced code block whose first info-string token is `diff`. Add an optional
 ````
 
 This renders as a dedicated diff view with hunk headers, dual line numbers, added/removed row styling, and inline change emphasis for paired edits.
+Standard unified-diff file preamble lines like `diff --git`, `index`, `---`, and `+++` are also supported and render as styled header/meta rows above the hunks.
 
 ## Architecture
 
