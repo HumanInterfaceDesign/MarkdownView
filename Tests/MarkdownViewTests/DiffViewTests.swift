@@ -46,6 +46,74 @@ final class DiffViewTests: XCTestCase {
         XCTAssertEqual(renderBlock.rows[4].newLineNumber, 13)
     }
 
+    func testPatchFenceAliasBuildsDiffRenderBlock() {
+        let content = makeContent(
+            from: """
+            ```patch swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.language, "swift")
+        XCTAssertEqual(renderBlock.rows.first?.kind, .hunkHeader)
+    }
+
+    func testBlankFenceAutoDetectsUnifiedDiff() {
+        let content = makeContent(
+            from: """
+            ```
+            @@ -1 +1 @@
+            -foo
+            +bar
+            ```
+            """
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected auto-detected diff render block")
+        }
+
+        XCTAssertNil(renderBlock.language)
+        XCTAssertEqual(renderBlock.rows[1].kind, .removed)
+        XCTAssertEqual(renderBlock.rows[2].kind, .added)
+    }
+
+    func testSingleTokenFenceAutoDetectsUnifiedDiffAndUsesInnerLanguage() {
+        let content = makeContent(
+            from: """
+            ```swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected auto-detected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.language, "swift")
+        XCTAssertEqual(renderBlock.rows[1].kind, .removed)
+        XCTAssertFalse(renderBlock.rows[1].syntaxHighlights.isEmpty)
+    }
+
     func testDiffWithoutLanguageUsesPlainDiffSyntax() {
         let content = makeContent(
             from: """
@@ -64,6 +132,66 @@ final class DiffViewTests: XCTestCase {
         XCTAssertNil(renderBlock.language)
         XCTAssertTrue(renderBlock.rows[1].syntaxHighlights.isEmpty)
         XCTAssertTrue(renderBlock.rows[2].syntaxHighlights.isEmpty)
+    }
+
+    func testTextFenceDisablesDiffAutoDetection() {
+        let content = makeContent(
+            from: """
+            ```text
+            @@ -1 +1 @@
+            -foo
+            +bar
+            ```
+            """
+        )
+
+        XCTAssertTrue(content.diffRenderBlocks.isEmpty)
+        XCTAssertFalse(content.highlightMaps.isEmpty)
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is CodeView)
+            XCTAssertFalse(view.contextViews.first is DiffView)
+        }
+    }
+
+    func testPlaintextFenceDisablesDiffAutoDetection() {
+        let content = makeContent(
+            from: """
+            ```plaintext
+            @@ -1 +1 @@
+            -foo
+            +bar
+            ```
+            """
+        )
+
+        XCTAssertTrue(content.diffRenderBlocks.isEmpty)
+    }
+
+    func testMultiTokenNonDiffFenceDoesNotAutoDetect() {
+        let content = makeContent(
+            from: """
+            ```swift linenums
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        XCTAssertTrue(content.diffRenderBlocks.isEmpty)
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is CodeView)
+        }
     }
 
     func testDiffRenderBlockTracksAnnotationRows() {
@@ -163,10 +291,68 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testInvalidAutoDetectedDiffFallsBackToCodeView() {
+        let content = makeContent(
+            from: """
+            ```swift
+            not a unified diff
+            ```
+            """
+        )
+
+        XCTAssertTrue(content.diffRenderBlocks.isEmpty)
+        XCTAssertFalse(content.highlightMaps.isEmpty)
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is CodeView)
+            XCTAssertFalse(view.contextViews.first is DiffView)
+        }
+    }
+
+    func testOrdinaryCodeBlockWithAddedRemovedTextDoesNotAutoDetect() {
+        let content = makeContent(
+            from: """
+            ```swift
+            let markers = [
+                "+ keep this literal line",
+                "- keep this one too",
+            ]
+            ```
+            """
+        )
+
+        XCTAssertTrue(content.diffRenderBlocks.isEmpty)
+        XCTAssertFalse(content.highlightMaps.isEmpty)
+    }
+
     func testValidDiffRendersDiffView() {
         let content = makeContent(
             from: """
             ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is DiffView)
+        }
+    }
+
+    func testValidAutoDetectedDiffRendersDiffView() {
+        let content = makeContent(
+            from: """
+            ```swift
             @@ -1 +1 @@
             -let title = "Design Engineer"
             +let title = "Designer"

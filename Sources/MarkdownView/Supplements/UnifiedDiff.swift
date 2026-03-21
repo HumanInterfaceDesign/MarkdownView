@@ -3,21 +3,61 @@ import Foundation
 struct DiffFenceInfo: Hashable {
     let language: String?
 
-    static func parse(_ fenceInfo: String?) -> DiffFenceInfo? {
-        guard let fenceInfo else { return nil }
-        let components = fenceInfo
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-
-        guard let first = components.first?.lowercased(), first == "diff" else {
+    static func parseExplicit(_ fenceInfo: String?) -> DiffFenceInfo? {
+        let components = fenceComponents(in: fenceInfo)
+        guard let first = components.first?.lowercased(),
+              explicitAliases.contains(first) else {
             return nil
         }
 
-        let language = components.dropFirst().first.flatMap {
-            let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+        return .init(language: normalizedLanguage(components.dropFirst().first))
+    }
+
+    static func autoDetected(fenceInfo: String?, content: String) -> DiffFenceInfo? {
+        let components = fenceComponents(in: fenceInfo)
+        let language: String?
+
+        switch components.count {
+        case 0:
+            language = nil
+        case 1:
+            guard !plainTextAliases.contains(components[0].lowercased()) else {
+                return nil
+            }
+            language = normalizedLanguage(components[0])
+        default:
+            return nil
+        }
+
+        guard UnifiedDiffParser.canRender(content: content, language: language) else {
+            return nil
         }
         return .init(language: language)
+    }
+
+    private static let explicitAliases: Set<String> = ["diff", "patch"]
+    private static let plainTextAliases: Set<String> = ["text", "plaintext"]
+
+    private static func fenceComponents(in fenceInfo: String?) -> [String] {
+        guard let fenceInfo else { return [] }
+        return fenceInfo
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+    }
+
+    private static func normalizedLanguage(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+enum CodeBlockClassifier {
+    static func diffFenceInfo(fenceInfo: String?, content: String) -> DiffFenceInfo? {
+        if let explicit = DiffFenceInfo.parseExplicit(fenceInfo) {
+            return explicit
+        }
+        return DiffFenceInfo.autoDetected(fenceInfo: fenceInfo, content: content)
     }
 }
 
@@ -56,6 +96,10 @@ extension DiffRenderBlock {
 }
 
 enum UnifiedDiffParser {
+    static func canRender(content: String, language: String?) -> Bool {
+        parse(content: content.deletingSuffix(of: .newlines), language: language) != nil
+    }
+
     static func renderBlock(content: String, fenceInfo: DiffFenceInfo) -> DiffRenderBlock? {
         let normalizedContent = content.deletingSuffix(of: .newlines)
         guard let parsed = parse(content: normalizedContent, language: fenceInfo.language) else {

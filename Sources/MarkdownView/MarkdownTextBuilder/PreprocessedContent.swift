@@ -240,7 +240,7 @@ public extension MarkdownParser.ParseResult {
     func render(theme: MarkdownTheme) -> [Int: CodeHighlighter.HighlightMap] {
         var highlightMaps = [Int: CodeHighlighter.HighlightMap]()
         visitCodeBlocks(in: document) { fenceInfo, content in
-            guard DiffFenceInfo.parse(fenceInfo) == nil else { return }
+            guard CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) == nil else { return }
             let key = CodeHighlighter.current.key(for: content, language: fenceInfo)
             let map = CodeHighlighter.current.highlight(key: key, content: content, language: fenceInfo)
             highlightMaps[key] = map
@@ -259,7 +259,7 @@ private func retainedHighlightMaps(
 ) -> [Int: CodeHighlighter.HighlightMap] {
     var retained = [Int: CodeHighlighter.HighlightMap]()
     visitCodeBlocks(in: blocks) { fenceInfo, content in
-        guard DiffFenceInfo.parse(fenceInfo) == nil else { return }
+        guard CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) == nil else { return }
         let key = CodeHighlighter.current.key(for: content, language: fenceInfo)
         if let existing = available[key] {
             retained[key] = existing
@@ -274,7 +274,7 @@ private func retainedDiffRenderBlocks(
 ) -> [Int: DiffRenderBlock] {
     var retained = [Int: DiffRenderBlock]()
     visitCodeBlocks(in: blocks) { fenceInfo, content in
-        guard let diffFenceInfo = DiffFenceInfo.parse(fenceInfo) else { return }
+        guard let diffFenceInfo = CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) else { return }
         let key = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
         if let existing = available[key] {
             retained[key] = existing
@@ -286,7 +286,7 @@ private func retainedDiffRenderBlocks(
 private func buildDiffRenderBlocks(from blocks: [MarkdownBlockNode]) -> [Int: DiffRenderBlock] {
     var diffRenderBlocks = [Int: DiffRenderBlock]()
     visitCodeBlocks(in: blocks) { fenceInfo, content in
-        guard let diffFenceInfo = DiffFenceInfo.parse(fenceInfo) else { return }
+        guard let diffFenceInfo = CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) else { return }
         let key = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
         guard let renderBlock = UnifiedDiffParser.renderBlock(content: content, fenceInfo: diffFenceInfo) else {
             return

@@ -238,7 +238,7 @@ extension TextBuilder {
         case .thematicBreak:
             return blockProcessor.processThematicBreak()
         case let .codeBlock(language, content):
-            if let diffFenceInfo = DiffFenceInfo.parse(language) {
+            if let diffFenceInfo = CodeBlockClassifier.diffFenceInfo(fenceInfo: language, content: content) {
                 let diffKey = DiffRenderBlock.key(for: content, language: diffFenceInfo.language)
                 if let renderBlock = context.diffRenderBlocks[diffKey] {
                     let result = blockProcessor.processDiffBlock(renderBlock: renderBlock)
