@@ -1,6 +1,11 @@
 import XCTest
 @testable import MarkdownParser
 @testable import MarkdownView
+#if canImport(AppKit)
+    import AppKit
+#elseif canImport(UIKit)
+    import UIKit
+#endif
 
 final class DiffViewTests: XCTestCase {
 
@@ -321,6 +326,37 @@ final class DiffViewTests: XCTestCase {
             let selectionText = view.attributedStringRepresentation().string
             XCTAssertTrue(selectionText.contains("-let title = \"Design Engineer\""))
             XCTAssertTrue(selectionText.contains("+let title = \"Designer\""))
+        }
+    }
+
+    func testDiffViewShowsCopyBarAndCopiesRawPatchText() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 400, height: 180))
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                XCTAssertEqual(view.titleLabel.stringValue, "diff swift")
+                view.copyButton.performClick(nil)
+                XCTAssertEqual(NSPasteboard.general.string(forType: .string), view.attributedStringRepresentation().string)
+            #elseif canImport(UIKit)
+                XCTAssertEqual(view.titleLabel.text, "diff swift")
+                view.copyButton.sendActions(for: .touchUpInside)
+                XCTAssertEqual(UIPasteboard.general.string, view.attributedStringRepresentation().string)
+            #endif
         }
     }
 

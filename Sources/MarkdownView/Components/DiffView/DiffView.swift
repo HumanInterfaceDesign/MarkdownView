@@ -78,6 +78,32 @@ private struct DiffSideBySideContentRects {
     let newRect: CGRect
 }
 
+private func diffBlockTitle(for block: DiffRenderBlock) -> String {
+    if let language = block.language, !language.isEmpty {
+        return "diff \(language)"
+    }
+    return "diff"
+}
+
+private func rawDiffSelectionText(from block: DiffRenderBlock) -> String {
+    block.rows
+        .map(diffSelectionText(for:))
+        .joined(separator: "\n")
+}
+
+private func diffSelectionText(for row: DiffRenderBlock.Row) -> String {
+    switch row.kind {
+    case .fileHeader, .fileMetadata, .hunkHeader, .annotation:
+        row.text
+    case .context:
+        " " + row.text
+    case .removed:
+        "-" + row.text
+    case .added:
+        "+" + row.text
+    }
+}
+
 private func makeDiffParagraphStyle() -> NSMutableParagraphStyle {
     let paragraphStyle = NSMutableParagraphStyle()
     paragraphStyle.lineSpacing = CodeViewConfiguration.codeLineSpacing
@@ -514,6 +540,7 @@ private func makeSideBySideAttributedText(
     final class DiffView: UIView {
         var theme: MarkdownTheme = .default {
             didSet {
+                titleLabel.font = theme.fonts.code
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 applyTheme()
                 applyRenderBlock()
@@ -531,6 +558,9 @@ private func makeSideBySideAttributedText(
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
 
         lazy var scrollView: UIScrollView = .init()
+        lazy var barView: UIView = .init()
+        lazy var titleLabel: UILabel = .init()
+        lazy var copyButton: UIButton = .init(type: .system)
         private lazy var contentContainerView: UIView = .init()
         private lazy var backgroundView: DiffContentBackgroundView = .init()
         lazy var textView: LTXLabel = .init()
@@ -566,10 +596,15 @@ private func makeSideBySideAttributedText(
         }
 
         override var intrinsicContentSize: CGSize {
+            let barHeight = DiffViewConfiguration.barHeight(theme: theme)
+            let titleWidth = titleLabel.intrinsicContentSize.width
             let textSize = textView.intrinsicContentSize
             let gutterWidth = gutterView.intrinsicContentSize.width
             return CGSize(
-                width: gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
+                width: max(
+                    gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
+                    titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                ),
                 height: DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: theme)
             )
         }
@@ -578,6 +613,21 @@ private func makeSideBySideAttributedText(
             layer.cornerRadius = DiffViewConfiguration.cornerRadius
             layer.cornerCurve = .continuous
             clipsToBounds = true
+
+            barView.backgroundColor = .clear
+            addSubview(barView)
+
+            titleLabel.font = theme.fonts.code
+            barView.addSubview(titleLabel)
+
+            let copyImage = UIImage(
+                systemName: "doc.on.doc",
+                withConfiguration: UIImage.SymbolConfiguration(scale: .small)
+            )
+            copyButton.setImage(copyImage, for: .normal)
+            copyButton.accessibilityLabel = "Copy diff"
+            copyButton.addTarget(self, action: #selector(handleCopy(_:)), for: .touchUpInside)
+            barView.addSubview(copyButton)
 
             gutterView.backgroundColor = .clear
             addSubview(gutterView)
@@ -605,10 +655,22 @@ private func makeSideBySideAttributedText(
             backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08)
             layer.borderWidth = 1
             layer.borderColor = theme.diff.borderColor.cgColor
+            barView.backgroundColor = theme.diff.fileHeaderBackground
+            titleLabel.font = theme.fonts.code
+            titleLabel.textColor = theme.diff.fileHeaderText
+            copyButton.tintColor = theme.diff.fileHeaderText
+        }
+
+        @objc private func handleCopy(_: UIButton) {
+            UIPasteboard.general.string = rawDiffSelectionText(from: renderBlock)
+            #if !os(visionOS)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            #endif
         }
 
         private func applyRenderBlock() {
             displayRows = DiffDisplayRows.make(for: renderBlock, theme: theme)
+            titleLabel.text = diffBlockTitle(for: renderBlock)
             if case let .sideBySide(_, maxOldUTF16Length) = displayRows {
                 sideBySideTextMetrics = .make(
                     maxOldUTF16Length: maxOldUTF16Length,
@@ -656,19 +718,38 @@ private func makeSideBySideAttributedText(
         }
 
         private func performLayout() {
+            let barHeight = DiffViewConfiguration.barHeight(theme: theme)
+            barView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
+
+            let buttonSize = DiffViewConfiguration.buttonSize
+            copyButton.frame = CGRect(
+                x: barView.bounds.width - buttonSize.width,
+                y: (barView.bounds.height - buttonSize.height) / 2,
+                width: buttonSize.width,
+                height: buttonSize.height
+            )
+            let titleSize = titleLabel.intrinsicContentSize
+            let availableTitleWidth = max(copyButton.frame.minX - DiffViewConfiguration.barPadding * 2, 0)
+            titleLabel.frame = CGRect(
+                x: DiffViewConfiguration.barPadding,
+                y: DiffViewConfiguration.barPadding,
+                width: min(titleSize.width, availableTitleWidth),
+                height: titleSize.height
+            )
+
             let gutterWidth = gutterView.intrinsicContentSize.width
             gutterView.frame = CGRect(
                 x: 0,
-                y: 0,
+                y: barHeight,
                 width: gutterWidth,
-                height: bounds.height
+                height: max(bounds.height - barHeight, 0)
             )
 
             scrollView.frame = CGRect(
                 x: gutterWidth,
-                y: 0,
+                y: barHeight,
                 width: max(bounds.width - gutterWidth, 0),
-                height: bounds.height
+                height: max(bounds.height - barHeight, 0)
             )
 
             let textSize = textView.intrinsicContentSize
@@ -698,23 +779,7 @@ private func makeSideBySideAttributedText(
 
     extension DiffView: LTXAttributeStringRepresentable {
         func attributedStringRepresentation() -> NSAttributedString {
-            let content = renderBlock.rows
-                .map(Self.selectionText(for:))
-                .joined(separator: "\n")
-            return NSAttributedString(string: content)
-        }
-
-        private static func selectionText(for row: DiffRenderBlock.Row) -> String {
-            switch row.kind {
-            case .fileHeader, .fileMetadata, .hunkHeader, .annotation:
-                row.text
-            case .context:
-                " " + row.text
-            case .removed:
-                "-" + row.text
-            case .added:
-                "+" + row.text
-            }
+            NSAttributedString(string: rawDiffSelectionText(from: renderBlock))
         }
     }
 
@@ -1102,6 +1167,7 @@ private func makeSideBySideAttributedText(
     final class DiffView: NSView {
         var theme: MarkdownTheme = .default {
             didSet {
+                titleLabel.font = theme.fonts.code
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 applyTheme()
                 applyRenderBlock()
@@ -1127,6 +1193,15 @@ private func makeSideBySideAttributedText(
             return scrollView
         }()
 
+        lazy var barView: NSView = .init()
+        lazy var titleLabel: NSTextField = {
+            let label = NSTextField(labelWithString: "")
+            label.isEditable = false
+            label.isBordered = false
+            label.backgroundColor = .clear
+            return label
+        }()
+        lazy var copyButton: NSButton = .init(title: "", target: nil, action: nil)
         private lazy var contentContainerView: DiffContainerView = .init()
         private lazy var backgroundView: DiffContentBackgroundView = .init()
         lazy var textView: LTXLabel = .init()
@@ -1163,10 +1238,14 @@ private func makeSideBySideAttributedText(
         }
 
         override var intrinsicContentSize: CGSize {
+            let titleWidth = titleLabel.intrinsicContentSize.width
             let textSize = textView.intrinsicContentSize
             let gutterWidth = gutterView.intrinsicContentSize.width
             return CGSize(
-                width: gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
+                width: max(
+                    gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
+                    titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                ),
                 height: DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: theme)
             )
         }
@@ -1174,6 +1253,19 @@ private func makeSideBySideAttributedText(
         private func configureSubviews() {
             wantsLayer = true
             layer?.cornerRadius = DiffViewConfiguration.cornerRadius
+
+            barView.wantsLayer = true
+            addSubview(barView)
+            barView.addSubview(titleLabel)
+
+            if let copyImage = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy diff") {
+                copyButton.image = copyImage
+            }
+            copyButton.target = self
+            copyButton.action = #selector(handleCopy(_:))
+            copyButton.bezelStyle = .inline
+            copyButton.isBordered = false
+            barView.addSubview(copyButton)
 
             gutterView.wantsLayer = true
             gutterView.layer?.backgroundColor = NSColor.clear.cgColor
@@ -1201,10 +1293,20 @@ private func makeSideBySideAttributedText(
             layer?.backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08).cgColor
             layer?.borderWidth = 1
             layer?.borderColor = theme.diff.borderColor.cgColor
+            barView.layer?.backgroundColor = theme.diff.fileHeaderBackground.cgColor
+            titleLabel.font = theme.fonts.code
+            titleLabel.textColor = theme.diff.fileHeaderText
+        }
+
+        @objc private func handleCopy(_: Any?) {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(rawDiffSelectionText(from: renderBlock), forType: .string)
         }
 
         private func applyRenderBlock() {
             displayRows = DiffDisplayRows.make(for: renderBlock, theme: theme)
+            titleLabel.stringValue = diffBlockTitle(for: renderBlock)
             if case let .sideBySide(_, maxOldUTF16Length) = displayRows {
                 sideBySideTextMetrics = .make(
                     maxOldUTF16Length: maxOldUTF16Length,
@@ -1252,19 +1354,38 @@ private func makeSideBySideAttributedText(
         }
 
         private func performLayout() {
+            let barHeight = DiffViewConfiguration.barHeight(theme: theme)
+            barView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
+
+            let buttonSize = DiffViewConfiguration.buttonSize
+            copyButton.frame = CGRect(
+                x: barView.bounds.width - buttonSize.width,
+                y: (barView.bounds.height - buttonSize.height) / 2,
+                width: buttonSize.width,
+                height: buttonSize.height
+            )
+            let titleSize = titleLabel.intrinsicContentSize
+            let availableTitleWidth = max(copyButton.frame.minX - DiffViewConfiguration.barPadding * 2, 0)
+            titleLabel.frame = CGRect(
+                x: DiffViewConfiguration.barPadding,
+                y: DiffViewConfiguration.barPadding,
+                width: min(titleSize.width, availableTitleWidth),
+                height: titleSize.height
+            )
+
             let gutterWidth = gutterView.intrinsicContentSize.width
             gutterView.frame = CGRect(
                 x: 0,
-                y: 0,
+                y: barHeight,
                 width: gutterWidth,
-                height: bounds.height
+                height: max(bounds.height - barHeight, 0)
             )
 
             scrollView.frame = CGRect(
                 x: gutterWidth,
-                y: 0,
+                y: barHeight,
                 width: max(bounds.width - gutterWidth, 0),
-                height: bounds.height
+                height: max(bounds.height - barHeight, 0)
             )
 
             let textSize = textView.intrinsicContentSize
@@ -1293,23 +1414,7 @@ private func makeSideBySideAttributedText(
 
     extension DiffView: LTXAttributeStringRepresentable {
         func attributedStringRepresentation() -> NSAttributedString {
-            let content = renderBlock.rows
-                .map(Self.selectionText(for:))
-                .joined(separator: "\n")
-            return NSAttributedString(string: content)
-        }
-
-        private static func selectionText(for row: DiffRenderBlock.Row) -> String {
-            switch row.kind {
-            case .fileHeader, .fileMetadata, .hunkHeader, .annotation:
-                row.text
-            case .context:
-                " " + row.text
-            case .removed:
-                "-" + row.text
-            case .added:
-                "+" + row.text
-            }
+            NSAttributedString(string: rawDiffSelectionText(from: renderBlock))
         }
     }
 

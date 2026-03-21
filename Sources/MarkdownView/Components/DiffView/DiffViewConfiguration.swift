@@ -7,6 +7,7 @@ import Foundation
 #endif
 
 enum DiffViewConfiguration {
+    static let barPadding: CGFloat = CodeViewConfiguration.barPadding
     static let verticalPadding: CGFloat = CodeViewConfiguration.codePadding
     static let horizontalPadding: CGFloat = 12
     static let gutterPadding: CGFloat = CodeViewConfiguration.lineNumberPadding
@@ -15,6 +16,17 @@ enum DiffViewConfiguration {
     static let separatorWidth: CGFloat = 1
     static let cornerRadius: CGFloat = 10
     static let minimumLineNumberText = "0"
+    static let buttonSize = CGSize(width: 44, height: 44)
+
+    static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
+        let font = theme.fonts.code
+        #if canImport(UIKit)
+            let lineHeight = font.lineHeight
+        #elseif canImport(AppKit)
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
+        #endif
+        return lineHeight + barPadding * 2
+    }
 
     static func lineCount(of block: DiffRenderBlock) -> Int {
         max(block.rows.count, 1)
@@ -47,6 +59,6 @@ enum DiffViewConfiguration {
         let codeHeight = lineHeight * CGFloat(numberOfRows)
             + verticalPadding * 2
             + CodeViewConfiguration.codeLineSpacing * CGFloat(max(numberOfRows - 1, 0))
-        return ceil(codeHeight)
+        return ceil(barHeight(theme: theme) + codeHeight)
     }
 }
