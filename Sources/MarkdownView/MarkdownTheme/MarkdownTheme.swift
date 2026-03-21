@@ -140,6 +140,14 @@ public struct MarkdownTheme: Equatable {
     public var image: Image = .init()
 
     public struct Diff: Equatable {
+        public enum DisplayMode: String, CaseIterable {
+            case unified
+            case sideBySide
+        }
+
+        public var displayMode: DisplayMode = .unified
+        public var contextCollapseThreshold: Int = 8
+        public var visibleContextLines: Int = 2
         #if canImport(UIKit)
             public var gutterBackground = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
@@ -178,6 +186,11 @@ public struct MarkdownTheme: Equatable {
                 light: UIColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
                 dark: UIColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
             )
+            public var collapsedContextBackground = CodeHighlighter.dynamicColor(
+                light: UIColor(red: 0.941, green: 0.945, blue: 0.953, alpha: 1),
+                dark: UIColor(red: 0.118, green: 0.133, blue: 0.157, alpha: 1)
+            )
+            public var collapsedContextText = UIColor.secondaryLabel
             public var addedIndicatorText = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.114, green: 0.478, blue: 0.247, alpha: 1),
                 dark: UIColor(red: 0.451, green: 0.851, blue: 0.573, alpha: 1)
@@ -226,6 +239,11 @@ public struct MarkdownTheme: Equatable {
                 light: NSColor(red: 0.114, green: 0.341, blue: 0.620, alpha: 1),
                 dark: NSColor(red: 0.545, green: 0.761, blue: 0.973, alpha: 1)
             )
+            public var collapsedContextBackground = CodeHighlighter.dynamicColor(
+                light: NSColor(red: 0.941, green: 0.945, blue: 0.953, alpha: 1),
+                dark: NSColor(red: 0.118, green: 0.133, blue: 0.157, alpha: 1)
+            )
+            public var collapsedContextText = NSColor.secondaryLabelColor
             public var addedIndicatorText = CodeHighlighter.dynamicColor(
                 light: NSColor(red: 0.114, green: 0.478, blue: 0.247, alpha: 1),
                 dark: NSColor(red: 0.451, green: 0.851, blue: 0.573, alpha: 1)

@@ -20,6 +20,19 @@ enum DiffViewConfiguration {
         max(block.rows.count, 1)
     }
 
+    static func presentationLineCount(
+        for block: DiffRenderBlock,
+        theme: MarkdownTheme
+    ) -> Int {
+        let count: Int = switch theme.diff.displayMode {
+        case .unified:
+            DiffPresentation.unifiedRows(from: block, configuration: theme.diff).count
+        case .sideBySide:
+            DiffPresentation.sideBySideRows(from: block, configuration: theme.diff).count
+        }
+        return max(count, 1)
+    }
+
     static func intrinsicHeight(
         for block: DiffRenderBlock,
         theme: MarkdownTheme = .default
@@ -30,7 +43,7 @@ enum DiffViewConfiguration {
         #elseif canImport(AppKit)
             let lineHeight = font.ascender + abs(font.descender) + font.leading
         #endif
-        let numberOfRows = lineCount(of: block)
+        let numberOfRows = presentationLineCount(for: block, theme: theme)
         let codeHeight = lineHeight * CGFloat(numberOfRows)
             + verticalPadding * 2
             + CodeViewConfiguration.codeLineSpacing * CGFloat(max(numberOfRows - 1, 0))

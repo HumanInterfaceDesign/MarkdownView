@@ -1,5 +1,513 @@
 import Litext
 
+private enum DiffDisplayRows {
+    case unified([DiffPresentation.UnifiedRow])
+    case sideBySide(rows: [DiffPresentation.SideBySideRow], maxOldUTF16Length: Int)
+
+    static func make(
+        for block: DiffRenderBlock,
+        theme: MarkdownTheme
+    ) -> DiffDisplayRows {
+        switch theme.diff.displayMode {
+        case .unified:
+            return .unified(
+                DiffPresentation.unifiedRows(from: block, configuration: theme.diff)
+            )
+        case .sideBySide:
+            let rows = DiffPresentation.sideBySideRows(from: block, configuration: theme.diff)
+            return .sideBySide(
+                rows: rows,
+                maxOldUTF16Length: DiffPresentation.sideBySideMaxOldUTF16Length(rows: rows)
+            )
+        }
+    }
+
+    var count: Int {
+        switch self {
+        case let .unified(rows):
+            rows.count
+        case let .sideBySide(rows, _):
+            rows.count
+        }
+    }
+
+    var effectiveCount: Int {
+        max(count, 1)
+    }
+
+    var isEmpty: Bool {
+        count == 0
+    }
+}
+
+private struct DiffSideBySideTextMetrics {
+    let maxOldUTF16Length: Int
+    let oldTextWidth: CGFloat
+    let separatorTextWidth: CGFloat
+
+    static func make(
+        maxOldUTF16Length: Int,
+        font: Any
+    ) -> DiffSideBySideTextMetrics {
+        let oldPaddingWidth = String(repeating: " ", count: maxOldUTF16Length)
+            .size(withAttributes: [.font: font]).width
+        let separatorTextWidth = DiffPresentation.sideBySideSeparatorText
+            .size(withAttributes: [.font: font]).width
+        return .init(
+            maxOldUTF16Length: maxOldUTF16Length,
+            oldTextWidth: oldPaddingWidth,
+            separatorTextWidth: separatorTextWidth
+        )
+    }
+}
+
+private struct DiffGutterMetrics {
+    let oldColumnWidth: CGFloat
+    let newColumnWidth: CGFloat
+    let markerColumnWidth: CGFloat
+
+    var totalWidth: CGFloat {
+        oldColumnWidth + newColumnWidth + markerColumnWidth + DiffViewConfiguration.separatorWidth * 3
+    }
+}
+
+private struct DiffSideBySideContentRects {
+    let dividerX: CGFloat
+    let dividerRect: CGRect
+    let oldRect: CGRect
+    let newRect: CGRect
+}
+
+private func makeDiffParagraphStyle() -> NSMutableParagraphStyle {
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.lineSpacing = CodeViewConfiguration.codeLineSpacing
+    return paragraphStyle
+}
+
+private func makeDiffAttributes(
+    font: Any,
+    color: PlatformColor,
+    paragraphStyle: NSParagraphStyle
+) -> [NSAttributedString.Key: Any] {
+    [
+        .font: font,
+        .paragraphStyle: paragraphStyle,
+        .foregroundColor: color,
+    ]
+}
+
+private func diffRowRect(
+    index: Int,
+    rowCount: Int,
+    contentHeight: CGFloat,
+    bounds: CGRect
+) -> CGRect {
+    let lineHeight = contentHeight / CGFloat(max(rowCount, 1))
+    return CGRect(
+        x: bounds.minX,
+        y: DiffViewConfiguration.verticalPadding + CGFloat(index) * lineHeight,
+        width: bounds.width,
+        height: lineHeight
+    )
+}
+
+private func paddedToUTF16Length(
+    _ text: String,
+    targetLength: Int
+) -> String {
+    let delta = targetLength - text.utf16.count
+    guard delta > 0 else { return text }
+    return text + String(repeating: " ", count: delta)
+}
+
+private func applySyntaxHighlights(
+    _ highlights: CodeHighlighter.HighlightMap,
+    to result: NSMutableAttributedString,
+    baseLocation: Int,
+    rowLength: Int
+) {
+    for (range, color) in highlights {
+        guard range.location >= 0, range.upperBound <= rowLength else { continue }
+        let shifted = NSRange(location: baseLocation + range.location, length: range.length)
+        result.addAttribute(.foregroundColor, value: color, range: shifted)
+    }
+}
+
+private func applyEmphasis(
+    _ ranges: [NSRange],
+    color: PlatformColor?,
+    to result: NSMutableAttributedString,
+    baseLocation: Int,
+    rowLength: Int
+) {
+    guard let color else { return }
+    for range in ranges {
+        guard range.location >= 0, range.upperBound <= rowLength else { continue }
+        let shifted = NSRange(location: baseLocation + range.location, length: range.length)
+        result.addAttribute(.backgroundColor, value: color, range: shifted)
+    }
+}
+
+private func unifiedTextColor(
+    for kind: DiffPresentation.UnifiedRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor {
+    switch kind {
+    case .fileHeader:
+        theme.diff.fileHeaderText
+    case .fileMetadata:
+        theme.diff.fileMetadataText
+    case .hunkHeader:
+        theme.diff.hunkHeaderText
+    case .annotation:
+        theme.diff.annotationText
+    case .collapsedContext:
+        theme.diff.collapsedContextText
+    case .context, .removed, .added:
+        theme.colors.code
+    }
+}
+
+private func unifiedRowBackgroundColor(
+    for kind: DiffPresentation.UnifiedRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch kind {
+    case .fileHeader, .fileMetadata:
+        theme.diff.fileHeaderBackground
+    case .hunkHeader:
+        theme.diff.hunkHeaderBackground
+    case .removed:
+        theme.diff.removedLineBackground
+    case .added:
+        theme.diff.addedLineBackground
+    case .collapsedContext:
+        theme.diff.collapsedContextBackground
+    case .context, .annotation:
+        nil
+    }
+}
+
+private func unifiedEmphasisColor(
+    for kind: DiffPresentation.UnifiedRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch kind {
+    case .removed:
+        theme.diff.removedHighlightBackground
+    case .added:
+        theme.diff.addedHighlightBackground
+    case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
+        nil
+    }
+}
+
+private func sideBySideRowTextColor(
+    for kind: DiffPresentation.SideBySideRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor {
+    switch kind {
+    case .fileHeader:
+        theme.diff.fileHeaderText
+    case .fileMetadata:
+        theme.diff.fileMetadataText
+    case .hunkHeader:
+        theme.diff.hunkHeaderText
+    case .annotation:
+        theme.diff.annotationText
+    case .collapsedContext:
+        theme.diff.collapsedContextText
+    case .content:
+        theme.colors.code
+    }
+}
+
+private func sideBySideRowBackgroundColor(
+    for kind: DiffPresentation.SideBySideRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch kind {
+    case .fileHeader, .fileMetadata:
+        theme.diff.fileHeaderBackground
+    case .hunkHeader:
+        theme.diff.hunkHeaderBackground
+    case .collapsedContext:
+        theme.diff.collapsedContextBackground
+    case .annotation, .content:
+        nil
+    }
+}
+
+private func sideBySideCellBackgroundColor(
+    for role: DiffPresentation.SideBySideRow.CellRole,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch role {
+    case .removed:
+        theme.diff.removedLineBackground
+    case .added:
+        theme.diff.addedLineBackground
+    case .empty, .context:
+        nil
+    }
+}
+
+private func sideBySideEmphasisColor(
+    for role: DiffPresentation.SideBySideRow.CellRole,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch role {
+    case .removed:
+        theme.diff.removedHighlightBackground
+    case .added:
+        theme.diff.addedHighlightBackground
+    case .empty, .context:
+        nil
+    }
+}
+
+private func sideBySideMarker(
+    for row: DiffPresentation.SideBySideRow
+) -> String? {
+    switch row.kind {
+    case .annotation:
+        return "\\"
+    case .content:
+        if row.oldRole == .removed, row.newRole == .empty {
+            return "-"
+        }
+        if row.oldRole == .empty, row.newRole == .added {
+            return "+"
+        }
+        return nil
+    case .fileHeader, .fileMetadata, .hunkHeader, .collapsedContext:
+        return nil
+    }
+}
+
+private func sideBySideMarkerColor(
+    for row: DiffPresentation.SideBySideRow,
+    theme: MarkdownTheme
+) -> PlatformColor {
+    switch sideBySideMarker(for: row) {
+    case "-":
+        theme.diff.removedIndicatorText
+    case "+":
+        theme.diff.addedIndicatorText
+    case "\\":
+        theme.diff.annotationIndicatorText
+    default:
+        theme.diff.gutterText
+    }
+}
+
+private func maxLineNumberText(
+    for displayRows: DiffDisplayRows
+) -> String {
+    let maxLineNumber: Int = switch displayRows {
+    case let .unified(rows):
+        rows.reduce(into: 0) { partialResult, row in
+            partialResult = max(partialResult, row.oldLineNumber ?? 0, row.newLineNumber ?? 0)
+        }
+    case let .sideBySide(rows, _):
+        rows.reduce(into: 0) { partialResult, row in
+            partialResult = max(
+                partialResult,
+                row.oldCell?.lineNumber ?? 0,
+                row.newCell?.lineNumber ?? 0
+            )
+        }
+    }
+    return "\(max(maxLineNumber, 0))"
+}
+
+private func diffGutterMetrics(
+    for displayRows: DiffDisplayRows,
+    font: Any
+) -> DiffGutterMetrics {
+    let numberWidth = maxLineNumberText(for: displayRows)
+        .size(withAttributes: [.font: font]).width
+    let columnWidth = numberWidth + DiffViewConfiguration.gutterPadding * 2
+    return .init(
+        oldColumnWidth: columnWidth,
+        newColumnWidth: columnWidth,
+        markerColumnWidth: DiffViewConfiguration.markerColumnWidth
+    )
+}
+
+private func sideBySideContentRects(
+    in bounds: CGRect,
+    textMetrics: DiffSideBySideTextMetrics
+) -> DiffSideBySideContentRects {
+    let dividerX = min(
+        max(
+            DiffViewConfiguration.horizontalPadding
+                + textMetrics.oldTextWidth
+                + textMetrics.separatorTextWidth / 2,
+            0
+        ),
+        bounds.width
+    )
+    let dividerRect = CGRect(
+        x: max(dividerX - DiffViewConfiguration.separatorWidth / 2, 0),
+        y: bounds.minY,
+        width: DiffViewConfiguration.separatorWidth,
+        height: bounds.height
+    )
+    return .init(
+        dividerX: dividerX,
+        dividerRect: dividerRect,
+        oldRect: CGRect(x: bounds.minX, y: bounds.minY, width: dividerX, height: bounds.height),
+        newRect: CGRect(x: dividerX, y: bounds.minY, width: max(bounds.width - dividerX, 0), height: bounds.height)
+    )
+}
+
+private func makeUnifiedAttributedText(
+    rows: [DiffPresentation.UnifiedRow],
+    font: Any,
+    theme: MarkdownTheme
+) -> NSAttributedString {
+    let paragraphStyle = makeDiffParagraphStyle()
+    let result = NSMutableAttributedString()
+
+    for (index, row) in rows.enumerated() {
+        let rowStart = result.length
+        let attributes = makeDiffAttributes(
+            font: font,
+            color: unifiedTextColor(for: row.kind, theme: theme),
+            paragraphStyle: paragraphStyle
+        )
+        result.append(.init(string: row.text, attributes: attributes))
+
+        let rowLength = row.text.utf16.count
+        applySyntaxHighlights(
+            row.syntaxHighlights,
+            to: result,
+            baseLocation: rowStart,
+            rowLength: rowLength
+        )
+        applyEmphasis(
+            row.emphasizedRanges,
+            color: unifiedEmphasisColor(for: row.kind, theme: theme),
+            to: result,
+            baseLocation: rowStart,
+            rowLength: rowLength
+        )
+
+        if index < rows.count - 1 {
+            result.append(
+                .init(
+                    string: "\n",
+                    attributes: makeDiffAttributes(
+                        font: font,
+                        color: theme.colors.code,
+                        paragraphStyle: paragraphStyle
+                    )
+                )
+            )
+        }
+    }
+
+    return result
+}
+
+private func makeSideBySideAttributedText(
+    rows: [DiffPresentation.SideBySideRow],
+    textMetrics: DiffSideBySideTextMetrics,
+    font: Any,
+    theme: MarkdownTheme
+) -> NSAttributedString {
+    let paragraphStyle = makeDiffParagraphStyle()
+    let result = NSMutableAttributedString()
+
+    for (index, row) in rows.enumerated() {
+        let rowStart = result.length
+
+        switch row.kind {
+        case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+            result.append(
+                .init(
+                    string: row.fullWidthText ?? "",
+                    attributes: makeDiffAttributes(
+                        font: font,
+                        color: sideBySideRowTextColor(for: row.kind, theme: theme),
+                        paragraphStyle: paragraphStyle
+                    )
+                )
+            )
+
+        case .content:
+            let oldText = row.oldCell?.text ?? ""
+            let oldPadded = paddedToUTF16Length(oldText, targetLength: textMetrics.maxOldUTF16Length)
+            let separatorText = DiffPresentation.sideBySideSeparatorText
+            let newText = row.newCell?.text ?? ""
+            let rowText = oldPadded + separatorText + newText
+
+            result.append(
+                .init(
+                    string: rowText,
+                    attributes: makeDiffAttributes(
+                        font: font,
+                        color: theme.colors.code,
+                        paragraphStyle: paragraphStyle
+                    )
+                )
+            )
+
+            let oldRange = NSRange(location: rowStart, length: oldText.utf16.count)
+            let newBaseLocation = rowStart + oldPadded.utf16.count + separatorText.utf16.count
+            let newRange = NSRange(location: newBaseLocation, length: newText.utf16.count)
+
+            if let oldCell = row.oldCell {
+                applySyntaxHighlights(
+                    oldCell.syntaxHighlights,
+                    to: result,
+                    baseLocation: oldRange.location,
+                    rowLength: oldRange.length
+                )
+                applyEmphasis(
+                    oldCell.emphasizedRanges,
+                    color: sideBySideEmphasisColor(for: row.oldRole, theme: theme),
+                    to: result,
+                    baseLocation: oldRange.location,
+                    rowLength: oldRange.length
+                )
+            }
+
+            if let newCell = row.newCell {
+                applySyntaxHighlights(
+                    newCell.syntaxHighlights,
+                    to: result,
+                    baseLocation: newRange.location,
+                    rowLength: newRange.length
+                )
+                applyEmphasis(
+                    newCell.emphasizedRanges,
+                    color: sideBySideEmphasisColor(for: row.newRole, theme: theme),
+                    to: result,
+                    baseLocation: newRange.location,
+                    rowLength: newRange.length
+                )
+            }
+        }
+
+        if index < rows.count - 1 {
+            result.append(
+                .init(
+                    string: "\n",
+                    attributes: makeDiffAttributes(
+                        font: font,
+                        color: theme.colors.code,
+                        paragraphStyle: paragraphStyle
+                    )
+                )
+            )
+        }
+    }
+
+    return result
+}
+
 #if canImport(UIKit)
     import UIKit
 
@@ -14,15 +522,13 @@ import Litext
 
         var renderBlock: DiffRenderBlock = .init(language: nil, rows: []) {
             didSet {
-                guard oldValue.rows.count != renderBlock.rows.count || oldValue.language != renderBlock.language else {
-                    applyRenderBlock()
-                    return
-                }
                 applyRenderBlock()
             }
         }
 
         private var cachedTextHeight: CGFloat = 0
+        private var displayRows: DiffDisplayRows = .unified([])
+        private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
 
         lazy var scrollView: UIScrollView = .init()
         private lazy var contentContainerView: UIView = .init()
@@ -102,16 +608,28 @@ import Litext
         }
 
         private func applyRenderBlock() {
+            displayRows = DiffDisplayRows.make(for: renderBlock, theme: theme)
+            if case let .sideBySide(_, maxOldUTF16Length) = displayRows {
+                sideBySideTextMetrics = .make(
+                    maxOldUTF16Length: maxOldUTF16Length,
+                    font: theme.fonts.code
+                )
+            } else {
+                sideBySideTextMetrics = nil
+            }
+
             textView.attributedText = makeDisplayAttributedText()
             cachedTextHeight = textView.intrinsicContentSize.height
+
             gutterView.configure(
-                rows: renderBlock.rows,
+                displayRows: displayRows,
                 contentHeight: cachedTextHeight,
                 font: theme.fonts.code,
                 theme: theme
             )
             backgroundView.configure(
-                rows: renderBlock.rows,
+                displayRows: displayRows,
+                sideBySideTextMetrics: sideBySideTextMetrics,
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
@@ -120,73 +638,21 @@ import Litext
         }
 
         private func makeDisplayAttributedText() -> NSAttributedString {
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.lineSpacing = CodeViewConfiguration.codeLineSpacing
-
-            let result = NSMutableAttributedString()
-            for (index, row) in renderBlock.rows.enumerated() {
-                let rowRange = NSRange(location: result.length, length: row.text.utf16.count)
-                let baseColor: UIColor = switch row.kind {
-                case .fileHeader:
-                    theme.diff.fileHeaderText
-                case .fileMetadata:
-                    theme.diff.fileMetadataText
-                case .hunkHeader:
-                    theme.diff.hunkHeaderText
-                case .annotation:
-                    theme.diff.annotationText
-                case .context, .removed, .added:
-                    theme.colors.code
-                }
-
-                result.append(
-                    .init(
-                        string: row.text,
-                        attributes: [
-                            .font: theme.fonts.code,
-                            .paragraphStyle: paragraphStyle,
-                            .foregroundColor: baseColor,
-                        ]
-                    )
+            switch displayRows {
+            case let .unified(rows):
+                return makeUnifiedAttributedText(
+                    rows: rows,
+                    font: theme.fonts.code,
+                    theme: theme
                 )
-
-                for (range, color) in row.syntaxHighlights {
-                    guard range.location >= 0, range.upperBound <= rowRange.length else { continue }
-                    let shifted = NSRange(location: rowRange.location + range.location, length: range.length)
-                    result.addAttribute(.foregroundColor, value: color, range: shifted)
-                }
-
-                let emphasisColor: UIColor? = switch row.kind {
-                case .removed:
-                    theme.diff.removedHighlightBackground
-                case .added:
-                    theme.diff.addedHighlightBackground
-                case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation:
-                    nil
-                }
-
-                if let emphasisColor {
-                    for range in row.emphasizedRanges {
-                        guard range.location >= 0, range.upperBound <= rowRange.length else { continue }
-                        let shifted = NSRange(location: rowRange.location + range.location, length: range.length)
-                        result.addAttribute(.backgroundColor, value: emphasisColor, range: shifted)
-                    }
-                }
-
-                if index < renderBlock.rows.count - 1 {
-                    result.append(
-                        .init(
-                            string: "\n",
-                            attributes: [
-                                .font: theme.fonts.code,
-                                .paragraphStyle: paragraphStyle,
-                                .foregroundColor: theme.colors.code,
-                            ]
-                        )
-                    )
-                }
+            case let .sideBySide(rows, _):
+                return makeSideBySideAttributedText(
+                    rows: rows,
+                    textMetrics: sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code),
+                    font: theme.fonts.code,
+                    theme: theme
+                )
             }
-            return result
         }
 
         private func performLayout() {
@@ -253,16 +719,19 @@ import Litext
     }
 
     private final class DiffContentBackgroundView: UIView {
-        private var rows: [DiffRenderBlock.Row] = []
+        private var displayRows: DiffDisplayRows = .unified([])
+        private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
         private var contentHeight: CGFloat = 0
         private var theme: MarkdownTheme = .default
 
         func configure(
-            rows: [DiffRenderBlock.Row],
+            displayRows: DiffDisplayRows,
+            sideBySideTextMetrics: DiffSideBySideTextMetrics?,
             contentHeight: CGFloat,
             theme: MarkdownTheme
         ) {
-            self.rows = rows
+            self.displayRows = displayRows
+            self.sideBySideTextMetrics = sideBySideTextMetrics
             self.contentHeight = contentHeight
             self.theme = theme
             setNeedsDisplay()
@@ -275,66 +744,84 @@ import Litext
         }
 
         private func drawRows(in context: CGContext) {
-            guard !rows.isEmpty, contentHeight > 0 else { return }
+            guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(rows.count)
-            let startY = DiffViewConfiguration.verticalPadding
+            switch displayRows {
+            case let .unified(rows):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-            for (index, row) in rows.enumerated() {
-                let rect = CGRect(
-                    x: 0,
-                    y: startY + CGFloat(index) * lineSpacing,
-                    width: bounds.width,
-                    height: lineSpacing
-                )
+                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                        context.setFillColor(fillColor.cgColor)
+                        context.fill(rect)
+                    }
 
-                if let fillColor = rowBackgroundColor(for: row.kind) {
-                    context.setFillColor(fillColor.cgColor)
-                    context.fill(rect)
+                    context.setFillColor(theme.diff.separatorColor.cgColor)
+                    context.fill(
+                        CGRect(
+                            x: 0,
+                            y: rect.maxY - DiffViewConfiguration.separatorWidth,
+                            width: bounds.width,
+                            height: DiffViewConfiguration.separatorWidth
+                        )
+                    )
                 }
 
-                context.setFillColor(theme.diff.separatorColor.cgColor)
-                context.fill(
-                    CGRect(
-                        x: 0,
-                        y: rect.maxY - DiffViewConfiguration.separatorWidth,
-                        width: bounds.width,
-                        height: DiffViewConfiguration.separatorWidth
+            case let .sideBySide(rows, _):
+                let textMetrics = sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code)
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
                     )
-                )
-            }
-        }
 
-        private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> UIColor? {
-            switch kind {
-            case .fileHeader, .fileMetadata:
-                theme.diff.fileHeaderBackground
-            case .hunkHeader:
-                theme.diff.hunkHeaderBackground
-            case .removed:
-                theme.diff.removedLineBackground
-            case .added:
-                theme.diff.addedLineBackground
-            case .context, .annotation:
-                nil
+                    switch row.kind {
+                    case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+                        if let fillColor = sideBySideRowBackgroundColor(for: row.kind, theme: theme) {
+                            context.setFillColor(fillColor.cgColor)
+                            context.fill(rect)
+                        }
+
+                    case .content:
+                        let columnRects = sideBySideContentRects(in: rect, textMetrics: textMetrics)
+
+                        if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
+                            context.setFillColor(oldColor.cgColor)
+                            context.fill(columnRects.oldRect)
+                        }
+
+                        if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
+                            context.setFillColor(newColor.cgColor)
+                            context.fill(columnRects.newRect)
+                        }
+
+                        context.setFillColor(theme.diff.separatorColor.cgColor)
+                        context.fill(columnRects.dividerRect)
+                    }
+
+                    context.setFillColor(theme.diff.separatorColor.cgColor)
+                    context.fill(
+                        CGRect(
+                            x: 0,
+                            y: rect.maxY - DiffViewConfiguration.separatorWidth,
+                            width: bounds.width,
+                            height: DiffViewConfiguration.separatorWidth
+                        )
+                    )
+                }
             }
         }
     }
 
     private final class DiffGutterView: UIView {
-        private struct Metrics {
-            let oldColumnWidth: CGFloat
-            let newColumnWidth: CGFloat
-            let markerColumnWidth: CGFloat
-
-            var totalWidth: CGFloat {
-                oldColumnWidth + newColumnWidth + markerColumnWidth + DiffViewConfiguration.separatorWidth * 3
-            }
-        }
-
-        private var suppressInvalidation = false
-        private var rows: [DiffRenderBlock.Row] = []
+        private var displayRows: DiffDisplayRows = .unified([])
         private var font: UIFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
         private var theme: MarkdownTheme = .default
         private var contentHeight: CGFloat = 0
@@ -352,23 +839,21 @@ import Litext
         }
 
         func configure(
-            rows: [DiffRenderBlock.Row],
+            displayRows: DiffDisplayRows,
             contentHeight: CGFloat,
             font: UIFont,
             theme: MarkdownTheme
         ) {
-            suppressInvalidation = true
-            self.rows = rows
+            self.displayRows = displayRows
             self.contentHeight = contentHeight
             self.font = font
             self.theme = theme
-            suppressInvalidation = false
             setNeedsDisplay()
             invalidateIntrinsicContentSize()
         }
 
         override var intrinsicContentSize: CGSize {
-            let metrics = layoutMetrics()
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
             let maxHeight = max(
                 contentHeight + DiffViewConfiguration.verticalPadding * 2,
                 font.lineHeight + DiffViewConfiguration.verticalPadding * 2
@@ -383,81 +868,151 @@ import Litext
             drawSeparators(in: context)
         }
 
-        private func layoutMetrics() -> Metrics {
-            let numberWidth = maxLineNumberText().size(withAttributes: [.font: font]).width
-            let columnWidth = numberWidth + DiffViewConfiguration.gutterPadding * 2
-            return .init(
-                oldColumnWidth: columnWidth,
-                newColumnWidth: columnWidth,
-                markerColumnWidth: DiffViewConfiguration.markerColumnWidth
-            )
-        }
-
-        private func maxLineNumberText() -> String {
-            let maxLineNumber = rows.reduce(into: 0) { partialResult, row in
-                partialResult = max(partialResult, row.oldLineNumber ?? 0, row.newLineNumber ?? 0)
-            }
-            return "\(max(maxLineNumber, 0))"
-        }
-
         private func drawRows(in context: CGContext) {
-            guard !rows.isEmpty, contentHeight > 0 else { return }
+            guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let metrics = layoutMetrics()
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(rows.count)
-            let startY = DiffViewConfiguration.verticalPadding
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: theme.diff.gutterText,
+            ]
 
-            for (index, row) in rows.enumerated() {
-                let rect = CGRect(
-                    x: 0,
-                    y: startY + CGFloat(index) * lineSpacing,
-                    width: bounds.width,
-                    height: lineSpacing
-                )
+            switch displayRows {
+            case let .unified(rows):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-                if let fillColor = rowBackgroundColor(for: row.kind) {
-                    context.setFillColor(fillColor.cgColor)
-                    context.fill(rect)
-                } else {
-                    context.setFillColor(theme.diff.gutterBackground.cgColor)
-                    context.fill(rect)
+                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                        context.setFillColor(fillColor.cgColor)
+                        context.fill(rect)
+                    } else {
+                        context.setFillColor(theme.diff.gutterBackground.cgColor)
+                        context.fill(rect)
+                    }
+
+                    let markerAttributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: markerColor(for: row.kind),
+                    ]
+
+                    drawNumber(
+                        row.oldLineNumber,
+                        in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
+                        attributes: textAttributes
+                    )
+                    drawNumber(
+                        row.newLineNumber,
+                        in: CGRect(
+                            x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
+                            y: rect.minY,
+                            width: metrics.newColumnWidth,
+                            height: rect.height
+                        ),
+                        attributes: textAttributes
+                    )
+                    drawMarker(
+                        marker(for: row.kind),
+                        in: CGRect(
+                            x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
+                            y: rect.minY,
+                            width: metrics.markerColumnWidth,
+                            height: rect.height
+                        ),
+                        attributes: markerAttributes
+                    )
                 }
 
-                let textAttributes: [NSAttributedString.Key: Any] = [
-                    .font: font,
-                    .foregroundColor: theme.diff.gutterText,
-                ]
-                let markerAttributes: [NSAttributedString.Key: Any] = [
-                    .font: font,
-                    .foregroundColor: markerColor(for: row.kind),
-                ]
+            case let .sideBySide(rows, _):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-                drawNumber(
-                    row.oldLineNumber,
-                    in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
-                    attributes: textAttributes
-                )
-                drawNumber(
-                    row.newLineNumber,
-                    in: CGRect(
+                    let oldRect = CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height)
+                    let newRect = CGRect(
                         x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
                         y: rect.minY,
                         width: metrics.newColumnWidth,
                         height: rect.height
-                    ),
-                    attributes: textAttributes
-                )
-                drawMarker(
-                    marker(for: row.kind),
-                    in: CGRect(
+                    )
+                    let markerRect = CGRect(
                         x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
                         y: rect.minY,
                         width: metrics.markerColumnWidth,
                         height: rect.height
-                    ),
-                    attributes: markerAttributes
-                )
+                    )
+
+                    switch row.kind {
+                    case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+                        if let fillColor = sideBySideRowBackgroundColor(for: row.kind, theme: theme) {
+                            context.setFillColor(fillColor.cgColor)
+                            context.fill(rect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(rect)
+                        }
+
+                    case .content:
+                        if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
+                            context.setFillColor(oldColor.cgColor)
+                            context.fill(oldRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(oldRect)
+                        }
+
+                        if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
+                            context.setFillColor(newColor.cgColor)
+                            context.fill(newRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(newRect)
+                        }
+
+                        if let marker = sideBySideMarker(for: row), !marker.isEmpty {
+                            if marker == "-" {
+                                context.setFillColor(theme.diff.removedLineBackground.cgColor)
+                            } else if marker == "+" {
+                                context.setFillColor(theme.diff.addedLineBackground.cgColor)
+                            } else {
+                                context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            }
+                            context.fill(markerRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(markerRect)
+                        }
+                    }
+
+                    let markerAttributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: sideBySideMarkerColor(for: row, theme: theme),
+                    ]
+
+                    drawNumber(
+                        row.oldCell?.lineNumber,
+                        in: oldRect,
+                        attributes: textAttributes
+                    )
+                    drawNumber(
+                        row.newCell?.lineNumber,
+                        in: newRect,
+                        attributes: textAttributes
+                    )
+                    drawMarker(
+                        sideBySideMarker(for: row),
+                        in: markerRect,
+                        attributes: markerAttributes
+                    )
+                }
             }
         }
 
@@ -495,7 +1050,7 @@ import Litext
         }
 
         private func drawSeparators(in context: CGContext) {
-            let metrics = layoutMetrics()
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
             context.setFillColor(theme.diff.separatorColor.cgColor)
 
             let firstSeparatorX = metrics.oldColumnWidth
@@ -514,7 +1069,7 @@ import Litext
             }
         }
 
-        private func marker(for kind: DiffRenderBlock.RowKind) -> String? {
+        private func marker(for kind: DiffPresentation.UnifiedRow.Kind) -> String? {
             switch kind {
             case .removed:
                 "-"
@@ -522,12 +1077,12 @@ import Litext
                 "+"
             case .annotation:
                 "\\"
-            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context, .collapsedContext:
                 nil
             }
         }
 
-        private func markerColor(for kind: DiffRenderBlock.RowKind) -> UIColor {
+        private func markerColor(for kind: DiffPresentation.UnifiedRow.Kind) -> UIColor {
             switch kind {
             case .removed:
                 theme.diff.removedIndicatorText
@@ -535,23 +1090,8 @@ import Litext
                 theme.diff.addedIndicatorText
             case .annotation:
                 theme.diff.annotationIndicatorText
-            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context, .collapsedContext:
                 theme.diff.gutterText
-            }
-        }
-
-        private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> UIColor? {
-            switch kind {
-            case .fileHeader, .fileMetadata:
-                theme.diff.fileHeaderBackground
-            case .hunkHeader:
-                theme.diff.hunkHeaderBackground
-            case .removed:
-                theme.diff.removedLineBackground
-            case .added:
-                theme.diff.addedLineBackground
-            case .context, .annotation:
-                nil
             }
         }
     }
@@ -570,15 +1110,13 @@ import Litext
 
         var renderBlock: DiffRenderBlock = .init(language: nil, rows: []) {
             didSet {
-                guard oldValue.rows.count != renderBlock.rows.count || oldValue.language != renderBlock.language else {
-                    applyRenderBlock()
-                    return
-                }
                 applyRenderBlock()
             }
         }
 
         private var cachedTextHeight: CGFloat = 0
+        private var displayRows: DiffDisplayRows = .unified([])
+        private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
 
         lazy var scrollView: NSScrollView = {
             let scrollView = NSScrollView()
@@ -666,16 +1204,28 @@ import Litext
         }
 
         private func applyRenderBlock() {
+            displayRows = DiffDisplayRows.make(for: renderBlock, theme: theme)
+            if case let .sideBySide(_, maxOldUTF16Length) = displayRows {
+                sideBySideTextMetrics = .make(
+                    maxOldUTF16Length: maxOldUTF16Length,
+                    font: theme.fonts.code
+                )
+            } else {
+                sideBySideTextMetrics = nil
+            }
+
             textView.attributedText = makeDisplayAttributedText()
             cachedTextHeight = textView.intrinsicContentSize.height
+
             gutterView.configure(
-                rows: renderBlock.rows,
+                displayRows: displayRows,
                 contentHeight: cachedTextHeight,
                 font: theme.fonts.code,
                 theme: theme
             )
             backgroundView.configure(
-                rows: renderBlock.rows,
+                displayRows: displayRows,
+                sideBySideTextMetrics: sideBySideTextMetrics,
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
@@ -684,73 +1234,21 @@ import Litext
         }
 
         private func makeDisplayAttributedText() -> NSAttributedString {
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.lineSpacing = CodeViewConfiguration.codeLineSpacing
-
-            let result = NSMutableAttributedString()
-            for (index, row) in renderBlock.rows.enumerated() {
-                let rowRange = NSRange(location: result.length, length: row.text.utf16.count)
-                let baseColor: NSColor = switch row.kind {
-                case .fileHeader:
-                    theme.diff.fileHeaderText
-                case .fileMetadata:
-                    theme.diff.fileMetadataText
-                case .hunkHeader:
-                    theme.diff.hunkHeaderText
-                case .annotation:
-                    theme.diff.annotationText
-                case .context, .removed, .added:
-                    theme.colors.code
-                }
-
-                result.append(
-                    .init(
-                        string: row.text,
-                        attributes: [
-                            .font: theme.fonts.code,
-                            .paragraphStyle: paragraphStyle,
-                            .foregroundColor: baseColor,
-                        ]
-                    )
+            switch displayRows {
+            case let .unified(rows):
+                return makeUnifiedAttributedText(
+                    rows: rows,
+                    font: theme.fonts.code,
+                    theme: theme
                 )
-
-                for (range, color) in row.syntaxHighlights {
-                    guard range.location >= 0, range.upperBound <= rowRange.length else { continue }
-                    let shifted = NSRange(location: rowRange.location + range.location, length: range.length)
-                    result.addAttribute(.foregroundColor, value: color, range: shifted)
-                }
-
-                let emphasisColor: NSColor? = switch row.kind {
-                case .removed:
-                    theme.diff.removedHighlightBackground
-                case .added:
-                    theme.diff.addedHighlightBackground
-                case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation:
-                    nil
-                }
-
-                if let emphasisColor {
-                    for range in row.emphasizedRanges {
-                        guard range.location >= 0, range.upperBound <= rowRange.length else { continue }
-                        let shifted = NSRange(location: rowRange.location + range.location, length: range.length)
-                        result.addAttribute(.backgroundColor, value: emphasisColor, range: shifted)
-                    }
-                }
-
-                if index < renderBlock.rows.count - 1 {
-                    result.append(
-                        .init(
-                            string: "\n",
-                            attributes: [
-                                .font: theme.fonts.code,
-                                .paragraphStyle: paragraphStyle,
-                                .foregroundColor: theme.colors.code,
-                            ]
-                        )
-                    )
-                }
+            case let .sideBySide(rows, _):
+                return makeSideBySideAttributedText(
+                    rows: rows,
+                    textMetrics: sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code),
+                    font: theme.fonts.code,
+                    theme: theme
+                )
             }
-            return result
         }
 
         private func performLayout() {
@@ -822,7 +1320,8 @@ import Litext
     }
 
     private final class DiffContentBackgroundView: NSView {
-        private var rows: [DiffRenderBlock.Row] = []
+        private var displayRows: DiffDisplayRows = .unified([])
+        private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
         private var contentHeight: CGFloat = 0
         private var theme: MarkdownTheme = .default
 
@@ -831,11 +1330,13 @@ import Litext
         }
 
         func configure(
-            rows: [DiffRenderBlock.Row],
+            displayRows: DiffDisplayRows,
+            sideBySideTextMetrics: DiffSideBySideTextMetrics?,
             contentHeight: CGFloat,
             theme: MarkdownTheme
         ) {
-            self.rows = rows
+            self.displayRows = displayRows
+            self.sideBySideTextMetrics = sideBySideTextMetrics
             self.contentHeight = contentHeight
             self.theme = theme
             needsDisplay = true
@@ -848,65 +1349,84 @@ import Litext
         }
 
         private func drawRows(in context: CGContext) {
-            guard !rows.isEmpty, contentHeight > 0 else { return }
+            guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(rows.count)
-            let startY = DiffViewConfiguration.verticalPadding
+            switch displayRows {
+            case let .unified(rows):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-            for (index, row) in rows.enumerated() {
-                let rect = CGRect(
-                    x: 0,
-                    y: startY + CGFloat(index) * lineSpacing,
-                    width: bounds.width,
-                    height: lineSpacing
-                )
+                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                        context.setFillColor(fillColor.cgColor)
+                        context.fill(rect)
+                    }
 
-                if let fillColor = rowBackgroundColor(for: row.kind) {
-                    context.setFillColor(fillColor.cgColor)
-                    context.fill(rect)
+                    context.setFillColor(theme.diff.separatorColor.cgColor)
+                    context.fill(
+                        CGRect(
+                            x: 0,
+                            y: rect.maxY - DiffViewConfiguration.separatorWidth,
+                            width: bounds.width,
+                            height: DiffViewConfiguration.separatorWidth
+                        )
+                    )
                 }
 
-                context.setFillColor(theme.diff.separatorColor.cgColor)
-                context.fill(
-                    CGRect(
-                        x: 0,
-                        y: rect.maxY - DiffViewConfiguration.separatorWidth,
-                        width: bounds.width,
-                        height: DiffViewConfiguration.separatorWidth
+            case let .sideBySide(rows, _):
+                let textMetrics = sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code)
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
                     )
-                )
-            }
-        }
 
-        private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> NSColor? {
-            switch kind {
-            case .fileHeader, .fileMetadata:
-                theme.diff.fileHeaderBackground
-            case .hunkHeader:
-                theme.diff.hunkHeaderBackground
-            case .removed:
-                theme.diff.removedLineBackground
-            case .added:
-                theme.diff.addedLineBackground
-            case .context, .annotation:
-                nil
+                    switch row.kind {
+                    case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+                        if let fillColor = sideBySideRowBackgroundColor(for: row.kind, theme: theme) {
+                            context.setFillColor(fillColor.cgColor)
+                            context.fill(rect)
+                        }
+
+                    case .content:
+                        let columnRects = sideBySideContentRects(in: rect, textMetrics: textMetrics)
+
+                        if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
+                            context.setFillColor(oldColor.cgColor)
+                            context.fill(columnRects.oldRect)
+                        }
+
+                        if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
+                            context.setFillColor(newColor.cgColor)
+                            context.fill(columnRects.newRect)
+                        }
+
+                        context.setFillColor(theme.diff.separatorColor.cgColor)
+                        context.fill(columnRects.dividerRect)
+                    }
+
+                    context.setFillColor(theme.diff.separatorColor.cgColor)
+                    context.fill(
+                        CGRect(
+                            x: 0,
+                            y: rect.maxY - DiffViewConfiguration.separatorWidth,
+                            width: bounds.width,
+                            height: DiffViewConfiguration.separatorWidth
+                        )
+                    )
+                }
             }
         }
     }
 
     private final class DiffGutterView: NSView {
-        private struct Metrics {
-            let oldColumnWidth: CGFloat
-            let newColumnWidth: CGFloat
-            let markerColumnWidth: CGFloat
-
-            var totalWidth: CGFloat {
-                oldColumnWidth + newColumnWidth + markerColumnWidth + DiffViewConfiguration.separatorWidth * 3
-            }
-        }
-
-        private var rows: [DiffRenderBlock.Row] = []
+        private var displayRows: DiffDisplayRows = .unified([])
         private var font: NSFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
         private var theme: MarkdownTheme = .default
         private var contentHeight: CGFloat = 0
@@ -916,12 +1436,12 @@ import Litext
         }
 
         func configure(
-            rows: [DiffRenderBlock.Row],
+            displayRows: DiffDisplayRows,
             contentHeight: CGFloat,
             font: NSFont,
             theme: MarkdownTheme
         ) {
-            self.rows = rows
+            self.displayRows = displayRows
             self.contentHeight = contentHeight
             self.font = font
             self.theme = theme
@@ -930,7 +1450,7 @@ import Litext
         }
 
         override var intrinsicContentSize: CGSize {
-            let metrics = layoutMetrics()
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
             let fontHeight = font.ascender + abs(font.descender) + font.leading
             let maxHeight = max(
                 contentHeight + DiffViewConfiguration.verticalPadding * 2,
@@ -946,81 +1466,151 @@ import Litext
             drawSeparators(in: context)
         }
 
-        private func layoutMetrics() -> Metrics {
-            let numberWidth = maxLineNumberText().size(withAttributes: [.font: font]).width
-            let columnWidth = numberWidth + DiffViewConfiguration.gutterPadding * 2
-            return .init(
-                oldColumnWidth: columnWidth,
-                newColumnWidth: columnWidth,
-                markerColumnWidth: DiffViewConfiguration.markerColumnWidth
-            )
-        }
-
-        private func maxLineNumberText() -> String {
-            let maxLineNumber = rows.reduce(into: 0) { partialResult, row in
-                partialResult = max(partialResult, row.oldLineNumber ?? 0, row.newLineNumber ?? 0)
-            }
-            return "\(max(maxLineNumber, 0))"
-        }
-
         private func drawRows(in context: CGContext) {
-            guard !rows.isEmpty, contentHeight > 0 else { return }
+            guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let metrics = layoutMetrics()
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(rows.count)
-            let startY = DiffViewConfiguration.verticalPadding
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: theme.diff.gutterText,
+            ]
 
-            for (index, row) in rows.enumerated() {
-                let rect = CGRect(
-                    x: 0,
-                    y: startY + CGFloat(index) * lineSpacing,
-                    width: bounds.width,
-                    height: lineSpacing
-                )
+            switch displayRows {
+            case let .unified(rows):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-                if let fillColor = rowBackgroundColor(for: row.kind) {
-                    context.setFillColor(fillColor.cgColor)
-                    context.fill(rect)
-                } else {
-                    context.setFillColor(theme.diff.gutterBackground.cgColor)
-                    context.fill(rect)
+                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                        context.setFillColor(fillColor.cgColor)
+                        context.fill(rect)
+                    } else {
+                        context.setFillColor(theme.diff.gutterBackground.cgColor)
+                        context.fill(rect)
+                    }
+
+                    let markerAttributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: markerColor(for: row.kind),
+                    ]
+
+                    drawNumber(
+                        row.oldLineNumber,
+                        in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
+                        attributes: textAttributes
+                    )
+                    drawNumber(
+                        row.newLineNumber,
+                        in: CGRect(
+                            x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
+                            y: rect.minY,
+                            width: metrics.newColumnWidth,
+                            height: rect.height
+                        ),
+                        attributes: textAttributes
+                    )
+                    drawMarker(
+                        marker(for: row.kind),
+                        in: CGRect(
+                            x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
+                            y: rect.minY,
+                            width: metrics.markerColumnWidth,
+                            height: rect.height
+                        ),
+                        attributes: markerAttributes
+                    )
                 }
 
-                let textAttributes: [NSAttributedString.Key: Any] = [
-                    .font: font,
-                    .foregroundColor: theme.diff.gutterText,
-                ]
-                let markerAttributes: [NSAttributedString.Key: Any] = [
-                    .font: font,
-                    .foregroundColor: markerColor(for: row.kind),
-                ]
+            case let .sideBySide(rows, _):
+                for (index, row) in rows.enumerated() {
+                    let rect = diffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        contentHeight: contentHeight,
+                        bounds: bounds
+                    )
 
-                drawNumber(
-                    row.oldLineNumber,
-                    in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
-                    attributes: textAttributes
-                )
-                drawNumber(
-                    row.newLineNumber,
-                    in: CGRect(
+                    let oldRect = CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height)
+                    let newRect = CGRect(
                         x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
                         y: rect.minY,
                         width: metrics.newColumnWidth,
                         height: rect.height
-                    ),
-                    attributes: textAttributes
-                )
-                drawMarker(
-                    marker(for: row.kind),
-                    in: CGRect(
+                    )
+                    let markerRect = CGRect(
                         x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
                         y: rect.minY,
                         width: metrics.markerColumnWidth,
                         height: rect.height
-                    ),
-                    attributes: markerAttributes
-                )
+                    )
+
+                    switch row.kind {
+                    case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+                        if let fillColor = sideBySideRowBackgroundColor(for: row.kind, theme: theme) {
+                            context.setFillColor(fillColor.cgColor)
+                            context.fill(rect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(rect)
+                        }
+
+                    case .content:
+                        if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
+                            context.setFillColor(oldColor.cgColor)
+                            context.fill(oldRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(oldRect)
+                        }
+
+                        if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
+                            context.setFillColor(newColor.cgColor)
+                            context.fill(newRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(newRect)
+                        }
+
+                        if let marker = sideBySideMarker(for: row), !marker.isEmpty {
+                            if marker == "-" {
+                                context.setFillColor(theme.diff.removedLineBackground.cgColor)
+                            } else if marker == "+" {
+                                context.setFillColor(theme.diff.addedLineBackground.cgColor)
+                            } else {
+                                context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            }
+                            context.fill(markerRect)
+                        } else {
+                            context.setFillColor(theme.diff.gutterBackground.cgColor)
+                            context.fill(markerRect)
+                        }
+                    }
+
+                    let markerAttributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: sideBySideMarkerColor(for: row, theme: theme),
+                    ]
+
+                    drawNumber(
+                        row.oldCell?.lineNumber,
+                        in: oldRect,
+                        attributes: textAttributes
+                    )
+                    drawNumber(
+                        row.newCell?.lineNumber,
+                        in: newRect,
+                        attributes: textAttributes
+                    )
+                    drawMarker(
+                        sideBySideMarker(for: row),
+                        in: markerRect,
+                        attributes: markerAttributes
+                    )
+                }
             }
         }
 
@@ -1058,7 +1648,7 @@ import Litext
         }
 
         private func drawSeparators(in context: CGContext) {
-            let metrics = layoutMetrics()
+            let metrics = diffGutterMetrics(for: displayRows, font: font)
             context.setFillColor(theme.diff.separatorColor.cgColor)
 
             let firstSeparatorX = metrics.oldColumnWidth
@@ -1077,7 +1667,7 @@ import Litext
             }
         }
 
-        private func marker(for kind: DiffRenderBlock.RowKind) -> String? {
+        private func marker(for kind: DiffPresentation.UnifiedRow.Kind) -> String? {
             switch kind {
             case .removed:
                 "-"
@@ -1085,12 +1675,12 @@ import Litext
                 "+"
             case .annotation:
                 "\\"
-            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context, .collapsedContext:
                 nil
             }
         }
 
-        private func markerColor(for kind: DiffRenderBlock.RowKind) -> NSColor {
+        private func markerColor(for kind: DiffPresentation.UnifiedRow.Kind) -> NSColor {
             switch kind {
             case .removed:
                 theme.diff.removedIndicatorText
@@ -1098,23 +1688,8 @@ import Litext
                 theme.diff.addedIndicatorText
             case .annotation:
                 theme.diff.annotationIndicatorText
-            case .fileHeader, .fileMetadata, .hunkHeader, .context:
+            case .fileHeader, .fileMetadata, .hunkHeader, .context, .collapsedContext:
                 theme.diff.gutterText
-            }
-        }
-
-        private func rowBackgroundColor(for kind: DiffRenderBlock.RowKind) -> NSColor? {
-            switch kind {
-            case .fileHeader, .fileMetadata:
-                theme.diff.fileHeaderBackground
-            case .hunkHeader:
-                theme.diff.hunkHeaderBackground
-            case .removed:
-                theme.diff.removedLineBackground
-            case .added:
-                theme.diff.addedLineBackground
-            case .context, .annotation:
-                nil
             }
         }
     }

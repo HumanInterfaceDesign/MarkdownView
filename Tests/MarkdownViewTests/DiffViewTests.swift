@@ -209,6 +209,121 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testUnifiedPresentationCollapsesLongContextRuns() {
+        let content = makeContent(
+            from: """
+            ```diff
+            @@ -1,11 +1,11 @@
+             line 1
+             line 2
+             line 3
+             line 4
+             line 5
+             line 6
+             line 7
+             line 8
+             line 9
+             line 10
+            -line 11
+            +line eleven
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        var theme = MarkdownTheme.default
+        theme.diff.contextCollapseThreshold = 6
+        theme.diff.visibleContextLines = 2
+
+        let rows = DiffPresentation.unifiedRows(from: renderBlock, configuration: theme.diff)
+
+        XCTAssertEqual(rows.count, 8)
+        XCTAssertEqual(rows[1].kind, .context)
+        XCTAssertEqual(rows[2].kind, .context)
+        XCTAssertEqual(rows[3].kind, .collapsedContext)
+        XCTAssertEqual(rows[3].text, "... 6 unchanged lines ...")
+        XCTAssertEqual(rows[4].kind, .context)
+        XCTAssertEqual(rows[5].kind, .context)
+
+        var uncollapsedTheme = MarkdownTheme.default
+        uncollapsedTheme.diff.contextCollapseThreshold = 0
+        let uncollapsedHeight = DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: uncollapsedTheme)
+        let collapsedHeight = DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: theme)
+        XCTAssertLessThan(collapsedHeight, uncollapsedHeight)
+    }
+
+    func testSideBySidePresentationPairsRemovedAndAddedRows() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1,2 +1,3 @@
+            -let greeting = "hello"
+            -let parting = "bye"
+            +let greeting = "hi there"
+            +let parting = "goodbye"
+            +let extra = "!"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        let rows = DiffPresentation.sideBySideRows(from: renderBlock, configuration: .init())
+
+        XCTAssertEqual(rows.count, 4)
+        XCTAssertEqual(rows[0].kind, .hunkHeader)
+        XCTAssertEqual(rows[1].kind, .content)
+        XCTAssertEqual(rows[1].oldRole, .removed)
+        XCTAssertEqual(rows[1].newRole, .added)
+        XCTAssertEqual(rows[1].oldCell?.text, "let greeting = \"hello\"")
+        XCTAssertEqual(rows[1].newCell?.text, "let greeting = \"hi there\"")
+        XCTAssertEqual(rows[2].oldCell?.text, "let parting = \"bye\"")
+        XCTAssertEqual(rows[2].newCell?.text, "let parting = \"goodbye\"")
+        XCTAssertEqual(rows[3].oldRole, .empty)
+        XCTAssertEqual(rows[3].newRole, .added)
+        XCTAssertNil(rows[3].oldCell)
+        XCTAssertEqual(rows[3].newCell?.text, "let extra = \"!\"")
+    }
+
+    func testSideBySideDiffViewUsesPairedDisplayRowsButPreservesRawSelectionText() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.diff.displayMode = .sideBySide
+
+            let view = DiffView(frame: .zero)
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            let displayLines = view.textView.attributedText.string.components(separatedBy: "\n")
+            XCTAssertEqual(displayLines.count, 2)
+            XCTAssertTrue(displayLines[1].contains("Design Engineer"))
+            XCTAssertTrue(displayLines[1].contains("Designer"))
+
+            let selectionText = view.attributedStringRepresentation().string
+            XCTAssertTrue(selectionText.contains("-let title = \"Design Engineer\""))
+            XCTAssertTrue(selectionText.contains("+let title = \"Designer\""))
+        }
+    }
+
     private func makeContent(from markdown: String) -> MarkdownTextView.PreprocessedContent {
         let result = parser.parse(markdown)
         return MarkdownTextView.PreprocessedContent(
