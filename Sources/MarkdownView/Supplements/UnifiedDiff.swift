@@ -61,6 +61,17 @@ enum CodeBlockClassifier {
     }
 }
 
+enum RawDiffMarkdownNormalizer {
+    static func normalizeForParsing(_ markdown: String) -> String {
+        guard UnifiedDiffParser.canRender(content: markdown, language: nil) else {
+            return markdown
+        }
+
+        let trailingNewline = markdown.hasSuffix("\n") ? "" : "\n"
+        return "```patch\n\(markdown)\(trailingNewline)```"
+    }
+}
+
 struct DiffRenderBlock {
     enum RowKind: Hashable {
         case fileHeader

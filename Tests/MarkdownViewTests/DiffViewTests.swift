@@ -369,6 +369,63 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testRawUnifiedDiffStringNormalizesToPatchFence() {
+        let patch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        index 1234567..89abcde 100644
+        --- a/app/page.tsx
+        +++ b/app/page.tsx
+        @@ -1 +1 @@
+        -const title = "Before"
+        +const title = "After"
+        """
+
+        let normalized = RawDiffMarkdownNormalizer.normalizeForParsing(patch)
+
+        XCTAssertTrue(normalized.hasPrefix("```patch\n"))
+        XCTAssertTrue(normalized.hasSuffix("\n```"))
+        XCTAssertTrue(normalized.contains(patch))
+    }
+
+    func testRawUnifiedDiffStringRendersDiffView() {
+        let patch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        index 1234567..89abcde 100644
+        --- a/app/page.tsx
+        +++ b/app/page.tsx
+        @@ -1 +1 @@
+        -const title = "Before"
+        +const title = "After"
+        """
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.throttleInterval = nil
+            view.setMarkdown(string: patch)
+
+            let deadline = Date().addingTimeInterval(2)
+            while view.document.diffRenderBlocks.isEmpty, Date() < deadline {
+                _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.001))
+            }
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is DiffView)
+        }
+    }
+
+    func testRawMarkdownNormalizerLeavesOrdinaryMarkdownUntouched() {
+        let markdown = """
+        # Hello
+
+        This is a normal paragraph.
+        """
+
+        XCTAssertEqual(
+            RawDiffMarkdownNormalizer.normalizeForParsing(markdown),
+            markdown
+        )
+    }
+
     func testDiffViewIsReusedFromPool() {
         let content = makeContent(
             from: """

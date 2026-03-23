@@ -9,7 +9,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - Full GFM (GitHub Flavored Markdown) support: headings, lists, tables, blockquotes, task lists, and more
 - Native syntax highlighting powered by [tree-sitter](https://tree-sitter.github.io/) — no JavaScript runtime overhead
 - 19 languages: Swift, C, C++, C#, Python, JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, Ruby, Bash, SQL, YAML, JSON, HTML, CSS
-- GitHub-style unified diff rendering for fenced `diff` / `patch` blocks, plus auto-detection for fenced unified patches with optional inner-language syntax highlighting
+- GitHub-style unified diff rendering for fenced `diff` / `patch` blocks, fenced auto-detection, and raw unified patch strings passed to `setMarkdown(string:)`
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
@@ -256,7 +256,16 @@ index 1234567..89abcde 100644
 
 This renders as a dedicated diff view with hunk headers, dual line numbers, added/removed row styling, and inline change emphasis for paired edits.
 Standard unified-diff file preamble lines like `diff --git`, `index`, `---`, and `+++` are also supported and render as styled header/meta rows above the hunks.
+If the entire markdown string is itself a valid unified diff, MarkdownView will normalize it internally and render the dedicated diff view even without fences.
+This is useful when an API returns only the patch text.
 Use `text` or `plaintext` if you want to show patch text literally without auto-detecting the diff view.
+
+```swift
+let response = apiResponse
+markdownView.setMarkdown(string: response.patch)
+```
+
+Pass the extracted `patch` string, not the surrounding JSON object.
 
 ## Architecture
 

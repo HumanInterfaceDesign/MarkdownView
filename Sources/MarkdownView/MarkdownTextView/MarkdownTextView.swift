@@ -8,6 +8,12 @@ import CoreText
 import Litext
 import MarkdownParser
 
+enum ContentPipelineMode {
+    case none
+    case preprocessed
+    case raw
+}
+
 #if canImport(UIKit)
     import UIKit
 
@@ -36,6 +42,7 @@ import MarkdownParser
         }
 
         let viewProvider: ReusableViewProvider
+        var contentPipelineMode: ContentPipelineMode = .none
         var lastRawMarkdown: String?
         var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
@@ -96,6 +103,9 @@ import MarkdownParser
         }
 
         public func setMarkdown(_ content: PreprocessedContent) {
+            if contentPipelineMode != .preprocessed {
+                setupCombine()
+            }
             lastRawMarkdown = nil
             lastRootBlockRanges = nil
             contentSubject.send(content)
@@ -105,7 +115,7 @@ import MarkdownParser
         /// are performed on a background queue. Cancels any in-flight preprocessing
         /// when new content arrives.
         public func setMarkdown(string: String) {
-            if cancellables.isEmpty || contentSubject.value.blocks.isEmpty == false {
+            if contentPipelineMode != .raw {
                 setupRawCombine()
             }
             rawContentSubject.send(string)
@@ -154,6 +164,7 @@ import MarkdownParser
         }
 
         let viewProvider: ReusableViewProvider
+        var contentPipelineMode: ContentPipelineMode = .none
         var lastRawMarkdown: String?
         var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
@@ -223,6 +234,9 @@ import MarkdownParser
         }
 
         public func setMarkdown(_ content: PreprocessedContent) {
+            if contentPipelineMode != .preprocessed {
+                setupCombine()
+            }
             lastRawMarkdown = nil
             lastRootBlockRanges = nil
             contentSubject.send(content)
@@ -232,7 +246,7 @@ import MarkdownParser
         /// are performed on a background queue. Cancels any in-flight preprocessing
         /// when new content arrives.
         public func setMarkdown(string: String) {
-            if cancellables.isEmpty || contentSubject.value.blocks.isEmpty == false {
+            if contentPipelineMode != .raw {
                 setupRawCombine()
             }
             rawContentSubject.send(string)

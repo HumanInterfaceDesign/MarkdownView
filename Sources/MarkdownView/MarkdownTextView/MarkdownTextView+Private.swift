@@ -47,10 +47,12 @@ extension MarkdownTextView {
     func resetCombine() {
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
+        contentPipelineMode = .none
     }
 
     func setupCombine() {
         resetCombine()
+        contentPipelineMode = .preprocessed
         if let throttleInterval {
             contentSubject
                 .throttle(for: .seconds(throttleInterval), scheduler: DispatchQueue.main, latest: true)
@@ -65,6 +67,7 @@ extension MarkdownTextView {
 
     func setupRawCombine() {
         resetCombine()
+        contentPipelineMode = .raw
 
         let pipeline: AnyPublisher<String, Never>
         if let throttleInterval {
@@ -76,7 +79,8 @@ extension MarkdownTextView {
         }
 
         pipeline
-            .map { [weak self] markdown -> RawMarkdownUpdate in
+            .map { [weak self] rawMarkdown -> RawMarkdownUpdate in
+                let markdown = RawDiffMarkdownNormalizer.normalizeForParsing(rawMarkdown)
                 guard let self else {
                     return .parse(markdown: markdown, theme: .default, incrementalContext: nil)
                 }
