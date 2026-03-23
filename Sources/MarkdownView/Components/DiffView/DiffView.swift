@@ -66,8 +66,26 @@ private struct DiffGutterMetrics {
     let newColumnWidth: CGFloat
     let markerColumnWidth: CGFloat
 
+    var showsOldColumn: Bool {
+        oldColumnWidth > 0
+    }
+
+    var showsNewColumn: Bool {
+        newColumnWidth > 0
+    }
+
+    var showsMarkerColumn: Bool {
+        markerColumnWidth > 0
+    }
+
     var totalWidth: CGFloat {
-        oldColumnWidth + newColumnWidth + markerColumnWidth + DiffViewConfiguration.separatorWidth * 3
+        let visibleColumns = [showsOldColumn, showsNewColumn, showsMarkerColumn].filter { $0 }.count
+        let internalSeparatorCount = max(visibleColumns - 1, 0)
+        let trailingSeparatorCount = visibleColumns > 0 ? 1 : 0
+        return oldColumnWidth
+            + newColumnWidth
+            + markerColumnWidth
+            + DiffViewConfiguration.separatorWidth * CGFloat(internalSeparatorCount + trailingSeparatorCount)
     }
 }
 
@@ -76,6 +94,12 @@ private struct DiffSideBySideContentRects {
     let dividerRect: CGRect
     let oldRect: CGRect
     let newRect: CGRect
+}
+
+private struct DiffGutterRowRects {
+    let oldRect: CGRect?
+    let newRect: CGRect?
+    let markerRect: CGRect?
 }
 
 private func diffBlockTitle(for block: DiffRenderBlock) -> String {
@@ -347,6 +371,46 @@ private func maxLineNumberText(
     return "\(max(maxLineNumber, 0))"
 }
 
+private func hasOldLineNumbers(
+    for displayRows: DiffDisplayRows
+) -> Bool {
+    switch displayRows {
+    case let .unified(rows):
+        rows.contains { $0.oldLineNumber != nil }
+    case let .sideBySide(rows, _):
+        rows.contains { $0.oldCell?.lineNumber != nil }
+    }
+}
+
+private func hasNewLineNumbers(
+    for displayRows: DiffDisplayRows
+) -> Bool {
+    switch displayRows {
+    case let .unified(rows):
+        rows.contains { $0.newLineNumber != nil }
+    case let .sideBySide(rows, _):
+        rows.contains { $0.newCell?.lineNumber != nil }
+    }
+}
+
+private func hasMarkerColumn(
+    for displayRows: DiffDisplayRows
+) -> Bool {
+    switch displayRows {
+    case let .unified(rows):
+        rows.contains {
+            switch $0.kind {
+            case .removed, .added, .annotation:
+                true
+            case .fileHeader, .fileMetadata, .hunkHeader, .context, .collapsedContext:
+                false
+            }
+        }
+    case let .sideBySide(rows, _):
+        rows.contains { sideBySideMarker(for: $0) != nil }
+    }
+}
+
 private func diffGutterMetrics(
     for displayRows: DiffDisplayRows,
     font: Any
@@ -355,10 +419,89 @@ private func diffGutterMetrics(
         .size(withAttributes: [.font: font]).width
     let columnWidth = numberWidth + DiffViewConfiguration.gutterPadding * 2
     return .init(
-        oldColumnWidth: columnWidth,
-        newColumnWidth: columnWidth,
-        markerColumnWidth: DiffViewConfiguration.markerColumnWidth
+        oldColumnWidth: hasOldLineNumbers(for: displayRows) ? columnWidth : 0,
+        newColumnWidth: hasNewLineNumbers(for: displayRows) ? columnWidth : 0,
+        markerColumnWidth: hasMarkerColumn(for: displayRows) ? DiffViewConfiguration.markerColumnWidth : 0
     )
+}
+
+private func diffGutterRowRects(
+    for metrics: DiffGutterMetrics,
+    rowRect: CGRect
+) -> DiffGutterRowRects {
+    var x = rowRect.minX
+    var oldRect: CGRect?
+    var newRect: CGRect?
+    var markerRect: CGRect?
+
+    if metrics.showsOldColumn {
+        oldRect = CGRect(x: x, y: rowRect.minY, width: metrics.oldColumnWidth, height: rowRect.height)
+        x += metrics.oldColumnWidth
+        if metrics.showsNewColumn || metrics.showsMarkerColumn {
+            x += DiffViewConfiguration.separatorWidth
+        }
+    }
+
+    if metrics.showsNewColumn {
+        newRect = CGRect(x: x, y: rowRect.minY, width: metrics.newColumnWidth, height: rowRect.height)
+        x += metrics.newColumnWidth
+        if metrics.showsMarkerColumn {
+            x += DiffViewConfiguration.separatorWidth
+        }
+    }
+
+    if metrics.showsMarkerColumn {
+        markerRect = CGRect(x: x, y: rowRect.minY, width: metrics.markerColumnWidth, height: rowRect.height)
+    }
+
+    return .init(oldRect: oldRect, newRect: newRect, markerRect: markerRect)
+}
+
+private func diffGutterSeparatorPositions(
+    for metrics: DiffGutterMetrics
+) -> [CGFloat] {
+    var x: CGFloat = 0
+    var positions: [CGFloat] = []
+
+    if metrics.showsOldColumn {
+        x += metrics.oldColumnWidth
+        if metrics.showsNewColumn || metrics.showsMarkerColumn {
+            positions.append(x)
+            x += DiffViewConfiguration.separatorWidth
+        }
+    }
+
+    if metrics.showsNewColumn {
+        x += metrics.newColumnWidth
+        if metrics.showsMarkerColumn {
+            positions.append(x)
+            x += DiffViewConfiguration.separatorWidth
+        }
+    }
+
+    if metrics.showsMarkerColumn {
+        x += metrics.markerColumnWidth
+    }
+
+    if metrics.showsOldColumn || metrics.showsNewColumn || metrics.showsMarkerColumn {
+        positions.append(x)
+    }
+
+    return positions
+}
+
+private func diffContentContainerHeight(
+    textSize: CGSize,
+    scrollBounds: CGSize,
+    theme: MarkdownTheme
+) -> CGFloat {
+    let contentHeight = textSize.height + DiffViewConfiguration.verticalPadding * 2
+    switch theme.diff.scrollBehavior {
+    case .horizontalOnly:
+        return scrollBounds.height
+    case .bothAxes:
+        return max(scrollBounds.height, contentHeight)
+    }
 }
 
 private func sideBySideContentRects(
@@ -638,6 +781,7 @@ private func makeSideBySideAttributedText(
 
             scrollView.showsHorizontalScrollIndicator = false
             scrollView.showsVerticalScrollIndicator = false
+            scrollView.isDirectionalLockEnabled = true
             scrollView.alwaysBounceHorizontal = false
             scrollView.alwaysBounceVertical = false
             addSubview(scrollView)
@@ -758,9 +902,10 @@ private func makeSideBySideAttributedText(
                     scrollView.bounds.width,
                     textSize.width + DiffViewConfiguration.horizontalPadding * 2
                 )
-                let containerHeight = max(
-                    scrollView.bounds.height,
-                    textSize.height + DiffViewConfiguration.verticalPadding * 2
+                let containerHeight = diffContentContainerHeight(
+                    textSize: textSize,
+                    scrollBounds: scrollView.bounds.size,
+                    theme: theme
                 )
 
                 contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
@@ -774,7 +919,10 @@ private func makeSideBySideAttributedText(
                     ),
                     height: textSize.height
                 )
-                scrollView.contentSize = contentContainerView.bounds.size
+                scrollView.contentSize = CGSize(
+                    width: contentContainerView.bounds.width,
+                    height: containerHeight
+                )
                 return
             }
 
@@ -816,9 +964,10 @@ private func makeSideBySideAttributedText(
                 scrollView.bounds.width,
                 textSize.width + DiffViewConfiguration.horizontalPadding * 2
             )
-            let containerHeight = max(
-                scrollView.bounds.height,
-                textSize.height + DiffViewConfiguration.verticalPadding * 2
+            let containerHeight = diffContentContainerHeight(
+                textSize: textSize,
+                scrollBounds: scrollView.bounds.size,
+                theme: theme
             )
 
             contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
@@ -834,7 +983,7 @@ private func makeSideBySideAttributedText(
             )
             scrollView.contentSize = CGSize(
                 width: contentContainerView.bounds.width,
-                height: scrollView.bounds.height
+                height: containerHeight
             )
         }
     }
@@ -1026,30 +1175,21 @@ private func makeSideBySideAttributedText(
                         .font: font,
                         .foregroundColor: markerColor(for: row.kind),
                     ]
+                    let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
                     drawNumber(
                         row.oldLineNumber,
-                        in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
+                        in: rowRects.oldRect,
                         attributes: textAttributes
                     )
                     drawNumber(
                         row.newLineNumber,
-                        in: CGRect(
-                            x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
-                            y: rect.minY,
-                            width: metrics.newColumnWidth,
-                            height: rect.height
-                        ),
+                        in: rowRects.newRect,
                         attributes: textAttributes
                     )
                     drawMarker(
                         marker(for: row.kind),
-                        in: CGRect(
-                            x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
-                            y: rect.minY,
-                            width: metrics.markerColumnWidth,
-                            height: rect.height
-                        ),
+                        in: rowRects.markerRect,
                         attributes: markerAttributes
                     )
                 }
@@ -1063,19 +1203,7 @@ private func makeSideBySideAttributedText(
                         bounds: bounds
                     )
 
-                    let oldRect = CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height)
-                    let newRect = CGRect(
-                        x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
-                        y: rect.minY,
-                        width: metrics.newColumnWidth,
-                        height: rect.height
-                    )
-                    let markerRect = CGRect(
-                        x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
-                        y: rect.minY,
-                        width: metrics.markerColumnWidth,
-                        height: rect.height
-                    )
+                    let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
                     switch row.kind {
                     case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
@@ -1090,16 +1218,20 @@ private func makeSideBySideAttributedText(
                     case .content:
                         if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
                             context.setFillColor(oldColor.cgColor)
-                            context.fill(oldRect)
-                        } else {
+                            if let oldRect = rowRects.oldRect {
+                                context.fill(oldRect)
+                            }
+                        } else if let oldRect = rowRects.oldRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(oldRect)
                         }
 
                         if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
                             context.setFillColor(newColor.cgColor)
-                            context.fill(newRect)
-                        } else {
+                            if let newRect = rowRects.newRect {
+                                context.fill(newRect)
+                            }
+                        } else if let newRect = rowRects.newRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(newRect)
                         }
@@ -1112,8 +1244,10 @@ private func makeSideBySideAttributedText(
                             } else {
                                 context.setFillColor(theme.diff.gutterBackground.cgColor)
                             }
-                            context.fill(markerRect)
-                        } else {
+                            if let markerRect = rowRects.markerRect {
+                                context.fill(markerRect)
+                            }
+                        } else if let markerRect = rowRects.markerRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(markerRect)
                         }
@@ -1126,17 +1260,17 @@ private func makeSideBySideAttributedText(
 
                     drawNumber(
                         row.oldCell?.lineNumber,
-                        in: oldRect,
+                        in: rowRects.oldRect,
                         attributes: textAttributes
                     )
                     drawNumber(
                         row.newCell?.lineNumber,
-                        in: newRect,
+                        in: rowRects.newRect,
                         attributes: textAttributes
                     )
                     drawMarker(
                         sideBySideMarker(for: row),
-                        in: markerRect,
+                        in: rowRects.markerRect,
                         attributes: markerAttributes
                     )
                 }
@@ -1145,10 +1279,10 @@ private func makeSideBySideAttributedText(
 
         private func drawNumber(
             _ number: Int?,
-            in rect: CGRect,
+            in rect: CGRect?,
             attributes: [NSAttributedString.Key: Any]
         ) {
-            guard let number else { return }
+            guard let number, let rect else { return }
             let string = "\(number)"
             let size = string.size(withAttributes: attributes)
             let target = CGRect(
@@ -1162,10 +1296,10 @@ private func makeSideBySideAttributedText(
 
         private func drawMarker(
             _ marker: String?,
-            in rect: CGRect,
+            in rect: CGRect?,
             attributes: [NSAttributedString.Key: Any]
         ) {
-            guard let marker else { return }
+            guard let marker, let rect else { return }
             let size = marker.size(withAttributes: attributes)
             let target = CGRect(
                 x: rect.midX - size.width / 2,
@@ -1179,12 +1313,7 @@ private func makeSideBySideAttributedText(
         private func drawSeparators(in context: CGContext) {
             let metrics = diffGutterMetrics(for: displayRows, font: font)
             context.setFillColor(theme.diff.separatorColor.cgColor)
-
-            let firstSeparatorX = metrics.oldColumnWidth
-            let secondSeparatorX = metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth + metrics.newColumnWidth
-            let finalSeparatorX = bounds.width - DiffViewConfiguration.separatorWidth
-
-            for x in [firstSeparatorX, secondSeparatorX, finalSeparatorX] {
+            for x in diffGutterSeparatorPositions(for: metrics) {
                 context.fill(
                     CGRect(
                         x: x,
@@ -1365,6 +1494,7 @@ private func makeSideBySideAttributedText(
             titleLabel.font = theme.fonts.code
             titleLabel.textColor = theme.diff.fileHeaderText
             copyButton.contentTintColor = theme.diff.fileHeaderText
+            scrollView.verticalScrollElasticity = theme.diff.scrollBehavior == .bothAxes ? .automatic : .none
         }
 
         private func updateHeaderVisibility() {
@@ -1459,9 +1589,10 @@ private func makeSideBySideAttributedText(
                     scrollView.bounds.width,
                     textSize.width + DiffViewConfiguration.horizontalPadding * 2
                 )
-                let containerHeight = max(
-                    scrollView.bounds.height,
-                    textSize.height + DiffViewConfiguration.verticalPadding * 2
+                let containerHeight = diffContentContainerHeight(
+                    textSize: textSize,
+                    scrollBounds: scrollView.bounds.size,
+                    theme: theme
                 )
 
                 contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
@@ -1517,9 +1648,10 @@ private func makeSideBySideAttributedText(
                 scrollView.bounds.width,
                 textSize.width + DiffViewConfiguration.horizontalPadding * 2
             )
-            let containerHeight = max(
-                scrollView.bounds.height,
-                textSize.height + DiffViewConfiguration.verticalPadding * 2
+            let containerHeight = diffContentContainerHeight(
+                textSize: textSize,
+                scrollBounds: scrollView.bounds.size,
+                theme: theme
             )
 
             contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
@@ -1533,6 +1665,7 @@ private func makeSideBySideAttributedText(
                 ),
                 height: textSize.height
             )
+            scrollView.documentView?.frame = contentContainerView.frame
         }
     }
 
@@ -1726,30 +1859,21 @@ private func makeSideBySideAttributedText(
                         .font: font,
                         .foregroundColor: markerColor(for: row.kind),
                     ]
+                    let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
                     drawNumber(
                         row.oldLineNumber,
-                        in: CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height),
+                        in: rowRects.oldRect,
                         attributes: textAttributes
                     )
                     drawNumber(
                         row.newLineNumber,
-                        in: CGRect(
-                            x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
-                            y: rect.minY,
-                            width: metrics.newColumnWidth,
-                            height: rect.height
-                        ),
+                        in: rowRects.newRect,
                         attributes: textAttributes
                     )
                     drawMarker(
                         marker(for: row.kind),
-                        in: CGRect(
-                            x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
-                            y: rect.minY,
-                            width: metrics.markerColumnWidth,
-                            height: rect.height
-                        ),
+                        in: rowRects.markerRect,
                         attributes: markerAttributes
                     )
                 }
@@ -1763,19 +1887,7 @@ private func makeSideBySideAttributedText(
                         bounds: bounds
                     )
 
-                    let oldRect = CGRect(x: 0, y: rect.minY, width: metrics.oldColumnWidth, height: rect.height)
-                    let newRect = CGRect(
-                        x: metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth,
-                        y: rect.minY,
-                        width: metrics.newColumnWidth,
-                        height: rect.height
-                    )
-                    let markerRect = CGRect(
-                        x: metrics.oldColumnWidth + metrics.newColumnWidth + DiffViewConfiguration.separatorWidth * 2,
-                        y: rect.minY,
-                        width: metrics.markerColumnWidth,
-                        height: rect.height
-                    )
+                    let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
                     switch row.kind {
                     case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
@@ -1790,16 +1902,20 @@ private func makeSideBySideAttributedText(
                     case .content:
                         if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
                             context.setFillColor(oldColor.cgColor)
-                            context.fill(oldRect)
-                        } else {
+                            if let oldRect = rowRects.oldRect {
+                                context.fill(oldRect)
+                            }
+                        } else if let oldRect = rowRects.oldRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(oldRect)
                         }
 
                         if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
                             context.setFillColor(newColor.cgColor)
-                            context.fill(newRect)
-                        } else {
+                            if let newRect = rowRects.newRect {
+                                context.fill(newRect)
+                            }
+                        } else if let newRect = rowRects.newRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(newRect)
                         }
@@ -1812,8 +1928,10 @@ private func makeSideBySideAttributedText(
                             } else {
                                 context.setFillColor(theme.diff.gutterBackground.cgColor)
                             }
-                            context.fill(markerRect)
-                        } else {
+                            if let markerRect = rowRects.markerRect {
+                                context.fill(markerRect)
+                            }
+                        } else if let markerRect = rowRects.markerRect {
                             context.setFillColor(theme.diff.gutterBackground.cgColor)
                             context.fill(markerRect)
                         }
@@ -1826,17 +1944,17 @@ private func makeSideBySideAttributedText(
 
                     drawNumber(
                         row.oldCell?.lineNumber,
-                        in: oldRect,
+                        in: rowRects.oldRect,
                         attributes: textAttributes
                     )
                     drawNumber(
                         row.newCell?.lineNumber,
-                        in: newRect,
+                        in: rowRects.newRect,
                         attributes: textAttributes
                     )
                     drawMarker(
                         sideBySideMarker(for: row),
-                        in: markerRect,
+                        in: rowRects.markerRect,
                         attributes: markerAttributes
                     )
                 }
@@ -1845,10 +1963,10 @@ private func makeSideBySideAttributedText(
 
         private func drawNumber(
             _ number: Int?,
-            in rect: CGRect,
+            in rect: CGRect?,
             attributes: [NSAttributedString.Key: Any]
         ) {
-            guard let number else { return }
+            guard let number, let rect else { return }
             let string = "\(number)"
             let size = string.size(withAttributes: attributes)
             let target = CGRect(
@@ -1862,10 +1980,10 @@ private func makeSideBySideAttributedText(
 
         private func drawMarker(
             _ marker: String?,
-            in rect: CGRect,
+            in rect: CGRect?,
             attributes: [NSAttributedString.Key: Any]
         ) {
-            guard let marker else { return }
+            guard let marker, let rect else { return }
             let size = marker.size(withAttributes: attributes)
             let target = CGRect(
                 x: rect.midX - size.width / 2,
@@ -1879,12 +1997,7 @@ private func makeSideBySideAttributedText(
         private func drawSeparators(in context: CGContext) {
             let metrics = diffGutterMetrics(for: displayRows, font: font)
             context.setFillColor(theme.diff.separatorColor.cgColor)
-
-            let firstSeparatorX = metrics.oldColumnWidth
-            let secondSeparatorX = metrics.oldColumnWidth + DiffViewConfiguration.separatorWidth + metrics.newColumnWidth
-            let finalSeparatorX = bounds.width - DiffViewConfiguration.separatorWidth
-
-            for x in [firstSeparatorX, secondSeparatorX, finalSeparatorX] {
+            for x in diffGutterSeparatorPositions(for: metrics) {
                 context.fill(
                     CGRect(
                         x: x,

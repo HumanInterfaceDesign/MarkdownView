@@ -146,7 +146,13 @@ public struct MarkdownTheme: Equatable {
             case sideBySide
         }
 
+        public enum ScrollBehavior: String, CaseIterable {
+            case horizontalOnly
+            case bothAxes
+        }
+
         public var displayMode: DisplayMode = .unified
+        public var scrollBehavior: ScrollBehavior = .horizontalOnly
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2
         #if canImport(UIKit)

@@ -727,6 +727,155 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testDiffViewCollapsesUnusedOldGutterColumnForNewFile() {
+        let newFileContent = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/lib/client.ts b/lib/client.ts
+            new file mode 100644
+            index 0000000..c48a435
+            --- /dev/null
+            +++ b/lib/client.ts
+            @@ -0,0 +1,2 @@
+            +import { createBrowserClient } from "@supabase/ssr"
+            +export function createClient() {}
+            ```
+            """
+        )
+        let editedFileContent = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/lib/client.ts b/lib/client.ts
+            index 1234567..c48a435 100644
+            --- a/lib/client.ts
+            +++ b/lib/client.ts
+            @@ -1,2 +1,2 @@
+            -import { oldClient } from "@supabase/ssr"
+            +import { createBrowserClient } from "@supabase/ssr"
+            -export function oldClient() {}
+            +export function createClient() {}
+            ```
+            """
+        )
+
+        guard let newFileRenderBlock = newFileContent.diffRenderBlocks.values.first,
+              let editedFileRenderBlock = editedFileContent.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render blocks")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.showsBlockHeaders = false
+
+            let newFileView = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 140))
+            newFileView.theme = theme
+            newFileView.renderBlock = newFileRenderBlock
+
+            let editedFileView = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 140))
+            editedFileView.theme = theme
+            editedFileView.renderBlock = editedFileRenderBlock
+
+            #if canImport(AppKit)
+                newFileView.layoutSubtreeIfNeeded()
+                editedFileView.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                newFileView.layoutIfNeeded()
+                editedFileView.layoutIfNeeded()
+            #endif
+
+            XCTAssertLessThan(newFileView.scrollView.frame.minX, editedFileView.scrollView.frame.minX)
+        }
+    }
+
+    func testDiffViewDefaultsToHorizontalOnlyScrolling() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/lib/client.ts b/lib/client.ts
+            new file mode 100644
+            index 0000000..c48a435
+            --- /dev/null
+            +++ b/lib/client.ts
+            @@ -0,0 +1,8 @@
+            +line 1
+            +line 2
+            +line 3
+            +line 4
+            +line 5
+            +line 6
+            +line 7
+            +line 8
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.showsBlockHeaders = false
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 280, height: 80))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+                XCTAssertEqual(view.scrollView.documentView?.frame.height, view.scrollView.bounds.height)
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+                XCTAssertEqual(view.scrollView.contentSize.height, view.scrollView.bounds.height)
+            #endif
+        }
+    }
+
+    func testDiffViewCanOptIntoBothAxesScrolling() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/lib/client.ts b/lib/client.ts
+            new file mode 100644
+            index 0000000..c48a435
+            --- /dev/null
+            +++ b/lib/client.ts
+            @@ -0,0 +1,8 @@
+            +line 1
+            +line 2
+            +line 3
+            +line 4
+            +line 5
+            +line 6
+            +line 7
+            +line 8
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.showsBlockHeaders = false
+            theme.diff.scrollBehavior = .bothAxes
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 280, height: 80))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+                XCTAssertGreaterThan(view.scrollView.documentView?.frame.height ?? 0, view.scrollView.bounds.height)
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+                XCTAssertGreaterThan(view.scrollView.contentSize.height, view.scrollView.bounds.height)
+            #endif
+        }
+    }
+
     func testHeaderBarHeightsFitTheirButtons() {
         XCTAssertGreaterThanOrEqual(
             DiffViewConfiguration.barHeight(theme: .default),
