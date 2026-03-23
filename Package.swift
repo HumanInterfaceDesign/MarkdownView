@@ -37,7 +37,7 @@ let package = Package(
         .package(url: "https://github.com/HumanInterfaceDesign/tree-sitter-c", branch: "master"),
         .package(url: "https://github.com/HumanInterfaceDesign/tree-sitter-sql", branch: "main"),
         .package(url: "https://github.com/HumanInterfaceDesign/tree-sitter-yaml", branch: "master"),
-        .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.7.1"),
+        .package(url: "https://github.com/swiftlang/swift-cmark", branch: "gfm"),
     ],
     targets: [
         .target(
