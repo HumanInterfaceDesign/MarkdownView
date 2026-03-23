@@ -19,6 +19,7 @@ enum DiffViewConfiguration {
     static let buttonSize = CGSize(width: 32, height: 32)
 
     static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
+        guard theme.showsBlockHeaders else { return 0 }
         let font = theme.fonts.code
         #if canImport(UIKit)
             let lineHeight = font.lineHeight

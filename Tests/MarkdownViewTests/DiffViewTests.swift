@@ -413,6 +413,48 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testPreprocessedContentMarkdownInitializerRendersRawUnifiedDiff() {
+        let patch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        index 1234567..89abcde 100644
+        --- a/app/page.tsx
+        +++ b/app/page.tsx
+        @@ -1 +1 @@
+        -const title = "Before"
+        +const title = "After"
+        """
+
+        let content = MarkdownTextView.PreprocessedContent(
+            markdown: patch,
+            theme: .default
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+    }
+
+    func testPreprocessedContentBackgroundSafeMarkdownInitializerRendersRawUnifiedDiff() {
+        let patch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        index 1234567..89abcde 100644
+        --- a/app/page.tsx
+        +++ b/app/page.tsx
+        @@ -1 +1 @@
+        -const title = "Before"
+        +const title = "After"
+        """
+
+        let content = MarkdownTextView.PreprocessedContent(
+            markdown: patch,
+            theme: .default,
+            backgroundSafe: true
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+        XCTAssertTrue(content.rendered.isEmpty)
+    }
+
     func testRawMarkdownNormalizerLeavesOrdinaryMarkdownUntouched() {
         let markdown = """
         # Hello
@@ -612,6 +654,52 @@ final class DiffViewTests: XCTestCase {
             CodeViewConfiguration.barHeight(theme: .default),
             CodeViewConfiguration.buttonSize.height
         )
+    }
+
+    func testThemeCanHideBlockHeaders() {
+        var theme = MarkdownTheme.default
+        theme.showsBlockHeaders = false
+
+        XCTAssertEqual(DiffViewConfiguration.barHeight(theme: theme), 0)
+        XCTAssertEqual(CodeViewConfiguration.barHeight(theme: theme), 0)
+
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            let codeView = CodeView(frame: CGRect(x: 0, y: 0, width: 320, height: 140))
+            codeView.theme = theme
+            codeView.language = "swift"
+            codeView.content = "let title = \"Designer\""
+
+            let diffView = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            diffView.theme = theme
+            diffView.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                codeView.layoutSubtreeIfNeeded()
+                diffView.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                codeView.layoutIfNeeded()
+                diffView.layoutIfNeeded()
+            #endif
+
+            XCTAssertTrue(codeView.barView.isHidden)
+            XCTAssertTrue(codeView.copyButton.isHidden)
+            XCTAssertTrue(diffView.barView.isHidden)
+            XCTAssertTrue(diffView.copyButton.isHidden)
+        }
     }
 
     private func makeContent(from markdown: String) -> MarkdownTextView.PreprocessedContent {

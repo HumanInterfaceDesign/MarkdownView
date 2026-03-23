@@ -49,6 +49,7 @@ enum CodeViewConfiguration {
     }
 
     static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
+        guard theme.showsBlockHeaders else { return 0 }
         let font = theme.fonts.code
         #if canImport(UIKit)
             let lineHeight = font.lineHeight
@@ -68,6 +69,7 @@ enum CodeViewConfiguration {
             setupScrollView()
             setupTextView()
             setupLineNumberView()
+            updateHeaderVisibility()
         }
 
         private func setupViewAppearance() {
@@ -144,6 +146,12 @@ enum CodeViewConfiguration {
         }
 
         private func layoutButtons() {
+            guard theme.showsBlockHeaders else {
+                copyButton.isHidden = true
+                previewButton.isHidden = true
+                return
+            }
+
             let buttonSize = CodeViewConfiguration.buttonSize
             let hasPreview = previewAction != nil
 
@@ -173,6 +181,12 @@ enum CodeViewConfiguration {
         }
 
         private func layoutBarView(barHeight: CGFloat, labelSize: CGSize) {
+            guard theme.showsBlockHeaders else {
+                barView.frame = .zero
+                languageLabel.frame = .zero
+                return
+            }
+
             barView.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: barHeight))
             languageLabel.frame = CGRect(
                 origin: CGPoint(x: CodeViewConfiguration.barPadding, y: CodeViewConfiguration.barPadding),
@@ -224,6 +238,7 @@ enum CodeViewConfiguration {
             setupScrollView()
             setupTextView()
             setupLineNumberView()
+            updateHeaderVisibility()
         }
 
         private func setupViewAppearance() {
@@ -310,6 +325,12 @@ enum CodeViewConfiguration {
         }
 
         private func layoutButtons() {
+            guard theme.showsBlockHeaders else {
+                copyButton.isHidden = true
+                previewButton.isHidden = true
+                return
+            }
+
             let buttonSize = CodeViewConfiguration.buttonSize
             let hasPreview = previewAction != nil
 
@@ -339,6 +360,12 @@ enum CodeViewConfiguration {
         }
 
         private func layoutBarView(barHeight: CGFloat, labelSize: CGSize) {
+            guard theme.showsBlockHeaders else {
+                barView.frame = .zero
+                languageLabel.frame = .zero
+                return
+            }
+
             barView.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: barHeight))
             languageLabel.frame = CGRect(
                 origin: CGPoint(x: CodeViewConfiguration.barPadding, y: CodeViewConfiguration.barPadding),

@@ -543,7 +543,9 @@ private func makeSideBySideAttributedText(
                 titleLabel.font = theme.fonts.code
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 applyTheme()
+                updateHeaderVisibility()
                 applyRenderBlock()
+                invalidateIntrinsicContentSize()
             }
         }
 
@@ -599,10 +601,13 @@ private func makeSideBySideAttributedText(
             let titleWidth = titleLabel.intrinsicContentSize.width
             let textSize = textView.intrinsicContentSize
             let gutterWidth = gutterView.intrinsicContentSize.width
+            let headerWidth = theme.showsBlockHeaders
+                ? titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                : 0
             return CGSize(
                 width: max(
                     gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
-                    titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                    headerWidth
                 ),
                 height: DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: theme)
             )
@@ -648,6 +653,7 @@ private func makeSideBySideAttributedText(
             textView.isSelectable = true
             textView.selectionBackgroundColor = theme.colors.selectionBackground
             contentContainerView.addSubview(textView)
+            updateHeaderVisibility()
         }
 
         private func applyTheme() {
@@ -658,6 +664,13 @@ private func makeSideBySideAttributedText(
             titleLabel.font = theme.fonts.code
             titleLabel.textColor = theme.diff.fileHeaderText
             copyButton.tintColor = theme.diff.fileHeaderText
+        }
+
+        private func updateHeaderVisibility() {
+            let showsHeader = theme.showsBlockHeaders
+            barView.isHidden = !showsHeader
+            titleLabel.isHidden = !showsHeader
+            copyButton.isHidden = !showsHeader
         }
 
         @objc private func handleCopy(_: UIButton) {
@@ -719,6 +732,52 @@ private func makeSideBySideAttributedText(
 
         private func performLayout() {
             let barHeight = DiffViewConfiguration.barHeight(theme: theme)
+
+            guard theme.showsBlockHeaders else {
+                barView.frame = .zero
+                titleLabel.frame = .zero
+                copyButton.frame = .zero
+
+                let gutterWidth = gutterView.intrinsicContentSize.width
+                gutterView.frame = CGRect(
+                    x: 0,
+                    y: 0,
+                    width: gutterWidth,
+                    height: bounds.height
+                )
+
+                scrollView.frame = CGRect(
+                    x: gutterWidth,
+                    y: 0,
+                    width: max(bounds.width - gutterWidth, 0),
+                    height: bounds.height
+                )
+
+                let textSize = textView.intrinsicContentSize
+                let containerWidth = max(
+                    scrollView.bounds.width,
+                    textSize.width + DiffViewConfiguration.horizontalPadding * 2
+                )
+                let containerHeight = max(
+                    scrollView.bounds.height,
+                    textSize.height + DiffViewConfiguration.verticalPadding * 2
+                )
+
+                contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
+                backgroundView.frame = contentContainerView.bounds
+                textView.frame = CGRect(
+                    x: DiffViewConfiguration.horizontalPadding,
+                    y: DiffViewConfiguration.verticalPadding,
+                    width: max(
+                        scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
+                        textSize.width
+                    ),
+                    height: textSize.height
+                )
+                scrollView.contentSize = contentContainerView.bounds.size
+                return
+            }
+
             barView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
 
             let buttonSize = DiffViewConfiguration.buttonSize
@@ -1173,7 +1232,9 @@ private func makeSideBySideAttributedText(
                 titleLabel.font = theme.fonts.code
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
                 applyTheme()
+                updateHeaderVisibility()
                 applyRenderBlock()
+                invalidateIntrinsicContentSize()
             }
         }
 
@@ -1244,10 +1305,13 @@ private func makeSideBySideAttributedText(
             let titleWidth = titleLabel.intrinsicContentSize.width
             let textSize = textView.intrinsicContentSize
             let gutterWidth = gutterView.intrinsicContentSize.width
+            let headerWidth = theme.showsBlockHeaders
+                ? titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                : 0
             return CGSize(
                 width: max(
                     gutterWidth + textSize.width + DiffViewConfiguration.horizontalPadding * 2,
-                    titleWidth + DiffViewConfiguration.buttonSize.width + DiffViewConfiguration.barPadding * 2
+                    headerWidth
                 ),
                 height: DiffViewConfiguration.intrinsicHeight(for: renderBlock, theme: theme)
             )
@@ -1290,6 +1354,7 @@ private func makeSideBySideAttributedText(
             textView.isSelectable = true
             textView.selectionBackgroundColor = theme.colors.selectionBackground
             contentContainerView.addSubview(textView)
+            updateHeaderVisibility()
         }
 
         private func applyTheme() {
@@ -1300,6 +1365,13 @@ private func makeSideBySideAttributedText(
             titleLabel.font = theme.fonts.code
             titleLabel.textColor = theme.diff.fileHeaderText
             copyButton.contentTintColor = theme.diff.fileHeaderText
+        }
+
+        private func updateHeaderVisibility() {
+            let showsHeader = theme.showsBlockHeaders
+            barView.isHidden = !showsHeader
+            titleLabel.isHidden = !showsHeader
+            copyButton.isHidden = !showsHeader
         }
 
         @objc private func handleCopy(_: Any?) {
@@ -1361,6 +1433,52 @@ private func makeSideBySideAttributedText(
 
         private func performLayout() {
             let barHeight = DiffViewConfiguration.barHeight(theme: theme)
+
+            guard theme.showsBlockHeaders else {
+                barView.frame = .zero
+                titleLabel.frame = .zero
+                copyButton.frame = .zero
+
+                let gutterWidth = gutterView.intrinsicContentSize.width
+                gutterView.frame = CGRect(
+                    x: 0,
+                    y: 0,
+                    width: gutterWidth,
+                    height: bounds.height
+                )
+
+                scrollView.frame = CGRect(
+                    x: gutterWidth,
+                    y: 0,
+                    width: max(bounds.width - gutterWidth, 0),
+                    height: bounds.height
+                )
+
+                let textSize = textView.intrinsicContentSize
+                let containerWidth = max(
+                    scrollView.bounds.width,
+                    textSize.width + DiffViewConfiguration.horizontalPadding * 2
+                )
+                let containerHeight = max(
+                    scrollView.bounds.height,
+                    textSize.height + DiffViewConfiguration.verticalPadding * 2
+                )
+
+                contentContainerView.frame = CGRect(origin: .zero, size: CGSize(width: containerWidth, height: containerHeight))
+                backgroundView.frame = contentContainerView.bounds
+                textView.frame = CGRect(
+                    x: DiffViewConfiguration.horizontalPadding,
+                    y: DiffViewConfiguration.verticalPadding,
+                    width: max(
+                        scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
+                        textSize.width
+                    ),
+                    height: textSize.height
+                )
+                scrollView.documentView?.frame = contentContainerView.frame
+                return
+            }
+
             barView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
 
             let buttonSize = DiffViewConfiguration.buttonSize

@@ -93,6 +93,7 @@ public struct MarkdownTheme: Equatable {
     }
 
     public var colors: Colors = .init()
+    public var showsBlockHeaders: Bool = true
 
     public struct Spacings: Equatable {
         public var final: CGFloat = 16

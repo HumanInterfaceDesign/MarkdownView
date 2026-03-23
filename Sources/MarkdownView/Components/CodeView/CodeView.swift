@@ -18,6 +18,9 @@ import Litext
                 copyButton.tintColor = theme.colors.body
                 previewButton.tintColor = theme.colors.body
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
+                updateHeaderVisibility()
+                setNeedsLayout()
+                invalidateIntrinsicContentSize()
                 updateLineNumberView()
             }
         }
@@ -46,6 +49,8 @@ import Litext
 
         var previewAction: ((String?, NSAttributedString) -> Void)? {
             didSet {
+                updateHeaderVisibility()
+                invalidateIntrinsicContentSize()
                 setNeedsLayout()
             }
         }
@@ -106,10 +111,13 @@ import Litext
             )
 
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
+            let headerWidth = theme.showsBlockHeaders
+                ? labelSize.width + CodeViewConfiguration.barPadding * 2
+                : 0
 
             return CGSize(
                 width: max(
-                    labelSize.width + CodeViewConfiguration.barPadding * 2,
+                    headerWidth,
                     lineNumberWidth + textSize.width + CodeViewConfiguration.codePadding * 2
                 ),
                 height: max(
@@ -154,6 +162,14 @@ import Litext
                 right: CodeViewConfiguration.lineNumberPadding
             )
         }
+
+        func updateHeaderVisibility() {
+            let showsHeader = theme.showsBlockHeaders
+            barView.isHidden = !showsHeader
+            languageLabel.isHidden = !showsHeader
+            copyButton.isHidden = !showsHeader
+            previewButton.isHidden = !showsHeader || previewAction == nil
+        }
     }
 
     extension CodeView: LTXAttributeStringRepresentable {
@@ -173,6 +189,9 @@ import Litext
                 copyButton.contentTintColor = theme.colors.body
                 previewButton.contentTintColor = theme.colors.body
                 textView.selectionBackgroundColor = theme.colors.selectionBackground
+                updateHeaderVisibility()
+                needsLayout = true
+                invalidateIntrinsicContentSize()
                 updateLineNumberView()
             }
         }
@@ -199,6 +218,8 @@ import Litext
 
         var previewAction: ((String?, NSAttributedString) -> Void)? {
             didSet {
+                updateHeaderVisibility()
+                invalidateIntrinsicContentSize()
                 needsLayout = true
             }
         }
@@ -272,10 +293,13 @@ import Litext
             )
 
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
+            let headerWidth = theme.showsBlockHeaders
+                ? labelSize.width + CodeViewConfiguration.barPadding * 2
+                : 0
 
             return CGSize(
                 width: max(
-                    labelSize.width + CodeViewConfiguration.barPadding * 2,
+                    headerWidth,
                     lineNumberWidth + textSize.width + CodeViewConfiguration.codePadding * 2
                 ),
                 height: max(
@@ -315,6 +339,14 @@ import Litext
                 bottom: CodeViewConfiguration.codePadding,
                 right: CodeViewConfiguration.lineNumberPadding
             )
+        }
+
+        func updateHeaderVisibility() {
+            let showsHeader = theme.showsBlockHeaders
+            barView.isHidden = !showsHeader
+            languageLabel.isHidden = !showsHeader
+            copyButton.isHidden = !showsHeader
+            previewButton.isHidden = !showsHeader || previewAction == nil
         }
     }
 

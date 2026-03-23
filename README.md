@@ -9,7 +9,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - Full GFM (GitHub Flavored Markdown) support: headings, lists, tables, blockquotes, task lists, and more
 - Native syntax highlighting powered by [tree-sitter](https://tree-sitter.github.io/) — no JavaScript runtime overhead
 - 19 languages: Swift, C, C++, C#, Python, JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, Ruby, Bash, SQL, YAML, JSON, HTML, CSS
-- GitHub-style unified diff rendering for fenced `diff` / `patch` blocks, fenced auto-detection, and raw unified patch strings passed to `setMarkdown(string:)`
+- GitHub-style unified diff rendering for fenced `diff` / `patch` blocks, fenced auto-detection, and raw unified patch strings passed to `setMarkdown(string:)` or `PreprocessedContent(markdown:theme:)`
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
@@ -210,6 +210,9 @@ theme.colors.body = .label
 theme.colors.code = .secondaryLabel
 theme.colors.codeBackground = .secondarySystemBackground
 
+// Hide the code/diff header rows that contain the copy button
+theme.showsBlockHeaders = false
+
 // Scale all fonts
 theme.scaleFont(by: .large)
 
@@ -261,11 +264,22 @@ This is useful when an API returns only the patch text.
 Use `text` or `plaintext` if you want to show patch text literally without auto-detecting the diff view.
 
 ```swift
-let response = apiResponse
-markdownView.setMarkdown(string: response.patch)
+let patch = apiResponse.patch
+markdownView.setMarkdown(string: patch)
 ```
 
-Pass the extracted `patch` string, not the surrounding JSON object.
+If you preprocess content manually, use the markdown-based initializer so raw diff normalization still runs:
+
+```swift
+let patch = apiResponse.patch
+let content = MarkdownTextView.PreprocessedContent(
+    markdown: patch,
+    theme: .default
+)
+markdownView.setMarkdown(content)
+```
+
+Pass the patch string itself, not the surrounding JSON object. Avoid calling `parser.parse(patch)` directly for raw unified diffs, because that bypasses the normalizer that wraps the patch for diff rendering.
 
 ## Architecture
 

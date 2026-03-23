@@ -53,6 +53,13 @@ public extension MarkdownTextView {
             preloadImages()
         }
 
+        /// Creates preprocessed content directly from markdown text, including raw unified diffs.
+        public convenience init(markdown: String, theme: MarkdownTheme) {
+            let normalizedMarkdown = RawDiffMarkdownNormalizer.normalizeForParsing(markdown)
+            let parserResult = MarkdownParser().parse(normalizedMarkdown)
+            self.init(parserResult: parserResult, theme: theme)
+        }
+
         /// Creates preprocessed content with code highlighting done on the calling thread
         /// and math rendering deferred. Use this from background queues where UIKit trait
         /// access is unavailable.
@@ -70,6 +77,14 @@ public extension MarkdownTextView {
             }
             imageSources = Self.collectImageSources(in: blocks)
             preloadImages()
+        }
+
+        /// Creates preprocessed content from markdown text on a background-safe path,
+        /// including raw unified diffs.
+        public convenience init(markdown: String, theme: MarkdownTheme, backgroundSafe: Bool) {
+            let normalizedMarkdown = RawDiffMarkdownNormalizer.normalizeForParsing(markdown)
+            let parserResult = MarkdownParser().parse(normalizedMarkdown)
+            self.init(parserResult: parserResult, theme: theme, backgroundSafe: backgroundSafe)
         }
 
         /// Fills in math-rendered content from main thread after background init.
