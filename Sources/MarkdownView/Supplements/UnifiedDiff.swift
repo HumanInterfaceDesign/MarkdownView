@@ -126,6 +126,10 @@ enum UnifiedDiffParser {
 private extension UnifiedDiffParser {
     struct ParsedBlock {
         let language: String?
+        let sections: [ParsedSection]
+    }
+
+    struct ParsedSection {
         let preambleRows: [ParsedRow]
         let hunks: [ParsedHunk]
     }
@@ -158,8 +162,8 @@ private extension UnifiedDiffParser {
             .replacingOccurrences(of: "\r", with: "\n")
         let lines = normalized.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
-        var preambleRows: [ParsedRow] = []
-        var hunks: [ParsedHunk] = []
+        var sections: [ParsedSection] = []
+        var hunkCount = 0
         var index = 0
 
         func preambleRowKind(for line: String) -> DiffRenderBlock.RowKind? {
@@ -186,12 +190,21 @@ private extension UnifiedDiffParser {
         }
 
         while index < lines.count {
-            let line = lines[index]
-            if line.isEmpty {
+            while index < lines.count, lines[index].isEmpty {
                 index += 1
-                continue
             }
-            if let rowKind = preambleRowKind(for: line) {
+            guard index < lines.count else { break }
+
+            var preambleRows: [ParsedRow] = []
+            while index < lines.count {
+                let line = lines[index]
+                if line.isEmpty {
+                    index += 1
+                    continue
+                }
+                guard let rowKind = preambleRowKind(for: line) else {
+                    break
+                }
                 preambleRows.append(
                     .init(
                         kind: rowKind,
@@ -201,149 +214,162 @@ private extension UnifiedDiffParser {
                     )
                 )
                 index += 1
-                continue
             }
-            break
-        }
 
-        while index < lines.count {
-            while index < lines.count, lines[index].isEmpty {
-                index += 1
-            }
-            guard index < lines.count else { break }
-
-            let line = lines[index]
-            guard let header = parseHunkHeader(line) else {
-                return nil
-            }
-            index += 1
-
-            var rows: [ParsedRow] = []
-            var oldLine = header.oldStart
-            var newLine = header.newStart
-
+            var hunks: [ParsedHunk] = []
             while index < lines.count {
-                let currentLine = lines[index]
-
-                if currentLine.isEmpty {
-                    return nil
+                while index < lines.count, lines[index].isEmpty {
+                    index += 1
                 }
-                if parseHunkHeader(currentLine) != nil {
+                guard index < lines.count else { break }
+
+                let line = lines[index]
+                if preambleRowKind(for: line) != nil {
                     break
                 }
-                if preambleRowKind(for: currentLine) != nil {
-                    return nil
-                }
-
-                if currentLine == #"\ No newline at end of file"# {
-                    rows.append(
-                        .init(
-                            kind: .annotation,
-                            oldLineNumber: nil,
-                            newLineNumber: nil,
-                            text: currentLine
-                        )
-                    )
-                    index += 1
-                    continue
-                }
-
-                guard let prefix = currentLine.first else {
-                    return nil
-                }
-                let text = String(currentLine.dropFirst())
-
-                switch prefix {
-                case " ":
-                    rows.append(
-                        .init(
-                            kind: .context,
-                            oldLineNumber: oldLine,
-                            newLineNumber: newLine,
-                            text: text
-                        )
-                    )
-                    oldLine += 1
-                    newLine += 1
-                case "-":
-                    rows.append(
-                        .init(
-                            kind: .removed,
-                            oldLineNumber: oldLine,
-                            newLineNumber: nil,
-                            text: text
-                        )
-                    )
-                    oldLine += 1
-                case "+":
-                    rows.append(
-                        .init(
-                            kind: .added,
-                            oldLineNumber: nil,
-                            newLineNumber: newLine,
-                            text: text
-                        )
-                    )
-                    newLine += 1
-                default:
+                guard let header = parseHunkHeader(line) else {
                     return nil
                 }
                 index += 1
+
+                var rows: [ParsedRow] = []
+                var oldLine = header.oldStart
+                var newLine = header.newStart
+
+                while index < lines.count {
+                    let currentLine = lines[index]
+
+                    if currentLine.isEmpty {
+                        index += 1
+                        break
+                    }
+                    if parseHunkHeader(currentLine) != nil {
+                        break
+                    }
+                    if preambleRowKind(for: currentLine) != nil {
+                        break
+                    }
+
+                    if currentLine == #"\ No newline at end of file"# {
+                        rows.append(
+                            .init(
+                                kind: .annotation,
+                                oldLineNumber: nil,
+                                newLineNumber: nil,
+                                text: currentLine
+                            )
+                        )
+                        index += 1
+                        continue
+                    }
+
+                    guard let prefix = currentLine.first else {
+                        return nil
+                    }
+                    let text = String(currentLine.dropFirst())
+
+                    switch prefix {
+                    case " ":
+                        rows.append(
+                            .init(
+                                kind: .context,
+                                oldLineNumber: oldLine,
+                                newLineNumber: newLine,
+                                text: text
+                            )
+                        )
+                        oldLine += 1
+                        newLine += 1
+                    case "-":
+                        rows.append(
+                            .init(
+                                kind: .removed,
+                                oldLineNumber: oldLine,
+                                newLineNumber: nil,
+                                text: text
+                            )
+                        )
+                        oldLine += 1
+                    case "+":
+                        rows.append(
+                            .init(
+                                kind: .added,
+                                oldLineNumber: nil,
+                                newLineNumber: newLine,
+                                text: text
+                            )
+                        )
+                        newLine += 1
+                    default:
+                        return nil
+                    }
+                    index += 1
+                }
+
+                hunks.append(
+                    .init(
+                        headerText: header.text,
+                        oldStart: header.oldStart,
+                        oldCount: header.oldCount,
+                        newStart: header.newStart,
+                        newCount: header.newCount,
+                        rows: rows
+                    )
+                )
             }
 
-            hunks.append(
-                .init(
-                    headerText: header.text,
-                    oldStart: header.oldStart,
-                    oldCount: header.oldCount,
-                    newStart: header.newStart,
-                    newCount: header.newCount,
-                    rows: rows
-                )
-            )
+            guard !preambleRows.isEmpty || !hunks.isEmpty else {
+                return nil
+            }
+            hunkCount += hunks.count
+            sections.append(.init(preambleRows: preambleRows, hunks: hunks))
         }
 
-        guard !hunks.isEmpty else { return nil }
-        return .init(language: language, preambleRows: preambleRows, hunks: hunks)
+        guard hunkCount > 0 else { return nil }
+        return .init(language: language, sections: sections)
     }
 
     static func buildRenderedRows(from block: ParsedBlock) -> [DiffRenderBlock.Row] {
-        var rows: [DiffRenderBlock.Row] = block.preambleRows.map {
-            .init(
-                kind: $0.kind,
-                oldLineNumber: nil,
-                newLineNumber: nil,
-                text: $0.text,
-                syntaxHighlights: [:],
-                emphasizedRanges: []
-            )
-        }
+        var rows: [DiffRenderBlock.Row] = []
 
-        for hunk in block.hunks {
-            rows.append(
+        for section in block.sections {
+            rows.append(contentsOf: section.preambleRows.map {
                 .init(
-                    kind: .hunkHeader,
+                    kind: $0.kind,
                     oldLineNumber: nil,
                     newLineNumber: nil,
-                    text: hunk.headerText,
+                    text: $0.text,
                     syntaxHighlights: [:],
                     emphasizedRanges: []
                 )
-            )
+            })
 
-            var renderedRows = hunk.rows.map { row in
-                DiffRenderBlock.Row(
-                    kind: row.kind,
-                    oldLineNumber: row.oldLineNumber,
-                    newLineNumber: row.newLineNumber,
-                    text: row.text,
-                    syntaxHighlights: highlightMap(for: row.text, language: block.language),
-                    emphasizedRanges: []
+            for hunk in section.hunks {
+                rows.append(
+                    .init(
+                        kind: .hunkHeader,
+                        oldLineNumber: nil,
+                        newLineNumber: nil,
+                        text: hunk.headerText,
+                        syntaxHighlights: [:],
+                        emphasizedRanges: []
+                    )
                 )
-            }
 
-            applyInlineDiffRanges(to: &renderedRows)
-            rows.append(contentsOf: renderedRows)
+                var renderedRows = hunk.rows.map { row in
+                    DiffRenderBlock.Row(
+                        kind: row.kind,
+                        oldLineNumber: row.oldLineNumber,
+                        newLineNumber: row.newLineNumber,
+                        text: row.text,
+                        syntaxHighlights: highlightMap(for: row.text, language: block.language),
+                        emphasizedRanges: []
+                    )
+                }
+
+                applyInlineDiffRanges(to: &renderedRows)
+                rows.append(contentsOf: renderedRows)
+            }
         }
 
         return rows

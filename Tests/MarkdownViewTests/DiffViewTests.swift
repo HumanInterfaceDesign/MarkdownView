@@ -245,6 +245,46 @@ final class DiffViewTests: XCTestCase {
         XCTAssertEqual(renderBlock.rows[6].kind, .added)
     }
 
+    func testDiffRenderBlockPreservesMultiFileSectionOrdering() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            diff --git a/app/page.tsx b/app/page.tsx
+            index 1234567..89abcde 100644
+            --- a/app/page.tsx
+            +++ b/app/page.tsx
+            @@ -1 +1 @@
+            -const title = "Before"
+            +const title = "After"
+            diff --git a/lib/client.ts b/lib/client.ts
+            index abcdef0..1234567 100644
+            --- a/lib/client.ts
+            +++ b/lib/client.ts
+            @@ -2 +2 @@
+            -export const status = "old"
+            +export const status = "new"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.rows[0].text, "diff --git a/app/page.tsx b/app/page.tsx")
+        XCTAssertEqual(renderBlock.rows[4].kind, .hunkHeader)
+        XCTAssertEqual(renderBlock.rows[5].kind, .removed)
+        XCTAssertEqual(renderBlock.rows[6].kind, .added)
+        XCTAssertEqual(renderBlock.rows[7].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[7].text, "diff --git a/lib/client.ts b/lib/client.ts")
+        XCTAssertEqual(renderBlock.rows[8].kind, .fileMetadata)
+        XCTAssertEqual(renderBlock.rows[9].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[10].kind, .fileHeader)
+        XCTAssertEqual(renderBlock.rows[11].kind, .hunkHeader)
+        XCTAssertEqual(renderBlock.rows[12].kind, .removed)
+        XCTAssertEqual(renderBlock.rows[13].kind, .added)
+    }
+
     func testInlineDiffEmphasisPairsRemovedAndAddedRowsByIndex() {
         let content = makeContent(
             from: """
@@ -453,6 +493,48 @@ final class DiffViewTests: XCTestCase {
         XCTAssertEqual(content.diffRenderBlocks.count, 1)
         XCTAssertTrue(content.highlightMaps.isEmpty)
         XCTAssertTrue(content.rendered.isEmpty)
+    }
+
+    func testPreprocessedContentMarkdownInitializerRendersRawMultiFileUnifiedDiff() {
+        let patch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        index 1234567..89abcde 100644
+        --- a/app/page.tsx
+        +++ b/app/page.tsx
+        @@ -1 +1 @@
+        -const title = "Before"
+        +const title = "After"
+        diff --git a/lib/client.ts b/lib/client.ts
+        index abcdef0..1234567 100644
+        --- a/lib/client.ts
+        +++ b/lib/client.ts
+        @@ -2 +2 @@
+        -export const status = "old"
+        +export const status = "new"
+        """
+
+        let content = MarkdownTextView.PreprocessedContent(
+            markdown: patch,
+            theme: .default
+        )
+
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(
+            renderBlock.rows.filter { $0.kind == .fileHeader }.map(\.text),
+            [
+                "diff --git a/app/page.tsx b/app/page.tsx",
+                "--- a/app/page.tsx",
+                "+++ b/app/page.tsx",
+                "diff --git a/lib/client.ts b/lib/client.ts",
+                "--- a/lib/client.ts",
+                "+++ b/lib/client.ts",
+            ]
+        )
     }
 
     func testRawMarkdownNormalizerLeavesOrdinaryMarkdownUntouched() {
