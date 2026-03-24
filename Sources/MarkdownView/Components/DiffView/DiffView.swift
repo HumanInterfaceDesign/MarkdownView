@@ -260,6 +260,18 @@ private func unifiedRowBackgroundColor(
     }
 }
 
+private func unifiedContentRowBackgroundColor(
+    for kind: DiffPresentation.UnifiedRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    switch kind {
+    case .removed, .added:
+        return nil
+    case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
+        return unifiedRowBackgroundColor(for: kind, theme: theme)
+    }
+}
+
 private func unifiedEmphasisColor(
     for kind: DiffPresentation.UnifiedRow.Kind,
     theme: MarkdownTheme
@@ -272,6 +284,46 @@ private func unifiedEmphasisColor(
         return theme.diff.addedHighlightBackground
     case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
         return nil
+    }
+}
+
+private func unifiedLineBackgroundColor(
+    for kind: DiffPresentation.UnifiedRow.Kind,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    guard showsLineChangeHighlights(in: theme) else { return nil }
+    switch kind {
+    case .removed:
+        return theme.diff.removedLineBackground
+    case .added:
+        return theme.diff.addedLineBackground
+    case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
+        return nil
+    }
+}
+
+private func makeFullWidthLineBackgroundAction(
+    color: PlatformColor
+) -> LTXLineDrawingAction {
+    LTXLineDrawingAction { context, line, lineOrigin in
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        var leading: CGFloat = 0
+        CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+
+        let lineSpacing = CodeViewConfiguration.codeLineSpacing
+        let clipBounds = context.boundingBoxOfClipPath
+        let rect = CGRect(
+            x: clipBounds.minX,
+            y: lineOrigin.y - descent - lineSpacing / 2,
+            width: clipBounds.width,
+            height: ascent + descent + leading + lineSpacing
+        )
+
+        context.saveGState()
+        context.setFillColor(color.cgColor)
+        context.fill(rect)
+        context.restoreGState()
     }
 }
 
@@ -581,11 +633,16 @@ private func makeUnifiedAttributedText(
 
     for (index, row) in rows.enumerated() {
         let rowStart = result.length
-        let attributes = makeDiffAttributes(
+        var attributes = makeDiffAttributes(
             font: font,
             color: unifiedTextColor(for: row.kind, theme: theme),
             paragraphStyle: paragraphStyle
         )
+        if let lineBackgroundColor = unifiedLineBackgroundColor(for: row.kind, theme: theme) {
+            attributes[.ltxLineDrawingCallback] = makeFullWidthLineBackgroundAction(
+                color: lineBackgroundColor
+            )
+        }
         result.append(.init(string: row.text, attributes: attributes))
 
         let rowLength = row.text.utf16.count
@@ -1072,7 +1129,7 @@ private func makeSideBySideAttributedText(
                         bounds: bounds
                     )
 
-                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                    if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
                         context.setFillColor(fillColor.cgColor)
                         context.fill(rect)
                     }
@@ -1761,7 +1818,7 @@ private func makeSideBySideAttributedText(
                         bounds: bounds
                     )
 
-                    if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
+                    if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
                         context.setFillColor(fillColor.cgColor)
                         context.fill(rect)
                     }

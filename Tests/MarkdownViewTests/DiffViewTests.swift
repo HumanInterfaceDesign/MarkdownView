@@ -1044,6 +1044,7 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertEqual(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+            XCTAssertGreaterThan(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
@@ -1077,6 +1078,7 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+            XCTAssertEqual(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
@@ -1110,6 +1112,7 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+            XCTAssertGreaterThan(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
@@ -1307,6 +1310,20 @@ final class DiffViewTests: XCTestCase {
         var count = 0
         attributedString.enumerateAttribute(
             .backgroundColor,
+            in: NSRange(location: 0, length: attributedString.length),
+            options: []
+        ) { value, _, _ in
+            if value != nil {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    private func countLineDrawingCallbacks(in attributedString: NSAttributedString) -> Int {
+        var count = 0
+        attributedString.enumerateAttribute(
+            .ltxLineDrawingCallback,
             in: NSRange(location: 0, length: attributedString.length),
             options: []
         ) { value, _, _ in
