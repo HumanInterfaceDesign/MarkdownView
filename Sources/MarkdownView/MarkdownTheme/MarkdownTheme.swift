@@ -152,12 +152,19 @@ public struct MarkdownTheme: Equatable {
             case sideBySide
         }
 
+        public enum ChangeHighlightStyle: String, CaseIterable {
+            case lineOnly
+            case inlineOnly
+            case both
+        }
+
         public enum ScrollBehavior: String, CaseIterable {
             case horizontalOnly
             case bothAxes
         }
 
         public var displayMode: DisplayMode = .unified
+        public var changeHighlightStyle: ChangeHighlightStyle = .both
         public var scrollBehavior: ScrollBehavior = .horizontalOnly
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2

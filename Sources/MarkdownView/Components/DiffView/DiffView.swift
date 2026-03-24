@@ -198,6 +198,28 @@ private func applyEmphasis(
     }
 }
 
+private func showsLineChangeHighlights(
+    in theme: MarkdownTheme
+) -> Bool {
+    switch theme.diff.changeHighlightStyle {
+    case .lineOnly, .both:
+        true
+    case .inlineOnly:
+        false
+    }
+}
+
+private func showsInlineChangeHighlights(
+    in theme: MarkdownTheme
+) -> Bool {
+    switch theme.diff.changeHighlightStyle {
+    case .inlineOnly, .both:
+        true
+    case .lineOnly:
+        false
+    }
+}
+
 private func unifiedTextColor(
     for kind: DiffPresentation.UnifiedRow.Kind,
     theme: MarkdownTheme
@@ -228,9 +250,9 @@ private func unifiedRowBackgroundColor(
     case .hunkHeader:
         theme.diff.hunkHeaderBackground
     case .removed:
-        theme.diff.removedLineBackground
+        showsLineChangeHighlights(in: theme) ? theme.diff.removedLineBackground : nil
     case .added:
-        theme.diff.addedLineBackground
+        showsLineChangeHighlights(in: theme) ? theme.diff.addedLineBackground : nil
     case .collapsedContext:
         theme.diff.collapsedContextBackground
     case .context, .annotation:
@@ -242,13 +264,14 @@ private func unifiedEmphasisColor(
     for kind: DiffPresentation.UnifiedRow.Kind,
     theme: MarkdownTheme
 ) -> PlatformColor? {
+    guard showsInlineChangeHighlights(in: theme) else { return nil }
     switch kind {
     case .removed:
-        theme.diff.removedHighlightBackground
+        return theme.diff.removedHighlightBackground
     case .added:
-        theme.diff.addedHighlightBackground
+        return theme.diff.addedHighlightBackground
     case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
-        nil
+        return nil
     }
 }
 
@@ -292,13 +315,14 @@ private func sideBySideCellBackgroundColor(
     for role: DiffPresentation.SideBySideRow.CellRole,
     theme: MarkdownTheme
 ) -> PlatformColor? {
+    guard showsLineChangeHighlights(in: theme) else { return nil }
     switch role {
     case .removed:
-        theme.diff.removedLineBackground
+        return theme.diff.removedLineBackground
     case .added:
-        theme.diff.addedLineBackground
+        return theme.diff.addedLineBackground
     case .empty, .context:
-        nil
+        return nil
     }
 }
 
@@ -306,13 +330,29 @@ private func sideBySideEmphasisColor(
     for role: DiffPresentation.SideBySideRow.CellRole,
     theme: MarkdownTheme
 ) -> PlatformColor? {
+    guard showsInlineChangeHighlights(in: theme) else { return nil }
     switch role {
     case .removed:
-        theme.diff.removedHighlightBackground
+        return theme.diff.removedHighlightBackground
     case .added:
-        theme.diff.addedHighlightBackground
+        return theme.diff.addedHighlightBackground
     case .empty, .context:
-        nil
+        return nil
+    }
+}
+
+private func sideBySideMarkerBackgroundColor(
+    for row: DiffPresentation.SideBySideRow,
+    theme: MarkdownTheme
+) -> PlatformColor? {
+    guard showsLineChangeHighlights(in: theme) else { return nil }
+    switch sideBySideMarker(for: row) {
+    case "-":
+        return theme.diff.removedLineBackground
+    case "+":
+        return theme.diff.addedLineBackground
+    default:
+        return nil
     }
 }
 
@@ -1237,10 +1277,8 @@ private func makeSideBySideAttributedText(
                         }
 
                         if let marker = sideBySideMarker(for: row), !marker.isEmpty {
-                            if marker == "-" {
-                                context.setFillColor(theme.diff.removedLineBackground.cgColor)
-                            } else if marker == "+" {
-                                context.setFillColor(theme.diff.addedLineBackground.cgColor)
+                            if let markerColor = sideBySideMarkerBackgroundColor(for: row, theme: theme) {
+                                context.setFillColor(markerColor.cgColor)
                             } else {
                                 context.setFillColor(theme.diff.gutterBackground.cgColor)
                             }
@@ -1921,10 +1959,8 @@ private func makeSideBySideAttributedText(
                         }
 
                         if let marker = sideBySideMarker(for: row), !marker.isEmpty {
-                            if marker == "-" {
-                                context.setFillColor(theme.diff.removedLineBackground.cgColor)
-                            } else if marker == "+" {
-                                context.setFillColor(theme.diff.addedLineBackground.cgColor)
+                            if let markerColor = sideBySideMarkerBackgroundColor(for: row, theme: theme) {
+                                context.setFillColor(markerColor.cgColor)
                             } else {
                                 context.setFillColor(theme.diff.gutterBackground.cgColor)
                             }

@@ -1010,6 +1010,109 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testDiffThemeDefaultsToBothLineAndInlineHighlights() {
+        XCTAssertEqual(MarkdownTheme.default.diff.changeHighlightStyle, .both)
+    }
+
+    func testDiffViewLineOnlyStyleSuppressesInlineBackgroundAttributes() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.diff.changeHighlightStyle = .lineOnly
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+            #endif
+
+            XCTAssertEqual(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+        }
+    }
+
+    func testDiffViewInlineOnlyStyleAppliesInlineBackgroundAttributes() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.diff.changeHighlightStyle = .inlineOnly
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+            #endif
+
+            XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+        }
+    }
+
+    func testDiffViewBothStyleRetainsInlineBackgroundAttributes() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            theme.diff.changeHighlightStyle = .both
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+            #endif
+
+            XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
+        }
+    }
+
     func testSelectionTintDerivesSelectionBackgroundAndAppliesToDiffView() {
         let content = makeContent(
             from: """
@@ -1198,6 +1301,20 @@ final class DiffViewTests: XCTestCase {
         DispatchQueue.main.sync {
             work()
         }
+    }
+
+    private func countBackgroundAttributes(in attributedString: NSAttributedString) -> Int {
+        var count = 0
+        attributedString.enumerateAttribute(
+            .backgroundColor,
+            in: NSRange(location: 0, length: attributedString.length),
+            options: []
+        ) { value, _, _ in
+            if value != nil {
+                count += 1
+            }
+        }
+        return count
     }
 
     #if canImport(UIKit)

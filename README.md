@@ -218,6 +218,7 @@ theme.colors.selectionBackground = .systemBlue.withAlphaComponent(0.16)
 theme.diff.backgroundColor = .black
 theme.diff.borderColor = .darkGray
 theme.diff.borderWidth = 1
+theme.diff.changeHighlightStyle = .both
 theme.diff.addedLineBackground = UIColor(red: 0.08, green: 0.25, blue: 0.16, alpha: 1)
 theme.diff.removedLineBackground = UIColor(red: 0.28, green: 0.10, blue: 0.12, alpha: 1)
 theme.diff.addedHighlightBackground = UIColor(red: 0.12, green: 0.34, blue: 0.21, alpha: 1)
@@ -279,7 +280,7 @@ If the entire markdown string is itself a valid unified diff, MarkdownView will 
 This is useful when an API returns only the patch text.
 Use `text` or `plaintext` if you want to show patch text literally without auto-detecting the diff view.
 
-Diff presentation is fully themeable through `MarkdownTheme.Diff`, including the gutter, file header, added/removed row colors, inline highlight colors, separators, border, and the overall diff background. Diff blocks default to horizontal-only scrolling so they embed cleanly inside outer scroll views; set `theme.diff.scrollBehavior = .bothAxes` if you want the diff view itself to scroll vertically too.
+Diff presentation is fully themeable through `MarkdownTheme.Diff`, including the gutter, file header, added/removed row colors, inline highlight colors, separators, border, and the overall diff background. Use `theme.diff.changeHighlightStyle` to choose between `.lineOnly`, `.inlineOnly`, and `.both`. Diff blocks default to horizontal-only scrolling so they embed cleanly inside outer scroll views; set `theme.diff.scrollBehavior = .bothAxes` if you want the diff view itself to scroll vertically too.
 
 ```swift
 let patch = apiResponse.patch
