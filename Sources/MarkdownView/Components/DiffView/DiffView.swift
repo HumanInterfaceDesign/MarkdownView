@@ -187,11 +187,25 @@ private func resolvedDiffRowRect(
     }
 
     let lineRect = lineRects[index]
+    let nextMinY: CGFloat
+    if index + 1 < lineRects.count {
+        nextMinY = lineRects[index + 1].minY
+    } else {
+        nextMinY = max(
+            lineRect.maxY,
+            diffRowRect(
+                index: index,
+                rowCount: rowCount,
+                bounds: bounds,
+                theme: theme
+            ).maxY
+        )
+    }
     return CGRect(
         x: bounds.minX,
         y: lineRect.minY,
         width: bounds.width,
-        height: lineRect.height
+        height: max(nextMinY - lineRect.minY, lineRect.height)
     )
 }
 
