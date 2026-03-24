@@ -149,15 +149,24 @@ private func makeDiffAttributes(
 private func diffRowRect(
     index: Int,
     rowCount: Int,
-    contentHeight: CGFloat,
-    bounds: CGRect
+    bounds: CGRect,
+    theme: MarkdownTheme
 ) -> CGRect {
-    let lineHeight = contentHeight / CGFloat(max(rowCount, 1))
+    #if canImport(UIKit)
+        let lineHeight = theme.fonts.code.lineHeight
+    #elseif canImport(AppKit)
+        let font = theme.fonts.code
+        let lineHeight = font.ascender + abs(font.descender) + font.leading
+    #endif
+
+    let lineSpacing = CodeViewConfiguration.codeLineSpacing
+    let rowAdvance = lineHeight + lineSpacing
+    let isLastRow = index == max(rowCount - 1, 0)
     return CGRect(
         x: bounds.minX,
-        y: DiffViewConfiguration.verticalPadding + CGFloat(index) * lineHeight,
+        y: DiffViewConfiguration.verticalPadding + CGFloat(index) * rowAdvance,
         width: bounds.width,
-        height: lineHeight
+        height: lineHeight + (isLastRow ? 0 : lineSpacing)
     )
 }
 
@@ -264,12 +273,7 @@ private func unifiedContentRowBackgroundColor(
     for kind: DiffPresentation.UnifiedRow.Kind,
     theme: MarkdownTheme
 ) -> PlatformColor? {
-    switch kind {
-    case .removed, .added:
-        return nil
-    case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
-        return unifiedRowBackgroundColor(for: kind, theme: theme)
-    }
+    unifiedRowBackgroundColor(for: kind, theme: theme)
 }
 
 private func unifiedEmphasisColor(
@@ -284,46 +288,6 @@ private func unifiedEmphasisColor(
         return theme.diff.addedHighlightBackground
     case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
         return nil
-    }
-}
-
-private func unifiedLineBackgroundColor(
-    for kind: DiffPresentation.UnifiedRow.Kind,
-    theme: MarkdownTheme
-) -> PlatformColor? {
-    guard showsLineChangeHighlights(in: theme) else { return nil }
-    switch kind {
-    case .removed:
-        return theme.diff.removedLineBackground
-    case .added:
-        return theme.diff.addedLineBackground
-    case .fileHeader, .fileMetadata, .hunkHeader, .context, .annotation, .collapsedContext:
-        return nil
-    }
-}
-
-private func makeFullWidthLineBackgroundAction(
-    color: PlatformColor
-) -> LTXLineDrawingAction {
-    LTXLineDrawingAction { context, line, lineOrigin in
-        var ascent: CGFloat = 0
-        var descent: CGFloat = 0
-        var leading: CGFloat = 0
-        CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-
-        let lineSpacing = CodeViewConfiguration.codeLineSpacing
-        let clipBounds = context.boundingBoxOfClipPath
-        let rect = CGRect(
-            x: clipBounds.minX,
-            y: lineOrigin.y - descent - lineSpacing / 2,
-            width: clipBounds.width,
-            height: ascent + descent + leading + lineSpacing
-        )
-
-        context.saveGState()
-        context.setFillColor(color.cgColor)
-        context.fill(rect)
-        context.restoreGState()
     }
 }
 
@@ -633,16 +597,11 @@ private func makeUnifiedAttributedText(
 
     for (index, row) in rows.enumerated() {
         let rowStart = result.length
-        var attributes = makeDiffAttributes(
+        let attributes = makeDiffAttributes(
             font: font,
             color: unifiedTextColor(for: row.kind, theme: theme),
             paragraphStyle: paragraphStyle
         )
-        if let lineBackgroundColor = unifiedLineBackgroundColor(for: row.kind, theme: theme) {
-            attributes[.ltxLineDrawingCallback] = makeFullWidthLineBackgroundAction(
-                color: lineBackgroundColor
-            )
-        }
         result.append(.init(string: row.text, attributes: attributes))
 
         let rowLength = row.text.utf16.count
@@ -1125,8 +1084,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1151,8 +1110,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     switch row.kind {
@@ -1256,8 +1215,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1296,8 +1255,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
@@ -1814,8 +1773,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1840,8 +1799,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     switch row.kind {
@@ -1938,8 +1897,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1978,8 +1937,8 @@ private func makeSideBySideAttributedText(
                     let rect = diffRowRect(
                         index: index,
                         rowCount: rows.count,
-                        contentHeight: contentHeight,
-                        bounds: bounds
+                        bounds: bounds,
+                        theme: theme
                     )
 
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)

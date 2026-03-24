@@ -10,6 +10,32 @@ import XCTest
 final class DiffViewTests: XCTestCase {
 
     private let parser = MarkdownParser()
+    private let userProvidedMixedDiff = """
+        ```diff
+        @@ -3,9 +3,12 @@ import { useState } from 'react';
+         export default function App() {
+        +  const [count, setCount] = useState<number>(0);
+        +  const [name, setName] = useState<string>('');
+
+           return (
+             <div>
+        -      <button onClick={() => setCount(count + 1)}>
+        +      <input value={name} onChange={(e) => setName(e.target.value)} />
+        +      <button onClick={() => setCount((prev) => prev + 1)}>
+                 Count: {count}
+               </button>
+             </div>
+        ```
+        """
+    private let userProvidedSingleReplacementDiff = """
+        ```diff
+        @@ -11,7 +11,7 @@ export default function Home() {
+         <div>
+        -  <h2>Design Engineer</h2>
+        +  <h2>Designer</h2>
+         </div>
+        ```
+        """
 
     func testPreprocessedContentBuildsDiffRenderBlock() {
         let content = makeContent(
@@ -1014,16 +1040,39 @@ final class DiffViewTests: XCTestCase {
         XCTAssertEqual(MarkdownTheme.default.diff.changeHighlightStyle, .both)
     }
 
+    func testUserProvidedMixedUnifiedDiffPreservesBlankContextAndChangedRows() {
+        let content = makeContent(from: userProvidedMixedDiff)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.rows.first?.kind, .hunkHeader)
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .added && $0.text.contains("const [count, setCount]") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .added && $0.text.contains("const [name, setName]") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .removed && $0.text.contains("setCount(count + 1)") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .added && $0.text.contains("setCount((prev) => prev + 1)") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .added && $0.text.contains("<input value={name}") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .context && $0.text.isEmpty })
+    }
+
+    func testUserProvidedSingleReplacementDiffBuildsExpectedRows() {
+        let content = makeContent(from: userProvidedSingleReplacementDiff)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertEqual(renderBlock.rows.count, 5)
+        XCTAssertEqual(renderBlock.rows[0].kind, .hunkHeader)
+        XCTAssertEqual(renderBlock.rows[1].kind, .context)
+        XCTAssertEqual(renderBlock.rows[2].kind, .removed)
+        XCTAssertEqual(renderBlock.rows[3].kind, .added)
+        XCTAssertEqual(renderBlock.rows[4].kind, .context)
+    }
+
     func testDiffViewLineOnlyStyleSuppressesInlineBackgroundAttributes() {
-        let content = makeContent(
-            from: """
-            ```diff swift
-            @@ -1 +1 @@
-            -let title = "Design Engineer"
-            +let title = "Designer"
-            ```
-            """
-        )
+        let content = makeContent(from: userProvidedSingleReplacementDiff)
 
         guard let renderBlock = content.diffRenderBlocks.values.first else {
             return XCTFail("Expected diff render block")
@@ -1044,20 +1093,11 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertEqual(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
-            XCTAssertGreaterThan(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
     func testDiffViewInlineOnlyStyleAppliesInlineBackgroundAttributes() {
-        let content = makeContent(
-            from: """
-            ```diff swift
-            @@ -1 +1 @@
-            -let title = "Design Engineer"
-            +let title = "Designer"
-            ```
-            """
-        )
+        let content = makeContent(from: userProvidedSingleReplacementDiff)
 
         guard let renderBlock = content.diffRenderBlocks.values.first else {
             return XCTFail("Expected diff render block")
@@ -1078,20 +1118,11 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
-            XCTAssertEqual(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
     func testDiffViewBothStyleRetainsInlineBackgroundAttributes() {
-        let content = makeContent(
-            from: """
-            ```diff swift
-            @@ -1 +1 @@
-            -let title = "Design Engineer"
-            +let title = "Designer"
-            ```
-            """
-        )
+        let content = makeContent(from: userProvidedSingleReplacementDiff)
 
         guard let renderBlock = content.diffRenderBlocks.values.first else {
             return XCTFail("Expected diff render block")
@@ -1112,7 +1143,6 @@ final class DiffViewTests: XCTestCase {
             #endif
 
             XCTAssertGreaterThan(self.countBackgroundAttributes(in: view.textView.attributedText), 0)
-            XCTAssertGreaterThan(self.countLineDrawingCallbacks(in: view.textView.attributedText), 0)
         }
     }
 
@@ -1310,20 +1340,6 @@ final class DiffViewTests: XCTestCase {
         var count = 0
         attributedString.enumerateAttribute(
             .backgroundColor,
-            in: NSRange(location: 0, length: attributedString.length),
-            options: []
-        ) { value, _, _ in
-            if value != nil {
-                count += 1
-            }
-        }
-        return count
-    }
-
-    private func countLineDrawingCallbacks(in attributedString: NSAttributedString) -> Int {
-        var count = 0
-        attributedString.enumerateAttribute(
-            .ltxLineDrawingCallback,
             in: NSRange(location: 0, length: attributedString.length),
             options: []
         ) { value, _, _ in
