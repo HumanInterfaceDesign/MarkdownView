@@ -240,7 +240,32 @@ private extension UnifiedDiffParser {
                     let currentLine = lines[index]
 
                     if currentLine.isEmpty {
-                        index += 1
+                        var lookahead = index + 1
+                        while lookahead < lines.count, lines[lookahead].isEmpty {
+                            lookahead += 1
+                        }
+
+                        let hasMoreHunkBodyLines =
+                            lookahead < lines.count
+                            && parseHunkHeader(lines[lookahead]) == nil
+                            && preambleRowKind(for: lines[lookahead]) == nil
+
+                        if hasMoreHunkBodyLines {
+                            rows.append(
+                                .init(
+                                    kind: .context,
+                                    oldLineNumber: oldLine,
+                                    newLineNumber: newLine,
+                                    text: ""
+                                )
+                            )
+                            oldLine += 1
+                            newLine += 1
+                            index += 1
+                            continue
+                        }
+
+                        index = lookahead
                         break
                     }
                     if parseHunkHeader(currentLine) != nil {

@@ -550,6 +550,140 @@ final class DiffViewTests: XCTestCase {
         )
     }
 
+    func testExplicitDiffFenceRendersUserProvidedMultiFilePatchSample() {
+        let markdown = """
+        ```diff
+        --- a/Sources/MarkdownView/MarkdownTextView.swift
+        +++ b/Sources/MarkdownView/MarkdownTextView.swift
+        @@ -1,12 +1,18 @@
+         import UIKit
+        +import MarkdownParser
+         
+         public class MarkdownTextView: UIView {
+        -    private var blocks: [MarkdownBlock] = []
+        +    private var blocks: [Block] = []
+        +    private let parser = MarkdownParser()
+             private let highlighter = TreeSitterHighlighter()
+         
+             public var theme: MarkdownTheme = .default {
+                 didSet { rerender() }
+             }
+         
+        -    public func setMarkdown(_ string: String) {
+        -        blocks = MarkdownParser.parse(string)
+        +    public func setMarkdown(_ content: PreprocessedContent) {
+        +        blocks = content.blocks
+        +        rerender()
+        +    }
+        +
+        +    public func setMarkdown(string: String) {
+        +        let content = PreprocessedContent(markdown: string, theme: theme)
+        +        blocks = content.blocks
+                 rerender()
+             }
+        --- a/Sources/MarkdownView/Rendering/DiffRenderer.swift
+        +++ b/Sources/MarkdownView/Rendering/DiffRenderer.swift
+        @@ -0,0 +1,45 @@
+        +import UIKit
+        +
+        +/// Renders unified diff blocks with GitHub-style line coloring.
+        +struct DiffRenderer {
+        +    let theme: MarkdownTheme.Diff
+        +
+        +    func render(lines: [DiffLine]) -> NSAttributedString {
+        +        let result = NSMutableAttributedString()
+        +        for line in lines {
+        +            let attrs = attributes(for: line.kind)
+        +            let text = NSAttributedString(string: line.text + "\\n", attributes: attrs)
+        +            result.append(text)
+        +        }
+        +        return result
+        +    }
+        +
+        +    private func attributes(for kind: DiffLine.Kind) -> [NSAttributedString.Key: Any] {
+        +        let font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        +        switch kind {
+        +        case .addition:
+        +            return [
+        +                .font: font,
+        +                .foregroundColor: theme.addedTextColor,
+        +                .backgroundColor: theme.addedBackgroundColor,
+        +            ]
+        +        case .deletion:
+        +            return [
+        +                .font: font,
+        +                .foregroundColor: theme.removedTextColor,
+        +                .backgroundColor: theme.removedBackgroundColor,
+        +            ]
+        +        case .context:
+        +            return [.font: font, .foregroundColor: theme.contextTextColor]
+        +        case .header:
+        +            return [
+        +                .font: font,
+        +                .foregroundColor: theme.headerTextColor,
+        +                .backgroundColor: theme.headerBackgroundColor,
+        +            ]
+        +        }
+        +    }
+        +}
+        ```
+        """
+
+        let content = makeContent(from: markdown)
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+        XCTAssertTrue(content.highlightMaps.isEmpty)
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is DiffView)
+            XCTAssertFalse(view.contextViews.first is CodeView)
+        }
+    }
+
+    func testExplicitDiffFenceAllowsBlankContextLinesWithoutLeadingSpace() {
+        let markdown = """
+        ```diff
+        diff --git a/app/globals.css b/app/globals.css
+        index dc2aea1..03a1384 100644
+        --- a/app/globals.css
+        +++ b/app/globals.css
+        @@ -4,8 +4,8 @@
+         @custom-variant dark (&:is(.dark *));
+
+         :root {
+        -  --background: oklch(1 0 0);
+        -  --foreground: oklch(0.145 0 0);
+        +  --background: oklch(0.577 0.245 27.325);
+        +  --foreground: oklch(1 0 0);
+           --card: oklch(1 0 0);
+           --card-foreground: oklch(0.145 0 0);
+           --popover: oklch(1 0 0);
+        ```
+        """
+
+        let content = makeContent(from: markdown)
+        XCTAssertEqual(content.diffRenderBlocks.count, 1)
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .removed && $0.text.contains("--background: oklch(1 0 0);") })
+        XCTAssertTrue(renderBlock.rows.contains { $0.kind == .added && $0.text.contains("--background: oklch(0.577 0.245 27.325);") })
+
+        runOnMain {
+            let view = MarkdownTextView()
+            view.setMarkdownManually(content)
+
+            XCTAssertEqual(view.contextViews.count, 1)
+            XCTAssertTrue(view.contextViews.first is DiffView)
+            XCTAssertFalse(view.contextViews.first is CodeView)
+        }
+    }
+
     func testDiffViewIsReusedFromPool() {
         let content = makeContent(
             from: """
