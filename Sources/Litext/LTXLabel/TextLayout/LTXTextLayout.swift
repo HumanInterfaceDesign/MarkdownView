@@ -133,6 +133,37 @@ public class LTXTextLayout: NSObject {
         return rects
     }
 
+    public func lineRects() -> [CGRect] {
+        guard let ctFrame else { return [] }
+
+        let lines = CTFrameGetLines(ctFrame) as NSArray
+        let lineCount = lines.count
+        var origins = [CGPoint](repeating: .zero, count: lineCount)
+        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
+
+        var rects: [CGRect] = []
+        rects.reserveCapacity(lineCount)
+
+        for i in 0 ..< lineCount {
+            let line = lines[i] as! CTLine
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            var leading: CGFloat = 0
+            let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+            let origin = origins[i]
+            rects.append(
+                CGRect(
+                    x: origin.x,
+                    y: origin.y - descent,
+                    width: width,
+                    height: ascent + descent + leading
+                )
+            )
+        }
+
+        return rects
+    }
+
     public func enumerateTextRects(in range: NSRange, using block: (CGRect) -> Void) {
         guard let ctFrame else { return }
 

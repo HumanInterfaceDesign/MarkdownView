@@ -29,6 +29,12 @@ public extension LTXLabel {
 
         return selectedText.copy() as! NSAttributedString
     }
+
+    func lineRects() -> [CGRect] {
+        textLayout.lineRects().map {
+            convertRectFromTextLayout($0, insetForInteraction: false)
+        }
+    }
 }
 
 extension LTXLabel {

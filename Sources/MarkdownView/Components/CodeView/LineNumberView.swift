@@ -10,6 +10,7 @@ import Litext
 
     final class LineNumberView: UIView {
         private var suppressInvalidation = false
+        private var lineRects: [CGRect] = []
 
         var lineCount: Int = 1 {
             didSet {
@@ -88,22 +89,26 @@ import Litext
                 .foregroundColor: textColor,
             ]
 
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(lineCount)
-            let startY = padding.top
+            let lineHeight = font.lineHeight
+            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
 
             for lineNumber in 1 ... lineCount {
                 let numberString = "\(lineNumber)"
                 let textSize = numberString.size(withAttributes: textAttributes)
 
                 let x = bounds.width - padding.right - textSize.width
-                let y = startY + CGFloat(lineNumber - 1) * lineSpacing + (lineSpacing - textSize.height) / 2
+                let y: CGFloat
+                if lineNumber - 1 < lineRects.count {
+                    y = lineRects[lineNumber - 1].minY
+                } else {
+                    y = padding.top + CGFloat(lineNumber - 1) * rowAdvance
+                }
 
                 let textRect = CGRect(
                     x: x,
                     y: y,
                     width: textSize.width,
-                    height: textSize.height
+                    height: lineHeight
                 )
 
                 numberString.draw(in: textRect, withAttributes: textAttributes)
@@ -121,6 +126,11 @@ import Litext
             invalidateIntrinsicContentSize()
         }
 
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
+            setNeedsDisplay()
+        }
+
         func updateForContent(_ content: String) {
             let lines = content.components(separatedBy: .newlines)
             lineCount = max(lines.count, 1)
@@ -132,6 +142,7 @@ import Litext
 
     final class LineNumberView: NSView {
         private var suppressInvalidation = false
+        private var lineRects: [CGRect] = []
 
         var lineCount: Int = 1 {
             didSet {
@@ -213,22 +224,26 @@ import Litext
                 .foregroundColor: textColor,
             ]
 
-            let availableHeight = contentHeight
-            let lineSpacing = availableHeight / CGFloat(lineCount)
-            let startY = padding.top
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
+            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
 
             for lineNumber in 1 ... lineCount {
                 let numberString = "\(lineNumber)"
                 let textSize = numberString.size(withAttributes: textAttributes)
 
                 let x = bounds.width - padding.right - textSize.width
-                let y = startY + CGFloat(lineNumber - 1) * lineSpacing + (lineSpacing - textSize.height) / 2
+                let y: CGFloat
+                if lineNumber - 1 < lineRects.count {
+                    y = lineRects[lineNumber - 1].minY
+                } else {
+                    y = padding.top + CGFloat(lineNumber - 1) * rowAdvance
+                }
 
                 let textRect = CGRect(
                     x: x,
                     y: y,
                     width: textSize.width,
-                    height: textSize.height
+                    height: lineHeight
                 )
 
                 numberString.draw(in: textRect, withAttributes: textAttributes)
@@ -244,6 +259,11 @@ import Litext
             suppressInvalidation = false
             needsDisplay = true
             invalidateIntrinsicContentSize()
+        }
+
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
+            needsDisplay = true
         }
 
         func updateForContent(_ content: String) {

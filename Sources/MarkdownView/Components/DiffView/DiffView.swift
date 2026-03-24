@@ -170,6 +170,38 @@ private func diffRowRect(
     )
 }
 
+private func resolvedDiffRowRect(
+    index: Int,
+    rowCount: Int,
+    bounds: CGRect,
+    theme: MarkdownTheme,
+    lineRects: [CGRect]
+) -> CGRect {
+    guard index < lineRects.count else {
+        return diffRowRect(
+            index: index,
+            rowCount: rowCount,
+            bounds: bounds,
+            theme: theme
+        )
+    }
+
+    let lineRect = lineRects[index]
+    return CGRect(
+        x: bounds.minX,
+        y: lineRect.minY,
+        width: bounds.width,
+        height: lineRect.height
+    )
+}
+
+private func offsetResolvedLineRects(
+    _ lineRects: [CGRect],
+    by origin: CGPoint
+) -> [CGRect] {
+    lineRects.map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+}
+
 private func paddedToUTF16Length(
     _ text: String,
     targetLength: Int
@@ -897,6 +929,7 @@ private func makeSideBySideAttributedText(
 
             gutterView.configure(
                 displayRows: displayRows,
+                lineRects: [],
                 contentHeight: cachedTextHeight,
                 font: theme.fonts.code,
                 theme: theme
@@ -904,6 +937,7 @@ private func makeSideBySideAttributedText(
             backgroundView.configure(
                 displayRows: displayRows,
                 sideBySideTextMetrics: sideBySideTextMetrics,
+                lineRects: [],
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
@@ -928,6 +962,18 @@ private func makeSideBySideAttributedText(
                     theme: theme
                 )
             }
+        }
+
+        private func updateResolvedLineRects() {
+            textView.setNeedsLayout()
+            textView.layoutIfNeeded()
+
+            let lineRects = offsetResolvedLineRects(
+                textView.lineRects(),
+                by: textView.frame.origin
+            )
+            gutterView.updateLineRects(lineRects)
+            backgroundView.updateLineRects(lineRects)
         }
 
         private func performLayout() {
@@ -979,6 +1025,7 @@ private func makeSideBySideAttributedText(
                     width: contentContainerView.bounds.width,
                     height: containerHeight
                 )
+                updateResolvedLineRects()
                 return
             }
 
@@ -1041,6 +1088,7 @@ private func makeSideBySideAttributedText(
                 width: contentContainerView.bounds.width,
                 height: containerHeight
             )
+            updateResolvedLineRects()
         }
     }
 
@@ -1053,19 +1101,27 @@ private func makeSideBySideAttributedText(
     private final class DiffContentBackgroundView: UIView {
         private var displayRows: DiffDisplayRows = .unified([])
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
+        private var lineRects: [CGRect] = []
         private var contentHeight: CGFloat = 0
         private var theme: MarkdownTheme = .default
 
         func configure(
             displayRows: DiffDisplayRows,
             sideBySideTextMetrics: DiffSideBySideTextMetrics?,
+            lineRects: [CGRect],
             contentHeight: CGFloat,
             theme: MarkdownTheme
         ) {
             self.displayRows = displayRows
             self.sideBySideTextMetrics = sideBySideTextMetrics
+            self.lineRects = lineRects
             self.contentHeight = contentHeight
             self.theme = theme
+            setNeedsDisplay()
+        }
+
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
             setNeedsDisplay()
         }
 
@@ -1081,11 +1137,12 @@ private func makeSideBySideAttributedText(
             switch displayRows {
             case let .unified(rows):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1107,11 +1164,12 @@ private func makeSideBySideAttributedText(
             case let .sideBySide(rows, _):
                 let textMetrics = sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code)
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     switch row.kind {
@@ -1157,6 +1215,7 @@ private func makeSideBySideAttributedText(
         private var font: UIFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
         private var theme: MarkdownTheme = .default
         private var contentHeight: CGFloat = 0
+        private var lineRects: [CGRect] = []
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -1172,16 +1231,23 @@ private func makeSideBySideAttributedText(
 
         func configure(
             displayRows: DiffDisplayRows,
+            lineRects: [CGRect],
             contentHeight: CGFloat,
             font: UIFont,
             theme: MarkdownTheme
         ) {
             self.displayRows = displayRows
+            self.lineRects = lineRects
             self.contentHeight = contentHeight
             self.font = font
             self.theme = theme
             setNeedsDisplay()
             invalidateIntrinsicContentSize()
+        }
+
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
+            setNeedsDisplay()
         }
 
         override var intrinsicContentSize: CGSize {
@@ -1212,11 +1278,12 @@ private func makeSideBySideAttributedText(
             switch displayRows {
             case let .unified(rows):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1252,11 +1319,12 @@ private func makeSideBySideAttributedText(
 
             case let .sideBySide(rows, _):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
@@ -1339,11 +1407,12 @@ private func makeSideBySideAttributedText(
             guard let number, let rect else { return }
             let string = "\(number)"
             let size = string.size(withAttributes: attributes)
+            let lineHeight = font.lineHeight
             let target = CGRect(
                 x: rect.maxX - DiffViewConfiguration.gutterPadding - size.width,
-                y: rect.minY + (rect.height - size.height) / 2,
+                y: rect.minY,
                 width: size.width,
-                height: size.height
+                height: lineHeight
             )
             string.draw(in: target, withAttributes: attributes)
         }
@@ -1355,11 +1424,12 @@ private func makeSideBySideAttributedText(
         ) {
             guard let marker, let rect else { return }
             let size = marker.size(withAttributes: attributes)
+            let lineHeight = font.lineHeight
             let target = CGRect(
                 x: rect.midX - size.width / 2,
-                y: rect.minY + (rect.height - size.height) / 2,
+                y: rect.minY,
                 width: size.width,
-                height: size.height
+                height: lineHeight
             )
             marker.draw(in: target, withAttributes: attributes)
         }
@@ -1581,6 +1651,7 @@ private func makeSideBySideAttributedText(
 
             gutterView.configure(
                 displayRows: displayRows,
+                lineRects: [],
                 contentHeight: cachedTextHeight,
                 font: theme.fonts.code,
                 theme: theme
@@ -1588,6 +1659,7 @@ private func makeSideBySideAttributedText(
             backgroundView.configure(
                 displayRows: displayRows,
                 sideBySideTextMetrics: sideBySideTextMetrics,
+                lineRects: [],
                 contentHeight: cachedTextHeight,
                 theme: theme
             )
@@ -1613,6 +1685,18 @@ private func makeSideBySideAttributedText(
                     theme: theme
                 )
             }
+        }
+
+        private func updateResolvedLineRects() {
+            textView.needsLayout = true
+            textView.layoutSubtreeIfNeeded()
+
+            let lineRects = offsetResolvedLineRects(
+                textView.lineRects(),
+                by: textView.frame.origin
+            )
+            gutterView.updateLineRects(lineRects)
+            backgroundView.updateLineRects(lineRects)
         }
 
         private func performLayout() {
@@ -1661,6 +1745,7 @@ private func makeSideBySideAttributedText(
                     height: textSize.height
                 )
                 scrollView.documentView?.frame = contentContainerView.frame
+                updateResolvedLineRects()
                 return
             }
 
@@ -1720,6 +1805,7 @@ private func makeSideBySideAttributedText(
                 height: textSize.height
             )
             scrollView.documentView?.frame = contentContainerView.frame
+            updateResolvedLineRects()
         }
     }
 
@@ -1738,6 +1824,7 @@ private func makeSideBySideAttributedText(
     private final class DiffContentBackgroundView: NSView {
         private var displayRows: DiffDisplayRows = .unified([])
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
+        private var lineRects: [CGRect] = []
         private var contentHeight: CGFloat = 0
         private var theme: MarkdownTheme = .default
 
@@ -1748,13 +1835,20 @@ private func makeSideBySideAttributedText(
         func configure(
             displayRows: DiffDisplayRows,
             sideBySideTextMetrics: DiffSideBySideTextMetrics?,
+            lineRects: [CGRect],
             contentHeight: CGFloat,
             theme: MarkdownTheme
         ) {
             self.displayRows = displayRows
             self.sideBySideTextMetrics = sideBySideTextMetrics
+            self.lineRects = lineRects
             self.contentHeight = contentHeight
             self.theme = theme
+            needsDisplay = true
+        }
+
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
             needsDisplay = true
         }
 
@@ -1770,11 +1864,12 @@ private func makeSideBySideAttributedText(
             switch displayRows {
             case let .unified(rows):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1796,11 +1891,12 @@ private func makeSideBySideAttributedText(
             case let .sideBySide(rows, _):
                 let textMetrics = sideBySideTextMetrics ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code)
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     switch row.kind {
@@ -1846,6 +1942,7 @@ private func makeSideBySideAttributedText(
         private var font: NSFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
         private var theme: MarkdownTheme = .default
         private var contentHeight: CGFloat = 0
+        private var lineRects: [CGRect] = []
 
         override var isFlipped: Bool {
             true
@@ -1853,16 +1950,23 @@ private func makeSideBySideAttributedText(
 
         func configure(
             displayRows: DiffDisplayRows,
+            lineRects: [CGRect],
             contentHeight: CGFloat,
             font: NSFont,
             theme: MarkdownTheme
         ) {
             self.displayRows = displayRows
+            self.lineRects = lineRects
             self.contentHeight = contentHeight
             self.font = font
             self.theme = theme
             needsDisplay = true
             invalidateIntrinsicContentSize()
+        }
+
+        func updateLineRects(_ lineRects: [CGRect]) {
+            self.lineRects = lineRects
+            needsDisplay = true
         }
 
         override var intrinsicContentSize: CGSize {
@@ -1894,11 +1998,12 @@ private func makeSideBySideAttributedText(
             switch displayRows {
             case let .unified(rows):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     if let fillColor = unifiedRowBackgroundColor(for: row.kind, theme: theme) {
@@ -1934,11 +2039,12 @@ private func makeSideBySideAttributedText(
 
             case let .sideBySide(rows, _):
                 for (index, row) in rows.enumerated() {
-                    let rect = diffRowRect(
+                    let rect = resolvedDiffRowRect(
                         index: index,
                         rowCount: rows.count,
                         bounds: bounds,
-                        theme: theme
+                        theme: theme,
+                        lineRects: lineRects
                     )
 
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
@@ -2021,11 +2127,12 @@ private func makeSideBySideAttributedText(
             guard let number, let rect else { return }
             let string = "\(number)"
             let size = string.size(withAttributes: attributes)
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
             let target = CGRect(
                 x: rect.maxX - DiffViewConfiguration.gutterPadding - size.width,
-                y: rect.minY + (rect.height - size.height) / 2,
+                y: rect.minY,
                 width: size.width,
-                height: size.height
+                height: lineHeight
             )
             string.draw(in: target, withAttributes: attributes)
         }
@@ -2037,11 +2144,12 @@ private func makeSideBySideAttributedText(
         ) {
             guard let marker, let rect else { return }
             let size = marker.size(withAttributes: attributes)
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
             let target = CGRect(
                 x: rect.midX - size.width / 2,
-                y: rect.minY + (rect.height - size.height) / 2,
+                y: rect.minY,
                 width: size.width,
-                height: size.height
+                height: lineHeight
             )
             marker.draw(in: target, withAttributes: attributes)
         }

@@ -5,6 +5,13 @@
 
 import Litext
 
+private func offsetCodeLineRects(
+    _ lineRects: [CGRect],
+    by origin: CGPoint
+) -> [CGRect] {
+    lineRects.map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+}
+
 #if canImport(UIKit)
     import UIKit
 #elseif canImport(AppKit)
@@ -226,6 +233,15 @@ enum CodeViewConfiguration {
                 width: textView.frame.width + CodeViewConfiguration.codePadding * 2,
                 height: 0
             )
+
+            textView.setNeedsLayout()
+            textView.layoutIfNeeded()
+            lineNumberView.updateLineRects(
+                offsetCodeLineRects(
+                    textView.lineRects(),
+                    by: textView.frame.origin
+                )
+            )
         }
     }
 
@@ -399,6 +415,15 @@ enum CodeViewConfiguration {
                 y: 0,
                 width: max(scrollView.bounds.width - CodeViewConfiguration.codePadding * 2, textContentSize.width),
                 height: textContentSize.height
+            )
+
+            textView.needsLayout = true
+            textView.layoutSubtreeIfNeeded()
+            lineNumberView.updateLineRects(
+                offsetCodeLineRects(
+                    textView.lineRects(),
+                    by: textView.frame.origin
+                )
             )
         }
     }
