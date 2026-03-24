@@ -876,6 +876,120 @@ final class DiffViewTests: XCTestCase {
         }
     }
 
+    func testSelectionTintDerivesSelectionBackgroundAndAppliesToDiffView() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            #if canImport(AppKit)
+                let tint = NSColor(
+                    calibratedRed: 0.42,
+                    green: 0.28,
+                    blue: 0.83,
+                    alpha: 1
+                )
+            #elseif canImport(UIKit)
+                let tint = UIColor(
+                    red: 0.42,
+                    green: 0.28,
+                    blue: 0.83,
+                    alpha: 1
+                )
+            #endif
+            theme.colors.selectionTint = tint
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+            #endif
+
+            self.assertEqualColor(theme.colors.selectionBackground, tint.withAlphaComponent(0.2))
+            self.assertEqualColor(view.textView.selectionBackgroundColor, tint.withAlphaComponent(0.2))
+        }
+    }
+
+    func testDiffViewAppliesThemeBackgroundAndBorder() {
+        let content = makeContent(
+            from: """
+            ```diff swift
+            @@ -1 +1 @@
+            -let title = "Design Engineer"
+            +let title = "Designer"
+            ```
+            """
+        )
+
+        guard let renderBlock = content.diffRenderBlocks.values.first else {
+            return XCTFail("Expected diff render block")
+        }
+
+        runOnMain {
+            var theme = MarkdownTheme.default
+            #if canImport(AppKit)
+                let background = NSColor(
+                    calibratedRed: 0.08,
+                    green: 0.09,
+                    blue: 0.11,
+                    alpha: 1
+                )
+                let border = NSColor(
+                    calibratedRed: 0.62,
+                    green: 0.66,
+                    blue: 0.73,
+                    alpha: 1
+                )
+            #elseif canImport(UIKit)
+                let background = UIColor(
+                    red: 0.08,
+                    green: 0.09,
+                    blue: 0.11,
+                    alpha: 1
+                )
+                let border = UIColor(
+                    red: 0.62,
+                    green: 0.66,
+                    blue: 0.73,
+                    alpha: 1
+                )
+            #endif
+            theme.diff.backgroundColor = background
+            theme.diff.borderColor = border
+            theme.diff.borderWidth = 3
+
+            let view = DiffView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            view.theme = theme
+            view.renderBlock = renderBlock
+
+            #if canImport(AppKit)
+                view.layoutSubtreeIfNeeded()
+                self.assertEqualColor(NSColor(cgColor: view.layer?.backgroundColor ?? background.cgColor), background)
+            #elseif canImport(UIKit)
+                view.layoutIfNeeded()
+                self.assertEqualColor(view.backgroundColor, background)
+            #endif
+
+            XCTAssertEqual(view.layer?.borderWidth, 3)
+            XCTAssertEqual(view.layer?.borderColor, border.cgColor)
+        }
+    }
+
     func testHeaderBarHeightsFitTheirButtons() {
         XCTAssertGreaterThanOrEqual(
             DiffViewConfiguration.barHeight(theme: .default),
@@ -951,4 +1065,40 @@ final class DiffViewTests: XCTestCase {
             work()
         }
     }
+
+    #if canImport(UIKit)
+        private func assertEqualColor(
+            _ lhs: UIColor?,
+            _ rhs: UIColor?,
+            file: StaticString = #filePath,
+            line: UInt = #line
+        ) {
+            XCTAssertEqual(rgbaComponents(for: lhs), rgbaComponents(for: rhs), file: file, line: line)
+        }
+
+        private func rgbaComponents(for color: UIColor?) -> [CGFloat]? {
+            guard let color else { return nil }
+            let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+            var red: CGFloat = 0
+            var green: CGFloat = 0
+            var blue: CGFloat = 0
+            var alpha: CGFloat = 0
+            guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+            return [red, green, blue, alpha]
+        }
+    #elseif canImport(AppKit)
+        private func assertEqualColor(
+            _ lhs: NSColor?,
+            _ rhs: NSColor?,
+            file: StaticString = #filePath,
+            line: UInt = #line
+        ) {
+            XCTAssertEqual(rgbaComponents(for: lhs), rgbaComponents(for: rhs), file: file, line: line)
+        }
+
+        private func rgbaComponents(for color: NSColor?) -> [CGFloat]? {
+            guard let color = color?.usingColorSpace(.deviceRGB) else { return nil }
+            return [color.redComponent, color.greenComponent, color.blueComponent, color.alphaComponent]
+        }
+    #endif
 }

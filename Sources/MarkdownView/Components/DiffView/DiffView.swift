@@ -801,8 +801,8 @@ private func makeSideBySideAttributedText(
         }
 
         private func applyTheme() {
-            backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08)
-            layer.borderWidth = 1
+            backgroundColor = theme.diff.backgroundColor ?? theme.colors.codeBackground.withAlphaComponent(0.08)
+            layer.borderWidth = theme.diff.borderWidth
             layer.borderColor = theme.diff.borderColor.cgColor
             barView.backgroundColor = theme.diff.fileHeaderBackground
             titleLabel.font = theme.fonts.code
@@ -1487,8 +1487,8 @@ private func makeSideBySideAttributedText(
         }
 
         private func applyTheme() {
-            layer?.backgroundColor = theme.colors.codeBackground.withAlphaComponent(0.08).cgColor
-            layer?.borderWidth = 1
+            layer?.backgroundColor = (theme.diff.backgroundColor ?? theme.colors.codeBackground.withAlphaComponent(0.08)).cgColor
+            layer?.borderWidth = theme.diff.borderWidth
             layer?.borderColor = theme.diff.borderColor.cgColor
             barView.layer?.backgroundColor = theme.diff.fileHeaderBackground.cgColor
             titleLabel.font = theme.fonts.code

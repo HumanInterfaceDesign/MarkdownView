@@ -58,37 +58,43 @@ public struct MarkdownTheme: Equatable {
 
     public struct Colors: Equatable {
         #if canImport(UIKit)
+            private static var defaultAccentColor: UIColor {
+                UIColor(named: "AccentColor")
+                    ?? UIColor(named: "accentColor")
+                    ?? .systemOrange
+            }
+
             public var body = UIColor.label
-            public var highlight =
-                UIColor(named: "AccentColor")
-                    ?? UIColor(named: "accentColor")
-                    ?? .systemOrange
-            public var emphasis =
-                UIColor(named: "AccentColor")
-                    ?? UIColor(named: "accentColor")
-                    ?? .systemOrange
+            public var highlight = Self.defaultAccentColor
+            public var emphasis = Self.defaultAccentColor
             public var code = UIColor.label
             public var codeBackground = UIColor.gray.withAlphaComponent(0.25)
-            public var selectionBackground: UIColor? =
-                (UIColor(named: "AccentColor")
-                        ?? UIColor(named: "accentColor")
-                        ?? .systemOrange).withAlphaComponent(0.2)
+            public var selectionTint = Self.defaultAccentColor
+            public var selectionBackgroundOverride: UIColor?
+
+            public var selectionBackground: UIColor? {
+                get { selectionBackgroundOverride ?? selectionTint.withAlphaComponent(0.2) }
+                set { selectionBackgroundOverride = newValue }
+            }
         #elseif canImport(AppKit)
+            private static var defaultAccentColor: NSColor {
+                NSColor(named: "AccentColor")
+                    ?? NSColor(named: "accentColor")
+                    ?? .systemOrange
+            }
+
             public var body = NSColor.labelColor
-            public var highlight =
-                NSColor(named: "AccentColor")
-                    ?? NSColor(named: "accentColor")
-                    ?? .systemOrange
-            public var emphasis =
-                NSColor(named: "AccentColor")
-                    ?? NSColor(named: "accentColor")
-                    ?? .systemOrange
+            public var highlight = Self.defaultAccentColor
+            public var emphasis = Self.defaultAccentColor
             public var code = NSColor.labelColor
             public var codeBackground = NSColor.gray.withAlphaComponent(0.25)
-            public var selectionBackground: NSColor? =
-                (NSColor(named: "AccentColor")
-                        ?? NSColor(named: "accentColor")
-                        ?? .systemOrange).withAlphaComponent(0.2)
+            public var selectionTint = Self.defaultAccentColor
+            public var selectionBackgroundOverride: NSColor?
+
+            public var selectionBackground: NSColor? {
+                get { selectionBackgroundOverride ?? selectionTint.withAlphaComponent(0.2) }
+                set { selectionBackgroundOverride = newValue }
+            }
         #endif
     }
 
@@ -160,8 +166,10 @@ public struct MarkdownTheme: Equatable {
                 light: UIColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
                 dark: UIColor(red: 0.094, green: 0.106, blue: 0.125, alpha: 1)
             )
+            public var backgroundColor: UIColor?
             public var gutterText = UIColor.secondaryLabel
             public var separatorColor = UIColor.separator.withAlphaComponent(0.18)
+            public var borderWidth: CGFloat = 1
             public var borderColor = UIColor.separator.withAlphaComponent(0.22)
             public var fileHeaderBackground = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1),
@@ -213,8 +221,10 @@ public struct MarkdownTheme: Equatable {
                 light: NSColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),
                 dark: NSColor(red: 0.094, green: 0.106, blue: 0.125, alpha: 1)
             )
+            public var backgroundColor: NSColor?
             public var gutterText = NSColor.secondaryLabelColor
             public var separatorColor = NSColor.separatorColor.withAlphaComponent(0.18)
+            public var borderWidth: CGFloat = 1
             public var borderColor = NSColor.separatorColor.withAlphaComponent(0.22)
             public var fileHeaderBackground = CodeHighlighter.dynamicColor(
                 light: NSColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1),

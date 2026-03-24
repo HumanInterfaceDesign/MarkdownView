@@ -209,6 +209,20 @@ theme.fonts.code = .monospacedSystemFont(ofSize: 14, weight: .regular)
 theme.colors.body = .label
 theme.colors.code = .secondaryLabel
 theme.colors.codeBackground = .secondarySystemBackground
+theme.colors.selectionTint = .systemBlue
+// Optional override if you want a custom translucent fill instead of
+// selectionTint.withAlphaComponent(0.2)
+theme.colors.selectionBackground = .systemBlue.withAlphaComponent(0.16)
+
+// Diff-specific styling
+theme.diff.backgroundColor = .black
+theme.diff.borderColor = .darkGray
+theme.diff.borderWidth = 1
+theme.diff.addedLineBackground = UIColor(red: 0.08, green: 0.25, blue: 0.16, alpha: 1)
+theme.diff.removedLineBackground = UIColor(red: 0.28, green: 0.10, blue: 0.12, alpha: 1)
+theme.diff.addedHighlightBackground = UIColor(red: 0.12, green: 0.34, blue: 0.21, alpha: 1)
+theme.diff.removedHighlightBackground = UIColor(red: 0.38, green: 0.14, blue: 0.16, alpha: 1)
+theme.diff.scrollBehavior = .horizontalOnly
 
 // Hide the code/diff header rows that contain the copy button
 theme.showsBlockHeaders = false
@@ -220,6 +234,8 @@ markdownView.theme = theme
 ```
 
 </details>
+
+Selection tint is theme-driven. By default, `selectionBackground` is derived from `selectionTint` with a 20% alpha. Set `selectionBackground` explicitly when you want a different selection fill without changing the tint.
 
 ### Unified Diffs
 
@@ -262,6 +278,8 @@ Standard unified-diff file preamble lines like `diff --git`, `index`, `---`, and
 If the entire markdown string is itself a valid unified diff, MarkdownView will normalize it internally and render the dedicated diff view even without fences.
 This is useful when an API returns only the patch text.
 Use `text` or `plaintext` if you want to show patch text literally without auto-detecting the diff view.
+
+Diff presentation is fully themeable through `MarkdownTheme.Diff`, including the gutter, file header, added/removed row colors, inline highlight colors, separators, border, and the overall diff background. Diff blocks default to horizontal-only scrolling so they embed cleanly inside outer scroll views; set `theme.diff.scrollBehavior = .bothAxes` if you want the diff view itself to scroll vertically too.
 
 ```swift
 let patch = apiResponse.patch
