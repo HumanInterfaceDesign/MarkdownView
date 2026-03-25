@@ -5,25 +5,6 @@
 
 import Foundation
 import SwiftTreeSitter
-import TreeSitterPython
-import TreeSitterJavaScript
-import TreeSitterTypeScript
-import TreeSitterTSX
-import TreeSitterGo
-import TreeSitterRust
-import TreeSitterSwift
-import TreeSitterC
-import TreeSitterCPP
-import TreeSitterJava
-import TreeSitterRuby
-import TreeSitterBash
-import TreeSitterJSON
-import TreeSitterHTML
-import TreeSitterCSS
-import TreeSitterCSharp
-import TreeSitterKotlin
-import TreeSitterSql
-import TreeSitterYAML
 
 #if canImport(UIKit)
     import UIKit
@@ -75,7 +56,7 @@ public final class CodeHighlighter {
 
     /// Finds the queries directory URL for a given grammar bundle name.
     /// Handles both SPM flat bundles (`queries/`) and Xcode bundles (`Contents/Resources/queries/`).
-    private static func queriesURL(for bundleName: String) -> URL? {
+    public static func queriesURL(for bundleName: String) -> URL? {
         let containerURL: URL? = {
             #if DEBUG
             if NSClassFromString("XCTest") != nil {
@@ -94,7 +75,7 @@ public final class CodeHighlighter {
         return bundle.resourceURL?.appendingPathComponent("queries")
     }
 
-    private static func makeConfig(
+    public static func makeConfig(
         _ tsLanguage: OpaquePointer,
         name: String,
         bundleName: String? = nil,
@@ -108,83 +89,31 @@ public final class CodeHighlighter {
         return try LanguageConfiguration(tsLanguage, name: name)
     }
 
-    /// Factory closures that create language configurations on demand.
-    /// Only the requested language is initialized, avoiding the cost of loading all 15 parsers.
-    private static let languageFactories: [String: () -> LanguageConfiguration?] = {
-        var factories: [String: () -> LanguageConfiguration?] = [:]
+    /// Registered language factory closures keyed by alias.
+    /// Languages are registered externally via `registerLanguage(aliases:factory:)`.
+    private static var languageFactories: [String: () -> LanguageConfiguration?] = [:]
+    private static let factoriesLock = NSLock()
 
-        func register(_ aliases: [String], _ factory: @escaping () throws -> LanguageConfiguration) {
-            let lazyFactory: () -> LanguageConfiguration? = { try? factory() }
-            for alias in aliases {
-                factories[alias] = lazyFactory
-            }
+    /// Register a tree-sitter language for syntax highlighting.
+    ///
+    /// Call this at app launch (e.g. in your `App.init`) for each language you want to support,
+    /// or use `MarkdownLanguages.registerAll()` from the `MarkdownLanguages` module to register
+    /// all bundled languages at once.
+    ///
+    /// - Parameters:
+    ///   - aliases: Language identifiers that map to this parser (e.g. `["python", "py", "python3"]`).
+    ///   - factory: A closure that creates the `LanguageConfiguration` on demand.
+    public static func registerLanguage(
+        aliases: [String],
+        factory: @escaping () throws -> LanguageConfiguration
+    ) {
+        let lazyFactory: () -> LanguageConfiguration? = { try? factory() }
+        factoriesLock.lock()
+        defer { factoriesLock.unlock() }
+        for alias in aliases {
+            languageFactories[alias] = lazyFactory
         }
-
-        register(["swift"]) {
-            try makeConfig(tree_sitter_swift(), name: "Swift")
-        }
-        register(["python", "py", "python3"]) {
-            try makeConfig(tree_sitter_python(), name: "Python")
-        }
-        register(["javascript", "js", "jsx"]) {
-            try makeConfig(tree_sitter_javascript(), name: "JavaScript")
-        }
-        register(["typescript", "ts"]) {
-            try makeConfig(tree_sitter_typescript(), name: "TypeScript",
-                           bundleName: "TreeSitterTypeScript_TreeSitterTypeScript")
-        }
-        register(["tsx"]) {
-            try makeConfig(tree_sitter_tsx(), name: "TSX",
-                           bundleName: "TreeSitterTypeScript_TreeSitterTSX")
-        }
-        register(["go", "golang"]) {
-            try makeConfig(tree_sitter_go(), name: "Go")
-        }
-        register(["rust", "rs"]) {
-            try makeConfig(tree_sitter_rust(), name: "Rust")
-        }
-        register(["c", "h"]) {
-            try makeConfig(tree_sitter_c(), name: "C")
-        }
-        register(["cpp", "c++", "cc", "cxx", "hpp"]) {
-            try makeConfig(tree_sitter_cpp(), name: "CPP")
-        }
-        register(["java"]) {
-            try makeConfig(tree_sitter_java(), name: "Java")
-        }
-        register(["ruby", "rb"]) {
-            try makeConfig(tree_sitter_ruby(), name: "Ruby")
-        }
-        register(["bash", "sh", "shell", "zsh"]) {
-            try makeConfig(tree_sitter_bash(), name: "Bash")
-        }
-        register(["json", "jsonc"]) {
-            try makeConfig(tree_sitter_json(), name: "JSON")
-        }
-        register(["html", "htm"]) {
-            try makeConfig(tree_sitter_html(), name: "HTML")
-        }
-        register(["css"]) {
-            try makeConfig(tree_sitter_css(), name: "CSS")
-        }
-        register(["csharp", "c#", "cs"]) {
-            try makeConfig(tree_sitter_c_sharp(), name: "CSharp",
-                           bundleName: "TreeSitterCSharp_TreeSitterCSharp")
-        }
-        register(["kotlin", "kt", "kts"]) {
-            try makeConfig(tree_sitter_kotlin(), name: "Kotlin",
-                           bundleName: "TreeSitterKotlin_TreeSitterKotlin")
-        }
-        register(["sql"]) {
-            try makeConfig(tree_sitter_sql(), name: "SQL",
-                           bundleName: "TreeSitterSql_TreeSitterSql")
-        }
-        register(["yaml", "yml"]) {
-            try makeConfig(tree_sitter_yaml(), name: "YAML",
-                           bundleName: "TreeSitterYAML_TreeSitterYAML")
-        }
-        return factories
-    }()
+    }
 
     /// Cache of already-initialized language configurations.
     private static var resolvedLanguages: [String: LanguageConfiguration] = [:]
