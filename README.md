@@ -14,7 +14,6 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
 - Text selection with long-press, double-tap, and triple-tap gestures
-- Line selection in code and diff views with tap (single line) or long-press-drag (multi-line) and callback
 - VoiceOver accessibility for text, code blocks, tables, and math content
 - UIKit and AppKit support via a single API
 
@@ -214,8 +213,6 @@ theme.colors.selectionTint = .systemBlue
 // Optional override if you want a custom translucent fill instead of
 // selectionTint.withAlphaComponent(0.2)
 theme.colors.selectionBackground = .systemBlue.withAlphaComponent(0.16)
-// Optional override for line selection highlight in code/diff views
-theme.colors.lineSelectionBackground = .systemBlue.withAlphaComponent(0.15)
 
 // Diff-specific styling
 theme.diff.backgroundColor = .black
@@ -240,36 +237,6 @@ markdownView.theme = theme
 </details>
 
 Selection tint is theme-driven. By default, `selectionBackground` is derived from `selectionTint` with a 20% alpha. Set `selectionBackground` explicitly when you want a different selection fill without changing the tint.
-### Line Selection
-
-Code blocks and diff views support tapping to select a line, or long-press-and-drag to select a range of lines. The selected lines are highlighted and a callback provides the 1-based line range, the text contents, and the language.
-
-<details>
-<summary>Show line selection example</summary>
-
-```swift
-markdownView.lineSelectionHandler = { info in
-    guard let info else {
-        print("Selection cleared")
-        return
-    }
-    print("Selected lines \(info.lineRange) in \(info.language ?? "unknown"):")
-    for line in info.contents {
-        print("  \(line)")
-    }
-}
-
-// Customize the selection highlight color
-var theme = MarkdownTheme()
-theme.colors.lineSelectionBackground = .systemBlue.withAlphaComponent(0.2)
-markdownView.theme = theme
-```
-
-</details>
-
-Selection is exclusive: selecting lines in one code or diff block automatically clears any selection in other blocks.
-
-
 
 ### Unified Diffs
 
@@ -344,3 +311,6 @@ The library is split into two modules:
 
 MIT
 
+## Inspiration
+
+Inspired by [Lakr233/MarkdownView](https://github.com/Lakr233/MarkdownView)

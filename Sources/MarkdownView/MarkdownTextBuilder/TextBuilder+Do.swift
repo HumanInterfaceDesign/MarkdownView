@@ -179,10 +179,6 @@ extension TextBuilder {
                     size: .init(width: view.bounds.width - leftIndent, height: intrinsicContentSize.height)
                 )
                 codeView.previewAction = view.codePreviewHandler
-                codeView.lineSelectionHandler = { [weak view, weak codeView] info in
-                    guard let view, let codeView else { return }
-                    view.handleLineSelection(from: codeView, info: info)
-                }
             }
             .withDiffDrawing { [weak view] _, line, lineOrigin in
                 guard let view else { return }
@@ -205,10 +201,6 @@ extension TextBuilder {
                     origin: .init(x: lineOrigin.x + leftIndent, y: view.bounds.height - lineBoundingBox.maxY),
                     size: .init(width: view.bounds.width - leftIndent, height: intrinsicContentSize.height)
                 )
-                diffView.lineSelectionHandler = { [weak view, weak diffView] info in
-                    guard let view, let diffView else { return }
-                    view.handleLineSelection(from: diffView, info: info)
-                }
             }
             .withTableDrawing { [weak view] _, line, lineOrigin in
                 guard let view else { return }

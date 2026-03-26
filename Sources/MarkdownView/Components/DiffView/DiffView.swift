@@ -796,7 +796,6 @@ private func makeSideBySideAttributedText(
 
         var renderBlock: DiffRenderBlock = .init(language: nil, rows: []) {
             didSet {
-                clearLineSelection()
                 applyRenderBlock()
             }
         }
@@ -804,101 +803,6 @@ private func makeSideBySideAttributedText(
         private var cachedTextHeight: CGFloat = 0
         private var displayRows: DiffDisplayRows = .unified([])
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
-
-        // MARK: - LINE SELECTION
-
-        var lineSelectionHandler: LineSelectionHandler?
-        private(set) var selectedLineRange: ClosedRange<Int>?
-        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
-        private var dragAnchorLine: Int?
-
-        func clearLineSelection() {
-            guard selectedLineRange != nil else { return }
-            selectedLineRange = nil
-            selectionOverlay.clearSelection()
-        }
-
-        private func diffRowCount() -> Int {
-            displayRows.effectiveCount
-        }
-
-        private func rowIndex(at point: CGPoint) -> Int? {
-            let localPoint = scrollView.convert(point, from: self)
-            let contentPoint = CGPoint(
-                x: localPoint.x + scrollView.contentOffset.x,
-                y: localPoint.y + scrollView.contentOffset.y
-            )
-            let font = theme.fonts.code
-            let lineHeight = font.lineHeight
-            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let adjustedY = contentPoint.y - DiffViewConfiguration.verticalPadding
-            guard adjustedY >= 0 else { return nil }
-            let row = Int(adjustedY / rowAdvance) + 1
-            guard row >= 1, row <= diffRowCount() else { return nil }
-            return row
-        }
-
-        private func rowContents(for range: ClosedRange<Int>) -> [String] {
-            range.compactMap { idx -> String? in
-                let arrayIdx = idx - 1
-                guard arrayIdx >= 0, arrayIdx < renderBlock.rows.count else { return nil }
-                return renderBlock.rows[arrayIdx].text
-            }
-        }
-
-        private func updateDiffLineSelection(_ range: ClosedRange<Int>?) {
-            selectedLineRange = range
-            selectionOverlay.selectedRange = range
-            if let range = range {
-                let info = LineSelectionInfo(
-                    lineRange: range,
-                    contents: rowContents(for: range),
-                    language: renderBlock.language
-                )
-                lineSelectionHandler?(info)
-            } else {
-                lineSelectionHandler?(nil)
-            }
-        }
-
-        @objc private func handleDiffLineTap(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: self)
-            guard let row = rowIndex(at: point) else { return }
-            if selectedLineRange == row...row {
-                updateDiffLineSelection(nil)
-            } else {
-                updateDiffLineSelection(row...row)
-            }
-            #if !os(visionOS)
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            #endif
-        }
-
-        @objc private func handleDiffLineLongPress(_ gesture: UILongPressGestureRecognizer) {
-            let point = gesture.location(in: self)
-            switch gesture.state {
-            case .began:
-                guard let row = rowIndex(at: point) else { return }
-                dragAnchorLine = row
-                updateDiffLineSelection(row...row)
-                #if !os(visionOS)
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                #endif
-            case .changed:
-                guard let anchor = dragAnchorLine,
-                      let row = rowIndex(at: point) else { return }
-                let newRange = min(anchor, row)...max(anchor, row)
-                if newRange != selectedLineRange {
-                    updateDiffLineSelection(newRange)
-                }
-            case .ended, .cancelled, .failed:
-                dragAnchorLine = nil
-            default:
-                break
-            }
-        }
-
-        // MARK: LINE SELECTION -
 
         lazy var scrollView: UIScrollView = .init()
         lazy var barView: UIView = .init()
@@ -1084,12 +988,6 @@ private func makeSideBySideAttributedText(
             )
             gutterView.updateLineRects(lineRects)
             backgroundView.updateLineRects(lineRects)
-            selectionOverlay.frame = contentContainerView.bounds
-            selectionOverlay.updateLineRects(lineRects)
-
-            let selectionColor = theme.colors.lineSelectionBackground
-                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
-            selectionOverlay.selectionColor = selectionColor
         }
 
         private func performLayout() {
@@ -1609,7 +1507,6 @@ private func makeSideBySideAttributedText(
 
         var renderBlock: DiffRenderBlock = .init(language: nil, rows: []) {
             didSet {
-                clearLineSelection()
                 applyRenderBlock()
             }
         }
@@ -1617,90 +1514,6 @@ private func makeSideBySideAttributedText(
         private var cachedTextHeight: CGFloat = 0
         private var displayRows: DiffDisplayRows = .unified([])
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
-
-        // MARK: - LINE SELECTION
-
-        var lineSelectionHandler: LineSelectionHandler?
-        private(set) var selectedLineRange: ClosedRange<Int>?
-        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
-        private var dragAnchorLine: Int?
-
-        func clearLineSelection() {
-            guard selectedLineRange != nil else { return }
-            selectedLineRange = nil
-            selectionOverlay.clearSelection()
-        }
-
-        private func diffRowCount() -> Int {
-            displayRows.effectiveCount
-        }
-
-        private func rowIndex(at point: CGPoint) -> Int? {
-            let localPoint = convert(point, from: nil)
-            let barHeight = DiffViewConfiguration.barHeight(theme: theme)
-            let font = theme.fonts.code
-            let lineHeight = font.ascender + abs(font.descender) + font.leading
-            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let adjustedY = localPoint.y - barHeight - DiffViewConfiguration.verticalPadding
-            guard adjustedY >= 0 else { return nil }
-            let row = Int(adjustedY / rowAdvance) + 1
-            guard row >= 1, row <= diffRowCount() else { return nil }
-            return row
-        }
-
-        private func rowContents(for range: ClosedRange<Int>) -> [String] {
-            range.compactMap { idx -> String? in
-                let arrayIdx = idx - 1
-                guard arrayIdx >= 0, arrayIdx < renderBlock.rows.count else { return nil }
-                return renderBlock.rows[arrayIdx].text
-            }
-        }
-
-        private func updateDiffLineSelection(_ range: ClosedRange<Int>?) {
-            selectedLineRange = range
-            selectionOverlay.selectedRange = range
-            if let range = range {
-                let info = LineSelectionInfo(
-                    lineRange: range,
-                    contents: rowContents(for: range),
-                    language: renderBlock.language
-                )
-                lineSelectionHandler?(info)
-            } else {
-                lineSelectionHandler?(nil)
-            }
-        }
-
-        override func mouseDown(with event: NSEvent) {
-            let point = convert(event.locationInWindow, from: nil)
-            guard let row = rowIndex(at: point) else {
-                super.mouseDown(with: event)
-                return
-            }
-            dragAnchorLine = row
-            if selectedLineRange == row...row {
-                updateDiffLineSelection(nil)
-            } else {
-                updateDiffLineSelection(row...row)
-            }
-        }
-
-        override func mouseDragged(with event: NSEvent) {
-            let point = convert(event.locationInWindow, from: nil)
-            guard let anchor = dragAnchorLine,
-                  let row = rowIndex(at: point) else { return }
-            let newRange = min(anchor, row)...max(anchor, row)
-            if newRange != selectedLineRange {
-                updateDiffLineSelection(newRange)
-            }
-        }
-
-        override func mouseUp(with event: NSEvent) {
-            dragAnchorLine = nil
-            super.mouseUp(with: event)
-        }
-
-        // MARK: LINE SELECTION -
 
         lazy var scrollView: NSScrollView = {
             let scrollView = NSScrollView()
@@ -1808,12 +1621,6 @@ private func makeSideBySideAttributedText(
             textView.isSelectable = true
             textView.selectionBackgroundColor = theme.colors.selectionBackground
             contentContainerView.addSubview(textView)
-
-            let selectionColor = theme.colors.lineSelectionBackground
-                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
-            selectionOverlay.selectionColor = selectionColor
-            contentContainerView.addSubview(selectionOverlay, positioned: .above, relativeTo: backgroundView)
-
             updateHeaderVisibility()
         }
 
@@ -1904,12 +1711,6 @@ private func makeSideBySideAttributedText(
             )
             gutterView.updateLineRects(lineRects)
             backgroundView.updateLineRects(lineRects)
-            selectionOverlay.frame = contentContainerView.bounds
-            selectionOverlay.updateLineRects(lineRects)
-
-            let selectionColor = theme.colors.lineSelectionBackground
-                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
-            selectionOverlay.selectionColor = selectionColor
         }
 
         private func performLayout() {
