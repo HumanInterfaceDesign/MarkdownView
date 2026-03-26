@@ -21,6 +21,7 @@ enum ContentPipelineMode {
         public var linkHandler: ((LinkPayload, NSRange, CGPoint) -> Void)?
         public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
+        public var lineSelectionHandler: LineSelectionHandler?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
@@ -67,6 +68,21 @@ enum ContentPipelineMode {
             accessibilityTraits = .staticText
             setupCombine()
             observeImageLoading()
+        }
+
+        /// Handles line selection from a code or diff view, clearing other blocks (exclusive mode)
+        /// and forwarding the selection info to the public handler.
+        func handleLineSelection(from sourceView: UIView, info: LineSelectionInfo?) {
+            // Exclusive mode: clear selection in all other code/diff views
+            for view in contextViews {
+                guard view !== sourceView else { continue }
+                if let codeView = view as? CodeView {
+                    codeView.clearLineSelection()
+                } else if let diffView = view as? DiffView {
+                    diffView.clearLineSelection()
+                }
+            }
+            lineSelectionHandler?(info)
         }
 
         @available(*, unavailable)
@@ -143,6 +159,7 @@ enum ContentPipelineMode {
         public var linkHandler: ((LinkPayload, NSRange, CGPoint) -> Void)?
         public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
+        public var lineSelectionHandler: LineSelectionHandler?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
@@ -189,6 +206,20 @@ enum ContentPipelineMode {
             setAccessibilityRole(.group)
             setupCombine()
             observeImageLoading()
+        }
+
+        /// Handles line selection from a code or diff view, clearing other blocks (exclusive mode)
+        /// and forwarding the selection info to the public handler.
+        func handleLineSelection(from sourceView: NSView, info: LineSelectionInfo?) {
+            for view in contextViews {
+                guard view !== sourceView else { continue }
+                if let codeView = view as? CodeView {
+                    codeView.clearLineSelection()
+                } else if let diffView = view as? DiffView {
+                    diffView.clearLineSelection()
+                }
+            }
+            lineSelectionHandler?(info)
         }
 
         @available(*, unavailable)
