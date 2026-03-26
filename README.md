@@ -311,6 +311,3 @@ The library is split into two modules:
 
 MIT
 
-## Inspiration
-
-Inspired by [Lakr233/MarkdownView](https://github.com/Lakr233/MarkdownView)
