@@ -76,6 +76,10 @@ public struct MarkdownTheme: Equatable {
                 get { selectionBackgroundOverride ?? selectionTint.withAlphaComponent(0.2) }
                 set { selectionBackgroundOverride = newValue }
             }
+
+            /// Background color for line selection highlights in code and diff views.
+            /// Defaults to `selectionTint` at 15% opacity when `nil`.
+            public var lineSelectionBackground: UIColor?
         #elseif canImport(AppKit)
             private static var defaultAccentColor: NSColor {
                 NSColor(named: "AccentColor")
@@ -95,6 +99,10 @@ public struct MarkdownTheme: Equatable {
                 get { selectionBackgroundOverride ?? selectionTint.withAlphaComponent(0.2) }
                 set { selectionBackgroundOverride = newValue }
             }
+
+            /// Background color for line selection highlights in code and diff views.
+            /// Defaults to `selectionTint` at 15% opacity when `nil`.
+            public var lineSelectionBackground: NSColor?
         #endif
     }
 

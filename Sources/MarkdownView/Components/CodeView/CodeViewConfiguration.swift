@@ -76,6 +76,7 @@ enum CodeViewConfiguration {
             setupScrollView()
             setupTextView()
             setupLineNumberView()
+            setupLineSelectionGestures()
             updateHeaderVisibility()
         }
 
@@ -140,6 +141,21 @@ enum CodeViewConfiguration {
             lineNumberView.backgroundColor = .clear
             addSubview(lineNumberView)
             updateLineNumberView()
+        }
+
+        private func setupLineSelectionGestures() {
+            selectionOverlay.isUserInteractionEnabled = false
+            let selectionColor = theme.colors.lineSelectionBackground
+                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
+            selectionOverlay.selectionColor = selectionColor
+            scrollView.addSubview(selectionOverlay)
+
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:)))
+            addGestureRecognizer(tap)
+
+            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLineLongPress(_:)))
+            longPress.minimumPressDuration = 0.15
+            addGestureRecognizer(longPress)
         }
 
         func performLayout() {
@@ -236,12 +252,24 @@ enum CodeViewConfiguration {
 
             textView.setNeedsLayout()
             textView.layoutIfNeeded()
-            lineNumberView.updateLineRects(
-                offsetCodeLineRects(
-                    textView.lineRects(),
-                    by: textView.frame.origin
+            let resolvedLineRects = offsetCodeLineRects(
+                textView.lineRects(),
+                by: textView.frame.origin
+            )
+            lineNumberView.updateLineRects(resolvedLineRects)
+
+            selectionOverlay.frame = CGRect(
+                origin: .zero,
+                size: CGSize(
+                    width: scrollView.contentSize.width,
+                    height: max(textView.frame.maxY + CodeViewConfiguration.codePadding, scrollView.bounds.height)
                 )
             )
+            selectionOverlay.updateLineRects(resolvedLineRects)
+
+            let selectionColor = theme.colors.lineSelectionBackground
+                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
+            selectionOverlay.selectionColor = selectionColor
         }
     }
 
@@ -254,6 +282,7 @@ enum CodeViewConfiguration {
             setupScrollView()
             setupTextView()
             setupLineNumberView()
+            setupLineSelectionOverlay()
             updateHeaderVisibility()
         }
 
@@ -328,6 +357,13 @@ enum CodeViewConfiguration {
             lineNumberView.layer?.backgroundColor = NSColor.clear.cgColor
             addSubview(lineNumberView)
             updateLineNumberView()
+        }
+
+        private func setupLineSelectionOverlay() {
+            let selectionColor = theme.colors.lineSelectionBackground
+                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
+            selectionOverlay.selectionColor = selectionColor
+            scrollView.documentView?.addSubview(selectionOverlay, positioned: .below, relativeTo: textView)
         }
 
         func performLayout() {
@@ -419,12 +455,24 @@ enum CodeViewConfiguration {
 
             textView.needsLayout = true
             textView.layoutSubtreeIfNeeded()
-            lineNumberView.updateLineRects(
-                offsetCodeLineRects(
-                    textView.lineRects(),
-                    by: textView.frame.origin
+            let resolvedLineRects = offsetCodeLineRects(
+                textView.lineRects(),
+                by: textView.frame.origin
+            )
+            lineNumberView.updateLineRects(resolvedLineRects)
+
+            selectionOverlay.frame = CGRect(
+                origin: .zero,
+                size: CGSize(
+                    width: max(scrollView.bounds.width - CodeViewConfiguration.codePadding * 2, textView.frame.width),
+                    height: max(textView.frame.maxY + CodeViewConfiguration.codePadding, scrollView.bounds.height)
                 )
             )
+            selectionOverlay.updateLineRects(resolvedLineRects)
+
+            let selectionColor = theme.colors.lineSelectionBackground
+                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
+            selectionOverlay.selectionColor = selectionColor
         }
     }
 #endif

@@ -42,6 +42,7 @@ import Litext
                 textView.attributedText = highlightMap.apply(to: content, with: theme)
                 lineNumberView.updateForContent(content)
                 updateLineNumberView()
+                clearLineSelection()
             }
         }
 
@@ -54,6 +55,96 @@ import Litext
                 setNeedsLayout()
             }
         }
+
+        // MARK: - LINE SELECTION
+
+        var lineSelectionHandler: LineSelectionHandler?
+        private(set) var selectedLineRange: ClosedRange<Int>?
+        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        private var dragAnchorLine: Int?
+
+        func clearLineSelection() {
+            guard selectedLineRange != nil else { return }
+            selectedLineRange = nil
+            selectionOverlay.clearSelection()
+        }
+
+        private func lineIndex(at point: CGPoint) -> Int? {
+            let localPoint = scrollView.convert(point, from: self)
+            let contentPoint = CGPoint(
+                x: localPoint.x + scrollView.contentOffset.x,
+                y: localPoint.y + scrollView.contentOffset.y
+            )
+            let font = theme.fonts.code
+            let lineHeight = font.lineHeight
+            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
+            let adjustedY = contentPoint.y
+            guard adjustedY >= CodeViewConfiguration.codePadding else { return nil }
+            let line = Int((adjustedY - CodeViewConfiguration.codePadding) / rowAdvance) + 1
+            guard line >= 1, line <= cachedLineCount else { return nil }
+            return line
+        }
+
+        private func updateLineSelection(_ range: ClosedRange<Int>?) {
+            selectedLineRange = range
+            selectionOverlay.selectedRange = range
+            if let range = range {
+                let lines = content.components(separatedBy: .newlines)
+                let contents = (range.lowerBound...range.upperBound).compactMap { idx -> String? in
+                    let arrayIdx = idx - 1
+                    guard arrayIdx >= 0, arrayIdx < lines.count else { return nil }
+                    return lines[arrayIdx]
+                }
+                let info = LineSelectionInfo(
+                    lineRange: range,
+                    contents: contents,
+                    language: language.isEmpty ? nil : language
+                )
+                lineSelectionHandler?(info)
+            } else {
+                lineSelectionHandler?(nil)
+            }
+        }
+
+        @objc private func handleLineTap(_ gesture: UITapGestureRecognizer) {
+            let point = gesture.location(in: self)
+            guard let line = lineIndex(at: point) else { return }
+            if selectedLineRange == line...line {
+                updateLineSelection(nil)
+            } else {
+                updateLineSelection(line...line)
+            }
+            #if !os(visionOS)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            #endif
+        }
+
+        @objc private func handleLineLongPress(_ gesture: UILongPressGestureRecognizer) {
+            let point = gesture.location(in: self)
+            switch gesture.state {
+            case .began:
+                guard let line = lineIndex(at: point) else { return }
+                dragAnchorLine = line
+                updateLineSelection(line...line)
+                #if !os(visionOS)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+            case .changed:
+                guard let anchor = dragAnchorLine,
+                      let line = lineIndex(at: point) else { return }
+                let newRange = min(anchor, line)...max(anchor, line)
+                if newRange != selectedLineRange {
+                    updateLineSelection(newRange)
+                }
+            case .ended, .cancelled, .failed:
+                dragAnchorLine = nil
+            default:
+                break
+            }
+        }
+
+        // MARK: LINE SELECTION -
 
         private let callerIdentifier = UUID()
         private var currentTaskIdentifier: UUID?
@@ -213,6 +304,7 @@ import Litext
                 textView.attributedText = highlightMap.apply(to: content, with: theme)
                 lineNumberView.updateForContent(content)
                 updateLineNumberView()
+                clearLineSelection()
             }
         }
 
@@ -223,6 +315,84 @@ import Litext
                 needsLayout = true
             }
         }
+
+        // MARK: - LINE SELECTION
+
+        var lineSelectionHandler: LineSelectionHandler?
+        private(set) var selectedLineRange: ClosedRange<Int>?
+        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        private var dragAnchorLine: Int?
+
+        func clearLineSelection() {
+            guard selectedLineRange != nil else { return }
+            selectedLineRange = nil
+            selectionOverlay.clearSelection()
+        }
+
+        private func lineIndex(at point: CGPoint) -> Int? {
+            let localPoint = convert(point, from: nil)
+            let font = theme.fonts.code
+            let lineHeight = font.ascender + abs(font.descender) + font.leading
+            let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
+            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
+            let adjustedY = localPoint.y - barHeight
+            guard adjustedY >= CodeViewConfiguration.codePadding else { return nil }
+            let line = Int((adjustedY - CodeViewConfiguration.codePadding) / rowAdvance) + 1
+            guard line >= 1, line <= cachedLineCount else { return nil }
+            return line
+        }
+
+        private func updateLineSelection(_ range: ClosedRange<Int>?) {
+            selectedLineRange = range
+            selectionOverlay.selectedRange = range
+            if let range = range {
+                let lines = content.components(separatedBy: .newlines)
+                let contents = (range.lowerBound...range.upperBound).compactMap { idx -> String? in
+                    let arrayIdx = idx - 1
+                    guard arrayIdx >= 0, arrayIdx < lines.count else { return nil }
+                    return lines[arrayIdx]
+                }
+                let info = LineSelectionInfo(
+                    lineRange: range,
+                    contents: contents,
+                    language: language.isEmpty ? nil : language
+                )
+                lineSelectionHandler?(info)
+            } else {
+                lineSelectionHandler?(nil)
+            }
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            guard let line = lineIndex(at: point) else {
+                super.mouseDown(with: event)
+                return
+            }
+            dragAnchorLine = line
+            if selectedLineRange == line...line {
+                updateLineSelection(nil)
+            } else {
+                updateLineSelection(line...line)
+            }
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            guard let anchor = dragAnchorLine,
+                  let line = lineIndex(at: point) else { return }
+            let newRange = min(anchor, line)...max(anchor, line)
+            if newRange != selectedLineRange {
+                updateLineSelection(newRange)
+            }
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            dragAnchorLine = nil
+            super.mouseUp(with: event)
+        }
+
+        // MARK: LINE SELECTION -
 
         private let callerIdentifier = UUID()
         private var currentTaskIdentifier: UUID?
