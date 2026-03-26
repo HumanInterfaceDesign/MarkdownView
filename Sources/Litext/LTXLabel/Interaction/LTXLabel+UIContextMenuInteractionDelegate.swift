@@ -16,7 +16,7 @@
         ) -> UIContextMenuConfiguration? {
             #if targetEnvironment(macCatalyst)
                 guard selectionRange != nil else { return nil }
-                let menuItems: [UIMenuElement] = LTXLabelMenuItem
+                let builtInItems: [UIMenuElement] = LTXLabelMenuItem
                     .textSelectionMenu()
                     .compactMap { item -> UIAction? in
                         guard let selector = item.action else { return nil }
@@ -25,11 +25,24 @@
                             self.perform(selector)
                         }
                     }
+                let customActions: [UIMenuElement] = self.customMenuItems.map { customItem in
+                    UIAction(title: customItem.title, image: customItem.image) { [weak self] _ in
+                        guard let self, let text = self.selectedPlainText(), !text.isEmpty else { return }
+                        customItem.handler(text)
+                    }
+                }
+                let allItems: [UIMenuElement]
+                switch self.customMenuItemPosition {
+                case .beforeBuiltIn:
+                    allItems = customActions + builtInItems
+                case .afterBuiltIn:
+                    allItems = builtInItems + customActions
+                }
                 return .init(
                     identifier: nil,
                     previewProvider: nil
                 ) { _ in
-                    .init(children: menuItems)
+                    .init(children: allItems)
                 }
             #else
                 DispatchQueue.main.async {

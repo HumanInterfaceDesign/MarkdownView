@@ -182,11 +182,34 @@ import Foundation
 
         private func showContextMenu() {
             let menu = NSMenu()
-            menu.addItem(
-                withTitle: LocalizedText.copy,
-                action: #selector(copyAction(_:)),
-                keyEquivalent: "c"
-            )
+
+            let addBuiltIn = {
+                menu.addItem(
+                    withTitle: LocalizedText.copy,
+                    action: #selector(self.copyAction(_:)),
+                    keyEquivalent: "c"
+                )
+            }
+
+            let addCustom = { [self] in
+                for customItem in self.customMenuItems {
+                    menu.addItem(withTitle: customItem.title, image: customItem.image) { [weak self] in
+                        guard let self, let text = self.selectedPlainText(), !text.isEmpty else { return }
+                        customItem.handler(text)
+                    }
+                }
+            }
+
+            switch customMenuItemPosition {
+            case .beforeBuiltIn:
+                addCustom()
+                if !customMenuItems.isEmpty { menu.addItem(.separator()) }
+                addBuiltIn()
+            case .afterBuiltIn:
+                addBuiltIn()
+                if !customMenuItems.isEmpty { menu.addItem(.separator()) }
+                addCustom()
+            }
 
             if let event = NSApp.currentEvent {
                 NSMenu.popUpContextMenu(menu, with: event, for: self)

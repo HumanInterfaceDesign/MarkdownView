@@ -235,13 +235,18 @@
 
                 let menuController = UIMenuController.shared
 
-                let items = LTXLabelMenuItem
+                var items = LTXLabelMenuItem
                     .textSelectionMenu()
                     .compactMap { item -> UIMenuItem? in
                         guard let selector = item.action else { return nil }
                         guard canPerformAction(selector, withSender: nil) else { return nil }
                         return UIMenuItem(title: item.title, action: selector)
                     }
+                for (index, customItem) in customMenuItems.enumerated() {
+                    guard index < Self.customMenuSelectors.count else { break }
+                    let selector = Self.customMenuSelectors[index]
+                    items.append(UIMenuItem(title: customItem.title, action: selector))
+                }
                 menuController.menuItems = items
 
                 menuOwnerIdentifier = id
@@ -254,6 +259,34 @@
             func hideSelectionMenuController() {
                 guard menuOwnerIdentifier == id else { return }
                 UIMenuController.shared.hideMenu()
+            }
+
+            // MARK: - Custom Menu Item Trampolines
+
+            static let customMenuSelectors: [Selector] = [
+                #selector(customMenuAction0), #selector(customMenuAction1),
+                #selector(customMenuAction2), #selector(customMenuAction3),
+                #selector(customMenuAction4), #selector(customMenuAction5),
+                #selector(customMenuAction6), #selector(customMenuAction7),
+                #selector(customMenuAction8), #selector(customMenuAction9),
+            ]
+
+            @objc func customMenuAction0() { invokeCustomMenuItem(at: 0) }
+            @objc func customMenuAction1() { invokeCustomMenuItem(at: 1) }
+            @objc func customMenuAction2() { invokeCustomMenuItem(at: 2) }
+            @objc func customMenuAction3() { invokeCustomMenuItem(at: 3) }
+            @objc func customMenuAction4() { invokeCustomMenuItem(at: 4) }
+            @objc func customMenuAction5() { invokeCustomMenuItem(at: 5) }
+            @objc func customMenuAction6() { invokeCustomMenuItem(at: 6) }
+            @objc func customMenuAction7() { invokeCustomMenuItem(at: 7) }
+            @objc func customMenuAction8() { invokeCustomMenuItem(at: 8) }
+            @objc func customMenuAction9() { invokeCustomMenuItem(at: 9) }
+
+            private func invokeCustomMenuItem(at index: Int) {
+                guard index < customMenuItems.count,
+                      let text = selectedPlainText(), !text.isEmpty
+                else { return }
+                customMenuItems[index].handler(text)
             }
 
             @objc func copyMenuItemTapped() {
@@ -289,6 +322,10 @@
                 isSelectable
             }
 
+            override public var inputView: UIView? {
+                UIView()
+            }
+
             override public func canPerformAction(
                 _ action: Selector,
                 withSender _: Any?
@@ -302,6 +339,11 @@
                 }
                 if action == #selector(shareMenuItemTapped) {
                     return (selectedPlainText() ?? "").isEmpty == false
+                }
+                if let index = Self.customMenuSelectors.firstIndex(of: action) {
+                    return index < customMenuItems.count
+                        && selectionRange != nil
+                        && selectionRange!.length > 0
                 }
                 return false
             }

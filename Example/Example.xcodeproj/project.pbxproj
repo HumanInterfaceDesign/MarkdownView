@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		2055D57C2F75DA1200ED180E /* MarkdownParser in Frameworks */ = {isa = PBXBuildFile; productRef = 2055D57B2F75DA1200ED180E /* MarkdownParser */; };
+		2055D57E2F75DA1200ED180E /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 2055D57D2F75DA1200ED180E /* MarkdownView */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		2055D55E2F75D66500ED180E /* Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2055D57E2F75DA1200ED180E /* MarkdownView in Frameworks */,
+				2055D57C2F75DA1200ED180E /* MarkdownParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +85,8 @@
 			);
 			name = Example;
 			packageProductDependencies = (
+				2055D57B2F75DA1200ED180E /* MarkdownParser */,
+				2055D57D2F75DA1200ED180E /* MarkdownView */,
 			);
 			productName = Example;
 			productReference = 2055D55E2F75D66500ED180E /* Example.app */;
@@ -107,6 +116,9 @@
 			);
 			mainGroup = 2055D5552F75D66500ED180E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2055D57A2F75DA1200ED180E /* XCLocalSwiftPackageReference "../../MarkdownView" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2055D55F2F75D66500ED180E /* Products */;
 			projectDirPath = "";
@@ -150,7 +162,7 @@
 				INFOPLIST_FILE = Example/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIMainStoryboardFile = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -182,7 +194,7 @@
 				INFOPLIST_FILE = Example/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UIMainStoryboardFile = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -345,6 +357,24 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		2055D57A2F75DA1200ED180E /* XCLocalSwiftPackageReference "../../MarkdownView" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../MarkdownView;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2055D57B2F75DA1200ED180E /* MarkdownParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MarkdownParser;
+		};
+		2055D57D2F75DA1200ED180E /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MarkdownView;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2055D5562F75D66500ED180E /* Project object */;
 }
