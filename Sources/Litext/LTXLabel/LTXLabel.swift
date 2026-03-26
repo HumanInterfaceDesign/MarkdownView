@@ -46,6 +46,17 @@ public class LTXLabel: LTXPlatformView, Identifiable {
 
     public internal(set) var isInteractionInProgress = false
 
+    /// Custom menu items shown in the text selection context menu. Maximum 10 items.
+    public var customMenuItems: [LTXCustomMenuItem] = [] {
+        didSet {
+            customMenuItems = Array(customMenuItems.prefix(10))
+        }
+    }
+
+    /// Controls where custom menu items appear relative to built-in items.
+    /// Only affects Mac Catalyst and macOS; iOS UIMenuController always shows built-in items first.
+    public var customMenuItemPosition: LTXCustomMenuItemPosition = .afterBuiltIn
+
     public weak var delegate: LTXLabelDelegate?
 
     // MARK: - Internal Properties

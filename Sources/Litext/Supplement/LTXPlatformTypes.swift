@@ -15,6 +15,7 @@
 
     public typealias PlatformColor = UIColor
     public typealias PlatformFont = UIFont
+    public typealias PlatformImage = UIImage
     public typealias PlatformApplication = UIApplication
 #elseif canImport(AppKit)
     @_exported import AppKit
@@ -24,5 +25,6 @@
 
     public typealias PlatformColor = NSColor
     public typealias PlatformFont = NSFont
+    public typealias PlatformImage = NSImage
     public typealias PlatformApplication = NSApplication
 #endif

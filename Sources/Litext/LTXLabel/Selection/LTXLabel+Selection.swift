@@ -108,4 +108,27 @@ extension LTXLabel {
     func selectedPlainText() -> String? {
         selectedAttributedText()?.string
     }
+
+    func selectionContext() -> LTXSelectionContext? {
+        guard let range = selectionRange,
+              range.location != NSNotFound,
+              range.length > 0,
+              let attributedText = selectedAttributedText()
+        else { return nil }
+
+        let fullString = textLayout.attributedString.string as NSString
+        let beforeSelection = fullString.substring(to: min(range.location, fullString.length))
+        let startLine = beforeSelection.components(separatedBy: "\n").count
+        let selectionEnd = min(range.location + range.length, fullString.length)
+        let beforeEnd = fullString.substring(to: selectionEnd)
+        let endLine = beforeEnd.components(separatedBy: "\n").count
+
+        return LTXSelectionContext(
+            text: attributedText.string,
+            attributedText: attributedText,
+            range: range,
+            startLine: startLine,
+            endLine: endLine
+        )
+    }
 }

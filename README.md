@@ -271,6 +271,26 @@ Selection is exclusive: selecting lines in one code or diff block automatically 
 
 
 
+### Custom Selection Menu Items
+
+Use `LTXCustomMenuItem` to add custom actions to the text selection context menu. Each item has a title, an optional image, and a closure that receives the selected text. Up to 10 custom items are supported.
+
+```swift
+let label = LTXLabel()
+label.isSelectable = true
+
+label.customMenuItems = [
+    LTXCustomMenuItem(title: "Translate", image: UIImage(systemName: "globe")) { selectedText in
+        print("Translate: \(selectedText)")
+    },
+    LTXCustomMenuItem(title: "Search", image: UIImage(systemName: "magnifyingglass")) { selectedText in
+        print("Search: \(selectedText)")
+    },
+]
+```
+
+Custom items appear after the built-in Copy, Select All, and Share actions. On iOS they integrate with `UIMenuController`, on Mac Catalyst with `UIContextMenuInteraction`, and on macOS with `NSMenu` via a closure-based `NSMenuItemActionTrampoline` helper.
+
 ### Unified Diffs
 
 Use `diff` or `patch` to force the dedicated diff renderer. You can also paste a valid unified diff into a plain fenced code block, or use a single language token like `swift`, and MarkdownView will auto-detect it as a diff.
