@@ -284,9 +284,9 @@
 
             private func invokeCustomMenuItem(at index: Int) {
                 guard index < customMenuItems.count,
-                      let text = selectedPlainText(), !text.isEmpty
+                      let context = selectionContext()
                 else { return }
-                customMenuItems[index].handler(text)
+                customMenuItems[index].handler(context)
             }
 
             @objc func copyMenuItemTapped() {

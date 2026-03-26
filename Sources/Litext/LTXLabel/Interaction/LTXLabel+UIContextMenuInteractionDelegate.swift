@@ -27,8 +27,8 @@
                     }
                 let customActions: [UIMenuElement] = self.customMenuItems.map { customItem in
                     UIAction(title: customItem.title, image: customItem.image) { [weak self] _ in
-                        guard let self, let text = self.selectedPlainText(), !text.isEmpty else { return }
-                        customItem.handler(text)
+                        guard let self, let context = self.selectionContext() else { return }
+                        customItem.handler(context)
                     }
                 }
                 let allItems: [UIMenuElement]

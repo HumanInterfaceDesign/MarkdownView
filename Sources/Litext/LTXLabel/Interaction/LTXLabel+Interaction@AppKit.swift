@@ -194,8 +194,8 @@ import Foundation
             let addCustom = { [self] in
                 for customItem in self.customMenuItems {
                     menu.addItem(withTitle: customItem.title, image: customItem.image) { [weak self] in
-                        guard let self, let text = self.selectedPlainText(), !text.isEmpty else { return }
-                        customItem.handler(text)
+                        guard let self, let context = self.selectionContext() else { return }
+                        customItem.handler(context)
                     }
                 }
             }

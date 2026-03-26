@@ -34,20 +34,20 @@ class DetailViewController: UIViewController {
             LTXCustomMenuItem(
                 title: "Explain",
                 image: UIImage(systemName: "lightbulb")
-            ) { selectedText in
-                print("Explain: \(selectedText)")
+            ) { context in
+                print("Explain: \"\(context.text)\" (lines \(context.startLine)-\(context.endLine))")
             },
             LTXCustomMenuItem(
                 title: "Apply",
                 image: UIImage(systemName: "checkmark.circle")
-            ) { selectedText in
-                print("Apply: \(selectedText)")
+            ) { context in
+                print("Apply: \"\(context.text)\" (lines \(context.startLine)-\(context.endLine))")
             },
             LTXCustomMenuItem(
                 title: "Reject",
                 image: UIImage(systemName: "xmark.circle")
-            ) { selectedText in
-                print("Reject: \(selectedText)")
+            ) { context in
+                print("Reject: \"\(context.text)\" (lines \(context.startLine)-\(context.endLine))")
             },
         ]
 
