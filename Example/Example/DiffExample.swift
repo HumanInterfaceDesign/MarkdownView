@@ -7,16 +7,24 @@
 
 import Foundation
 
+enum SelectionMode {
+    case textSelection
+    case lineSelection
+}
+
 struct DiffExample {
     let title: String
     let subtitle: String
     let markdown: String
+    let selectionMode: SelectionMode
+    var language: String? = nil
 }
 
 let examples: [DiffExample] = [
+    // Line selection examples — tap a line or long-press-drag to select a range
     DiffExample(
         title: "Rename Refactor",
-        subtitle: "Swift class rename",
+        subtitle: "Line selection · Tap or drag lines",
         markdown: """
         ```diff swift
         @@ -1,6 +1,6 @@
@@ -29,11 +37,13 @@ let examples: [DiffExample] = [
              }
          }
         ```
-        """
+        """,
+        selectionMode: .lineSelection,
+        language: "swift"
     ),
     DiffExample(
         title: "Bug Fix",
-        subtitle: "Off-by-one error in Python",
+        subtitle: "Line selection · Tap or drag lines",
         markdown: """
         ```diff python
         @@ -3,7 +3,7 @@
@@ -46,11 +56,15 @@ let examples: [DiffExample] = [
                      return mid
                  elif arr[mid] < target:
         ```
-        """
+        """,
+        selectionMode: .lineSelection,
+        language: "python"
     ),
+
+    // Text selection examples — long-press to select text, custom menu actions
     DiffExample(
         title: "Add Logging",
-        subtitle: "TypeScript API handler",
+        subtitle: "Text selection · Long-press to select",
         markdown: """
         ```diff typescript
         @@ -8,6 +8,8 @@
@@ -63,11 +77,13 @@ let examples: [DiffExample] = [
                  return Response.notFound();
              }
         ```
-        """
+        """,
+        selectionMode: .textSelection,
+        language: "typescript"
     ),
     DiffExample(
         title: "Config Change",
-        subtitle: "JSON configuration update",
+        subtitle: "Text selection · Long-press to select",
         markdown: """
         ```diff json
         @@ -2,5 +2,6 @@
@@ -79,11 +95,13 @@ let examples: [DiffExample] = [
         +    "license": "MIT"
          }
         ```
-        """
+        """,
+        selectionMode: .textSelection,
+        language: "json"
     ),
     DiffExample(
         title: "SQL Migration",
-        subtitle: "Add index and column",
+        subtitle: "Text selection · Long-press to select",
         markdown: """
         ```diff sql
         @@ -1,4 +1,6 @@
@@ -95,6 +113,8 @@ let examples: [DiffExample] = [
         +    created_at TIMESTAMPTZ DEFAULT NOW()
          );
         ```
-        """
+        """,
+        selectionMode: .textSelection,
+        language: "sql"
     ),
 ]

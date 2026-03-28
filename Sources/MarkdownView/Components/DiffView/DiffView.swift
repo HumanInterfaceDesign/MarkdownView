@@ -807,15 +807,39 @@ private func makeSideBySideAttributedText(
 
         // MARK: - LINE SELECTION
 
+        var isLineSelectionEnabled = false {
+            didSet {
+                guard isLineSelectionEnabled != oldValue else { return }
+                textView.isSelectable = !isLineSelectionEnabled
+                if isLineSelectionEnabled {
+                    let tap = UITapGestureRecognizer(target: self, action: #selector(handleDiffLineTap(_:)))
+                    addGestureRecognizer(tap)
+                    lineTapGesture = tap
+
+                    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDiffLineLongPress(_:)))
+                    longPress.minimumPressDuration = 0.15
+                    addGestureRecognizer(longPress)
+                    lineLongPressGesture = longPress
+                } else {
+                    if let g = lineTapGesture { removeGestureRecognizer(g); lineTapGesture = nil }
+                    if let g = lineLongPressGesture { removeGestureRecognizer(g); lineLongPressGesture = nil }
+                }
+            }
+        }
+
         var lineSelectionHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        private lazy var gutterSelectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
+        private var lineTapGesture: UITapGestureRecognizer?
+        private var lineLongPressGesture: UILongPressGestureRecognizer?
 
         func clearLineSelection() {
             guard selectedLineRange != nil else { return }
             selectedLineRange = nil
             selectionOverlay.clearSelection()
+            gutterSelectionOverlay.clearSelection()
         }
 
         private func diffRowCount() -> Int {
@@ -849,6 +873,7 @@ private func makeSideBySideAttributedText(
         private func updateDiffLineSelection(_ range: ClosedRange<Int>?) {
             selectedLineRange = range
             selectionOverlay.selectedRange = range
+            gutterSelectionOverlay.selectedRange = range
             if let range = range {
                 let info = LineSelectionInfo(
                     lineRange: range,
@@ -890,6 +915,9 @@ private func makeSideBySideAttributedText(
                 let newRange = min(anchor, row)...max(anchor, row)
                 if newRange != selectedLineRange {
                     updateDiffLineSelection(newRange)
+                    #if !os(visionOS)
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    #endif
                 }
             case .ended, .cancelled, .failed:
                 dragAnchorLine = nil
@@ -996,6 +1024,19 @@ private func makeSideBySideAttributedText(
             textView.selectionBackgroundColor = theme.colors.selectionBackground
             contentContainerView.addSubview(textView)
             updateHeaderVisibility()
+            setupSelectionOverlays()
+        }
+
+        private func setupSelectionOverlays() {
+            selectionOverlay.isUserInteractionEnabled = false
+            let selectionColor = theme.colors.lineSelectionBackground
+                ?? theme.colors.selectionTint.withAlphaComponent(0.15)
+            selectionOverlay.selectionColor = selectionColor
+            scrollView.addSubview(selectionOverlay)
+
+            gutterSelectionOverlay.isUserInteractionEnabled = false
+            gutterSelectionOverlay.selectionColor = selectionColor
+            gutterView.addSubview(gutterSelectionOverlay)
         }
 
         private func applyTheme() {
@@ -1086,10 +1127,13 @@ private func makeSideBySideAttributedText(
             backgroundView.updateLineRects(lineRects)
             selectionOverlay.frame = contentContainerView.bounds
             selectionOverlay.updateLineRects(lineRects)
+            gutterSelectionOverlay.frame = gutterView.bounds
+            gutterSelectionOverlay.updateLineRects(lineRects)
 
             let selectionColor = theme.colors.lineSelectionBackground
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
+            gutterSelectionOverlay.selectionColor = selectionColor
         }
 
         private func performLayout() {
@@ -1620,15 +1664,21 @@ private func makeSideBySideAttributedText(
 
         // MARK: - LINE SELECTION
 
+        var isLineSelectionEnabled = false {
+            didSet { textView.isSelectable = !isLineSelectionEnabled }
+        }
+
         var lineSelectionHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        private lazy var gutterSelectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
 
         func clearLineSelection() {
             guard selectedLineRange != nil else { return }
             selectedLineRange = nil
             selectionOverlay.clearSelection()
+            gutterSelectionOverlay.clearSelection()
         }
 
         private func diffRowCount() -> Int {
@@ -1659,6 +1709,7 @@ private func makeSideBySideAttributedText(
         private func updateDiffLineSelection(_ range: ClosedRange<Int>?) {
             selectedLineRange = range
             selectionOverlay.selectedRange = range
+            gutterSelectionOverlay.selectedRange = range
             if let range = range {
                 let info = LineSelectionInfo(
                     lineRange: range,
@@ -1672,6 +1723,10 @@ private func makeSideBySideAttributedText(
         }
 
         override func mouseDown(with event: NSEvent) {
+            guard isLineSelectionEnabled else {
+                super.mouseDown(with: event)
+                return
+            }
             let point = convert(event.locationInWindow, from: nil)
             guard let row = rowIndex(at: point) else {
                 super.mouseDown(with: event)
@@ -1686,6 +1741,10 @@ private func makeSideBySideAttributedText(
         }
 
         override func mouseDragged(with event: NSEvent) {
+            guard isLineSelectionEnabled else {
+                super.mouseDragged(with: event)
+                return
+            }
             let point = convert(event.locationInWindow, from: nil)
             guard let anchor = dragAnchorLine,
                   let row = rowIndex(at: point) else { return }
@@ -1814,6 +1873,9 @@ private func makeSideBySideAttributedText(
             selectionOverlay.selectionColor = selectionColor
             contentContainerView.addSubview(selectionOverlay, positioned: .above, relativeTo: backgroundView)
 
+            gutterSelectionOverlay.selectionColor = selectionColor
+            gutterView.addSubview(gutterSelectionOverlay)
+
             updateHeaderVisibility()
         }
 
@@ -1906,10 +1968,13 @@ private func makeSideBySideAttributedText(
             backgroundView.updateLineRects(lineRects)
             selectionOverlay.frame = contentContainerView.bounds
             selectionOverlay.updateLineRects(lineRects)
+            gutterSelectionOverlay.frame = gutterView.bounds
+            gutterSelectionOverlay.updateLineRects(lineRects)
 
             let selectionColor = theme.colors.lineSelectionBackground
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
+            gutterSelectionOverlay.selectionColor = selectionColor
         }
 
         private func performLayout() {

@@ -58,10 +58,32 @@ import Litext
 
         // MARK: - LINE SELECTION
 
+        var isLineSelectionEnabled = false {
+            didSet {
+                guard isLineSelectionEnabled != oldValue else { return }
+                textView.isSelectable = !isLineSelectionEnabled
+                if isLineSelectionEnabled {
+                    let tap = UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:)))
+                    addGestureRecognizer(tap)
+                    lineTapGesture = tap
+
+                    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLineLongPress(_:)))
+                    longPress.minimumPressDuration = 0.15
+                    addGestureRecognizer(longPress)
+                    lineLongPressGesture = longPress
+                } else {
+                    if let g = lineTapGesture { removeGestureRecognizer(g); lineTapGesture = nil }
+                    if let g = lineLongPressGesture { removeGestureRecognizer(g); lineLongPressGesture = nil }
+                }
+            }
+        }
+
         var lineSelectionHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
-        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
+        private var lineTapGesture: UITapGestureRecognizer?
+        private var lineLongPressGesture: UILongPressGestureRecognizer?
 
         func clearLineSelection() {
             guard selectedLineRange != nil else { return }
@@ -107,7 +129,7 @@ import Litext
             }
         }
 
-        @objc private func handleLineTap(_ gesture: UITapGestureRecognizer) {
+        @objc func handleLineTap(_ gesture: UITapGestureRecognizer) {
             let point = gesture.location(in: self)
             guard let line = lineIndex(at: point) else { return }
             if selectedLineRange == line...line {
@@ -120,7 +142,7 @@ import Litext
             #endif
         }
 
-        @objc private func handleLineLongPress(_ gesture: UILongPressGestureRecognizer) {
+        @objc func handleLineLongPress(_ gesture: UILongPressGestureRecognizer) {
             let point = gesture.location(in: self)
             switch gesture.state {
             case .began:
@@ -136,6 +158,9 @@ import Litext
                 let newRange = min(anchor, line)...max(anchor, line)
                 if newRange != selectedLineRange {
                     updateLineSelection(newRange)
+                    #if !os(visionOS)
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    #endif
                 }
             case .ended, .cancelled, .failed:
                 dragAnchorLine = nil
@@ -318,9 +343,13 @@ import Litext
 
         // MARK: - LINE SELECTION
 
+        var isLineSelectionEnabled = false {
+            didSet { textView.isSelectable = !isLineSelectionEnabled }
+        }
+
         var lineSelectionHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
-        private lazy var selectionOverlay: LineSelectionOverlayView = .init()
+        lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
 
         func clearLineSelection() {
@@ -364,6 +393,10 @@ import Litext
         }
 
         override func mouseDown(with event: NSEvent) {
+            guard isLineSelectionEnabled else {
+                super.mouseDown(with: event)
+                return
+            }
             let point = convert(event.locationInWindow, from: nil)
             guard let line = lineIndex(at: point) else {
                 super.mouseDown(with: event)
@@ -378,6 +411,10 @@ import Litext
         }
 
         override func mouseDragged(with event: NSEvent) {
+            guard isLineSelectionEnabled else {
+                super.mouseDragged(with: event)
+                return
+            }
             let point = convert(event.locationInWindow, from: nil)
             guard let anchor = dragAnchorLine,
                   let line = lineIndex(at: point) else { return }

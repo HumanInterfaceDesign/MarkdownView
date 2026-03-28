@@ -13,8 +13,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
 - Comprehensive theming with fonts, colors, and spacing
-- Text selection with long-press, double-tap, and triple-tap gestures
-- Line selection in code and diff views with tap (single line) or long-press-drag (multi-line) and callback
+- Two selection modes: text selection (default) with long-press and custom menu items, or opt-in line selection with tap/drag and callback
 - VoiceOver accessibility for text, code blocks, tables, and math content
 - UIKit and AppKit support via a single API
 
@@ -240,9 +239,36 @@ markdownView.theme = theme
 </details>
 
 Selection tint is theme-driven. By default, `selectionBackground` is derived from `selectionTint` with a 20% alpha. Set `selectionBackground` explicitly when you want a different selection fill without changing the tint.
-### Line Selection
 
-Code blocks and diff views support tapping to select a line, or long-press-and-drag to select a range of lines. The selected lines are highlighted and a callback provides the 1-based line range, the text contents, and the language.
+### Selection Modes
+
+Code blocks and diff views support two mutually exclusive selection modes:
+
+#### Text Selection (Default)
+
+Text selection is enabled by default. Long-press to select text, then use the standard system menu (Copy, Select All, Share) or add custom actions with `LTXCustomMenuItem`. No additional setup is needed.
+
+<details>
+<summary>Show custom menu items example</summary>
+
+```swift
+markdownView.textView.customMenuItems = [
+    LTXCustomMenuItem(title: "Explain", image: UIImage(systemName: "lightbulb")) { context in
+        print("Explain: \(context.text) (lines \(context.startLine)-\(context.endLine))")
+    },
+    LTXCustomMenuItem(title: "Apply", image: UIImage(systemName: "checkmark.circle")) { context in
+        print("Apply: \(context.text)")
+    },
+]
+```
+
+</details>
+
+Custom items appear after the built-in Copy, Select All, and Share actions. On iOS they integrate with `UIMenuController`, on Mac Catalyst with `UIContextMenuInteraction`, and on macOS with `NSMenu`.
+
+#### Line Selection (Opt-in)
+
+Setting `lineSelectionHandler` switches code blocks and diff views from text selection to line selection. Tap to select a single line, or long-press-and-drag to select a range. The selected lines are highlighted and a callback provides the 1-based line range, the text contents, and the language.
 
 <details>
 <summary>Show line selection example</summary>
@@ -267,29 +293,7 @@ markdownView.theme = theme
 
 </details>
 
-Selection is exclusive: selecting lines in one code or diff block automatically clears any selection in other blocks.
-
-
-
-### Custom Selection Menu Items
-
-Use `LTXCustomMenuItem` to add custom actions to the text selection context menu. Each item has a title, an optional image, and a closure that receives the selected text. Up to 10 custom items are supported.
-
-```swift
-let label = LTXLabel()
-label.isSelectable = true
-
-label.customMenuItems = [
-    LTXCustomMenuItem(title: "Translate", image: UIImage(systemName: "globe")) { selectedText in
-        print("Translate: \(selectedText)")
-    },
-    LTXCustomMenuItem(title: "Search", image: UIImage(systemName: "magnifyingglass")) { selectedText in
-        print("Search: \(selectedText)")
-    },
-]
-```
-
-Custom items appear after the built-in Copy, Select All, and Share actions. On iOS they integrate with `UIMenuController`, on Mac Catalyst with `UIContextMenuInteraction`, and on macOS with `NSMenu` via a closure-based `NSMenuItemActionTrampoline` helper.
+Selection is exclusive: selecting lines in one code or diff block automatically clears any selection in other blocks. When `lineSelectionHandler` is `nil` (the default), text selection is active and the line selection gestures are not installed.
 
 ### Unified Diffs
 

@@ -76,7 +76,7 @@ enum CodeViewConfiguration {
             setupScrollView()
             setupTextView()
             setupLineNumberView()
-            setupLineSelectionGestures()
+            setupSelectionOverlay()
             updateHeaderVisibility()
         }
 
@@ -143,19 +143,12 @@ enum CodeViewConfiguration {
             updateLineNumberView()
         }
 
-        private func setupLineSelectionGestures() {
+        private func setupSelectionOverlay() {
             selectionOverlay.isUserInteractionEnabled = false
             let selectionColor = theme.colors.lineSelectionBackground
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
             scrollView.addSubview(selectionOverlay)
-
-            let tap = UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:)))
-            addGestureRecognizer(tap)
-
-            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLineLongPress(_:)))
-            longPress.minimumPressDuration = 0.15
-            addGestureRecognizer(longPress)
         }
 
         func performLayout() {
