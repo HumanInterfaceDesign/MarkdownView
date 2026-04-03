@@ -888,10 +888,10 @@ private func makeSideBySideAttributedText(
 
         @objc private func handleDiffLineTap(_ gesture: UITapGestureRecognizer) {
             let point = gesture.location(in: self)
-            guard let row = rowIndex(at: point) else { return }
-            if selectedLineRange == row...row {
+            let row = rowIndex(at: point)
+            if selectedLineRange != nil {
                 updateDiffLineSelection(nil)
-            } else {
+            } else if let row = row {
                 updateDiffLineSelection(row...row)
             }
             #if !os(visionOS)
@@ -1728,15 +1728,15 @@ private func makeSideBySideAttributedText(
                 return
             }
             let point = convert(event.locationInWindow, from: nil)
-            guard let row = rowIndex(at: point) else {
-                super.mouseDown(with: event)
-                return
-            }
-            dragAnchorLine = row
-            if selectedLineRange == row...row {
+            let row = rowIndex(at: point)
+            if selectedLineRange != nil {
                 updateDiffLineSelection(nil)
-            } else {
+                dragAnchorLine = nil
+            } else if let row = row {
+                dragAnchorLine = row
                 updateDiffLineSelection(row...row)
+            } else {
+                super.mouseDown(with: event)
             }
         }
 

@@ -131,10 +131,10 @@ import Litext
 
         @objc func handleLineTap(_ gesture: UITapGestureRecognizer) {
             let point = gesture.location(in: self)
-            guard let line = lineIndex(at: point) else { return }
-            if selectedLineRange == line...line {
+            let line = lineIndex(at: point)
+            if selectedLineRange != nil {
                 updateLineSelection(nil)
-            } else {
+            } else if let line = line {
                 updateLineSelection(line...line)
             }
             #if !os(visionOS)
@@ -398,15 +398,15 @@ import Litext
                 return
             }
             let point = convert(event.locationInWindow, from: nil)
-            guard let line = lineIndex(at: point) else {
-                super.mouseDown(with: event)
-                return
-            }
-            dragAnchorLine = line
-            if selectedLineRange == line...line {
+            let line = lineIndex(at: point)
+            if selectedLineRange != nil {
                 updateLineSelection(nil)
-            } else {
+                dragAnchorLine = nil
+            } else if let line = line {
+                dragAnchorLine = line
                 updateLineSelection(line...line)
+            } else {
+                super.mouseDown(with: event)
             }
         }
 
