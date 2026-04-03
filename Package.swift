@@ -13,6 +13,10 @@ let package = Package(
         .visionOS(.v1),
     ],
     products: [
+        /// Full library with all 19 bundled language parsers (backward-compatible).
+        .library(name: "MarkdownViewAll", targets: ["MarkdownView", "MarkdownLanguages"]),
+        /// Core rendering library without language parsers — add only the tree-sitter
+        /// languages you need and register them via `CodeHighlighter.registerLanguage`.
         .library(name: "MarkdownView", targets: ["MarkdownView"]),
         .library(name: "MarkdownParser", targets: ["MarkdownParser"]),
     ],
@@ -51,6 +55,14 @@ let package = Package(
                 "MarkdownParser",
                 "SwiftMath",
                 .product(name: "SwiftTreeSitter", package: "swift-tree-sitter"),
+            ],
+            resources: [.process("Resources")]
+        ),
+        .target(
+            name: "MarkdownLanguages",
+            dependencies: [
+                "MarkdownView",
+                .product(name: "SwiftTreeSitter", package: "swift-tree-sitter"),
                 .product(name: "TreeSitterPython", package: "tree-sitter-python"),
                 .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
                 .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
@@ -69,8 +81,7 @@ let package = Package(
                 .product(name: "TreeSitterKotlin", package: "tree-sitter-kotlin"),
                 .product(name: "TreeSitterSql", package: "tree-sitter-sql"),
                 .product(name: "TreeSitterYAML", package: "tree-sitter-yaml"),
-            ],
-            resources: [.process("Resources")]
+            ]
         ),
         .target(name: "MarkdownParser", dependencies: [
             .product(name: "cmark-gfm", package: "swift-cmark"),
@@ -80,6 +91,7 @@ let package = Package(
             name: "MarkdownViewTests",
             dependencies: [
                 "MarkdownView",
+                "MarkdownLanguages",
                 "MarkdownParser",
             ]
         ),
