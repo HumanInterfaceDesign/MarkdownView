@@ -9,11 +9,11 @@ import Foundation
 
 private let mathPattern: NSRegularExpression? = {
     let patterns = [
-        ###"\$\$([\s\S]*?)\$\$"###, // 块级公式 $$ ... $$
-        ###"\\\\\[([\s\S]*?)\\\\\]"###, // 带转义的块级公式 \\[ ... \\]
-        ###"\\\\\(([\s\S]*?)\\\\\)"###, // 带转义的行内公式 \\( ... \\)
-        ###"\\\[ ([\s\S]*?) \\\]"###, // 单个反斜杠的块级公式 \[ ... \]，前后需要空格
-        ###"\\\( ([^`\n]*?) \\\)"###, // 单个反斜杠的块级公式 \( ... \)，前后需要空格，中间不能有 ` 和 换行
+        ###"\$\$([\s\S]*?)\$\$"###, // block formula $$ ... $$
+        ###"\\\\\[([\s\S]*?)\\\\\]"###, // escaped block formula \\[ ... \\]
+        ###"\\\\\(([\s\S]*?)\\\\\)"###, // escaped inline formula \\( ... \\)
+        ###"\\\[ ([\s\S]*?) \\\]"###, // single-backslash block formula \[ ... \], spaces required
+        ###"\\\( ([^`\n]*?) \\\)"###, // single-backslash inline formula \( ... \), spaces required, no backticks or newlines inside
     ]
     let pattern = patterns.joined(separator: "|")
     guard let regex = try? NSRegularExpression(
@@ -90,9 +90,16 @@ public extension MarkdownParser {
 }
 
 private let mathPatternWithinBlock: NSRegularExpression? = {
+    // NOTE: `.allowCommentsAndWhitespace` strips unescaped whitespace from the
+    // pattern, so do NOT rely on literal spaces inside these regexes. The
+    // inline `$...$` pattern uses pandoc-style lookarounds to avoid matching
+    // currency amounts like `$73,092.00 ... $73,370.00`:
+    //   • opening `$` must be followed by a non-whitespace character
+    //   • closing `$` must be preceded by a non-whitespace character
+    //   • closing `$` must not be immediately followed by a digit (anti-currency)
     let patterns = [
-        ###"\\\( ([^\r\n]+?) \\\)"###, // 行内公式 \(...\)
-        ###"\$ ([^\r\n]+?) \$"###, // 行内公式 $ ... $
+        ###"\\\(([^\r\n]+?)\\\)"###, // inline formula \(...\)
+        ###"\$(?!\s)([^\r\n$]+?)(?<!\s)\$(?!\d)"###, // inline formula $...$, avoids matching currency amounts
     ]
     let pattern = patterns.joined(separator: "|")
     guard let regex = try? NSRegularExpression(
@@ -214,7 +221,7 @@ extension MarkdownParser {
             let fullMatchRange = match.range(at: 0)
             guard fullMatchRange.location != NSNotFound else { continue }
 
-            // 找到第一个有效的捕获组（数学内容）
+            // find the first valid capture group (the math content)
             var mathContent: String?
             for groupIndex in 1 ..< match.numberOfRanges {
                 let captureRange = match.range(at: groupIndex)

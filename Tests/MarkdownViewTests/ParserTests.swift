@@ -348,6 +348,32 @@ final class ParserTests: XCTestCase {
         XCTAssertTrue(result.mathContext.isEmpty)
     }
 
+    func testCurrencyAmountsNotTreatedAsMath() {
+        // Regression: `$XX.XX ... $YY.YY` (sentences with multiple currency
+        // amounts) used to be matched as inline LaTeX because the regex was
+        // compiled with `.allowCommentsAndWhitespace`, which silently stripped
+        // the intended spaces from `\$ ... \$`, collapsing it to `\$...\$`.
+        let md = "As of April 11, 2026, the price of Bitcoin is $73,092.00 USD. Its 24-hour high was $73,370.00 and the 24-hour low was $72,626.00."
+        let result = parser.parse(md)
+        XCTAssertTrue(
+            result.mathContext.isEmpty,
+            "Currency amounts must not be detected as math, got: \(result.mathContext)"
+        )
+    }
+
+    func testInlineDollarMathStillDetectedAroundCurrency() {
+        // A real inline formula must still be detected even when currency
+        // amounts appear in the same paragraph.
+        let md = "The fee is $5.00 but the identity $E=mc^2$ still holds."
+        let result = parser.parse(md)
+        XCTAssertEqual(
+            result.mathContext.count,
+            1,
+            "Expected exactly one inline math node, got: \(result.mathContext)"
+        )
+        XCTAssertEqual(result.mathContext.values.first, "E=mc^2")
+    }
+
     // MARK: - Image Parsing
 
     func testParseImage() {
