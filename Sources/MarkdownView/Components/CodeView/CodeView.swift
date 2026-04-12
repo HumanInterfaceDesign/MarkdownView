@@ -178,7 +178,11 @@ import Litext
         lazy var scrollView: UIScrollView = .init()
         lazy var languageLabel: UILabel = .init()
         lazy var textView: LTXLabel = .init()
-        lazy var copyButton: UIButton = .init()
+        lazy var copyButton = SymbolActionView(
+            systemName: "doc.on.doc",
+            effect: .confirmation,
+            config: .init(scale: .small)
+        )
         lazy var previewButton: UIButton = .init()
         lazy var lineNumberView: LineNumberView = .init()
 
@@ -243,7 +247,7 @@ import Litext
             )
         }
 
-        @objc func handleCopy(_: UIButton) {
+        func handleCopy() {
             UIPasteboard.general.string = content
             #if !os(visionOS)
                 UINotificationFeedbackGenerator().notificationOccurred(.success)

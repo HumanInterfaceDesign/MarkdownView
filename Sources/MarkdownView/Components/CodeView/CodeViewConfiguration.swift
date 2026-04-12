@@ -111,13 +111,10 @@ enum CodeViewConfiguration {
         }
 
         private func setupCopyButton() {
-            let copyImage = UIImage(
-                systemName: "doc.on.doc",
-                withConfiguration: UIImage.SymbolConfiguration(scale: .small)
-            )
-            copyButton.setImage(copyImage, for: .normal)
             copyButton.tintColor = theme.colors.body
-            copyButton.addTarget(self, action: #selector(handleCopy(_:)), for: .touchUpInside)
+            copyButton.onTap { [weak self] in
+                self?.handleCopy()
+            }
             barView.addSubview(copyButton)
         }
 
