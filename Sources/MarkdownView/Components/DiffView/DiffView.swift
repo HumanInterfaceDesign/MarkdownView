@@ -515,16 +515,41 @@ private func hasMarkerColumn(
 
 private func diffGutterMetrics(
     for displayRows: DiffDisplayRows,
-    font: Any
+    font: Any,
+    theme: MarkdownTheme
 ) -> DiffGutterMetrics {
     let numberWidth = maxLineNumberText(for: displayRows)
         .size(withAttributes: [.font: font]).width
     let columnWidth = numberWidth + DiffViewConfiguration.gutterPadding * 2
+    let markerWidth = theme.diff.showsChangeMarkers && hasMarkerColumn(for: displayRows)
+        ? DiffViewConfiguration.markerColumnWidth
+        : 0
+
+    if case .unified = displayRows, theme.diff.lineNumberStyle == .single {
+        let hasAnyNumbers = hasOldLineNumbers(for: displayRows) || hasNewLineNumbers(for: displayRows)
+        return .init(
+            oldColumnWidth: 0,
+            newColumnWidth: hasAnyNumbers ? columnWidth : 0,
+            markerColumnWidth: markerWidth
+        )
+    }
+
     return .init(
         oldColumnWidth: hasOldLineNumbers(for: displayRows) ? columnWidth : 0,
         newColumnWidth: hasNewLineNumbers(for: displayRows) ? columnWidth : 0,
-        markerColumnWidth: hasMarkerColumn(for: displayRows) ? DiffViewConfiguration.markerColumnWidth : 0
+        markerColumnWidth: markerWidth
     )
+}
+
+private func unifiedSingleColumnLineNumber(
+    for row: DiffPresentation.UnifiedRow
+) -> Int? {
+    switch row.kind {
+    case .removed:
+        row.oldLineNumber
+    case .added, .context, .annotation, .fileHeader, .fileMetadata, .hunkHeader, .collapsedContext:
+        row.newLineNumber ?? row.oldLineNumber
+    }
 }
 
 private func diffGutterRowRects(
@@ -1411,7 +1436,7 @@ private func makeSideBySideAttributedText(
         }
 
         override var intrinsicContentSize: CGSize {
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let maxHeight = max(
                 contentHeight + DiffViewConfiguration.verticalPadding * 2,
                 font.lineHeight + DiffViewConfiguration.verticalPadding * 2
@@ -1429,7 +1454,7 @@ private func makeSideBySideAttributedText(
         private func drawRows(in context: CGContext) {
             guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let textAttributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: theme.diff.gutterText,
@@ -1460,16 +1485,24 @@ private func makeSideBySideAttributedText(
                     ]
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
-                    drawNumber(
-                        row.oldLineNumber,
-                        in: rowRects.oldRect,
-                        attributes: textAttributes
-                    )
-                    drawNumber(
-                        row.newLineNumber,
-                        in: rowRects.newRect,
-                        attributes: textAttributes
-                    )
+                    if theme.diff.lineNumberStyle == .single {
+                        drawNumber(
+                            unifiedSingleColumnLineNumber(for: row),
+                            in: rowRects.newRect,
+                            attributes: textAttributes
+                        )
+                    } else {
+                        drawNumber(
+                            row.oldLineNumber,
+                            in: rowRects.oldRect,
+                            attributes: textAttributes
+                        )
+                        drawNumber(
+                            row.newLineNumber,
+                            in: rowRects.newRect,
+                            attributes: textAttributes
+                        )
+                    }
                     drawMarker(
                         marker(for: row.kind),
                         in: rowRects.markerRect,
@@ -1595,7 +1628,7 @@ private func makeSideBySideAttributedText(
         }
 
         private func drawSeparators(in context: CGContext) {
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             context.setFillColor(theme.diff.separatorColor.cgColor)
             for x in diffGutterSeparatorPositions(for: metrics) {
                 context.fill(
@@ -2248,7 +2281,7 @@ private func makeSideBySideAttributedText(
         }
 
         override var intrinsicContentSize: CGSize {
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let fontHeight = font.ascender + abs(font.descender) + font.leading
             let maxHeight = max(
                 contentHeight + DiffViewConfiguration.verticalPadding * 2,
@@ -2267,7 +2300,7 @@ private func makeSideBySideAttributedText(
         private func drawRows(in context: CGContext) {
             guard !displayRows.isEmpty, contentHeight > 0 else { return }
 
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let textAttributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: theme.diff.gutterText,
@@ -2298,16 +2331,24 @@ private func makeSideBySideAttributedText(
                     ]
                     let rowRects = diffGutterRowRects(for: metrics, rowRect: rect)
 
-                    drawNumber(
-                        row.oldLineNumber,
-                        in: rowRects.oldRect,
-                        attributes: textAttributes
-                    )
-                    drawNumber(
-                        row.newLineNumber,
-                        in: rowRects.newRect,
-                        attributes: textAttributes
-                    )
+                    if theme.diff.lineNumberStyle == .single {
+                        drawNumber(
+                            unifiedSingleColumnLineNumber(for: row),
+                            in: rowRects.newRect,
+                            attributes: textAttributes
+                        )
+                    } else {
+                        drawNumber(
+                            row.oldLineNumber,
+                            in: rowRects.oldRect,
+                            attributes: textAttributes
+                        )
+                        drawNumber(
+                            row.newLineNumber,
+                            in: rowRects.newRect,
+                            attributes: textAttributes
+                        )
+                    }
                     drawMarker(
                         marker(for: row.kind),
                         in: rowRects.markerRect,
@@ -2433,7 +2474,7 @@ private func makeSideBySideAttributedText(
         }
 
         private func drawSeparators(in context: CGContext) {
-            let metrics = diffGutterMetrics(for: displayRows, font: font)
+            let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             context.setFillColor(theme.diff.separatorColor.cgColor)
             for x in diffGutterSeparatorPositions(for: metrics) {
                 context.fill(

@@ -171,9 +171,16 @@ public struct MarkdownTheme: Equatable {
             case bothAxes
         }
 
+        public enum LineNumberStyle: String, CaseIterable {
+            case dual
+            case single
+        }
+
         public var displayMode: DisplayMode = .unified
         public var changeHighlightStyle: ChangeHighlightStyle = .both
         public var scrollBehavior: ScrollBehavior = .horizontalOnly
+        public var lineNumberStyle: LineNumberStyle = .dual
+        public var showsChangeMarkers: Bool = true
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2
         #if canImport(UIKit)

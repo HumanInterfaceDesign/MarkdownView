@@ -339,6 +339,13 @@ Use `text` or `plaintext` if you want to show patch text literally without auto-
 
 Diff presentation is fully themeable through `MarkdownTheme.Diff`, including the gutter, file header, added/removed row colors, inline highlight colors, separators, border, and the overall diff background. Use `theme.diff.changeHighlightStyle` to choose between `.lineOnly`, `.inlineOnly`, and `.both`. Diff blocks default to horizontal-only scrolling so they embed cleanly inside outer scroll views; set `theme.diff.scrollBehavior = .bothAxes` if you want the diff view itself to scroll vertically too.
 
+The gutter layout is also configurable. `theme.diff.lineNumberStyle` defaults to `.dual` (separate old/new columns, like GitHub on desktop); set it to `.single` for a unified column that shows the old number on removed lines and the new number everywhere else (like GitHub on mobile). `theme.diff.showsChangeMarkers` defaults to `true`; set it to `false` to hide the `+`/`−` column entirely, letting the row background color indicate the change. Combining `.single` with `showsChangeMarkers = false` yields a minimal gutter with just one line-number column. These settings apply to unified display mode; side-by-side mode always uses both line-number columns.
+
+```swift
+theme.diff.lineNumberStyle = .single
+theme.diff.showsChangeMarkers = false
+```
+
 ```swift
 let patch = apiResponse.patch
 markdownView.setMarkdown(string: patch)

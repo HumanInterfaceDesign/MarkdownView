@@ -16,6 +16,8 @@ class DetailViewController: UIViewController {
     private let markdownView = MarkdownTextView()
     private let commentButton = UIButton(type: .system)
     private var currentSelectionInfo: LineSelectionInfo?
+    private var lineNumberStyle: MarkdownTheme.Diff.LineNumberStyle = .dual
+    private var showsChangeMarkers: Bool = true
 
     init(example: DiffExample) {
         self.example = example
@@ -47,13 +49,69 @@ class DetailViewController: UIViewController {
             markdownView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
         ])
 
+        applyTheme()
+        setupGutterStyleMenu()
+
         let parser = MarkdownParser()
         let result = parser.parse(example.markdown)
         let content = MarkdownTextView.PreprocessedContent(
             parserResult: result,
-            theme: .default
+            theme: markdownView.theme
         )
         markdownView.setMarkdown(content)
+    }
+
+    private func setupGutterStyleMenu() {
+        let button = UIBarButtonItem(
+            image: UIImage(systemName: "number"),
+            menu: makeGutterStyleMenu()
+        )
+        navigationItem.rightBarButtonItem = button
+    }
+
+    private func makeGutterStyleMenu() -> UIMenu {
+        let lineNumberMenu = UIMenu(title: "Line Numbers", options: .displayInline, children: [
+            UIAction(
+                title: "Dual Column",
+                state: lineNumberStyle == .dual ? .on : .off
+            ) { [weak self] _ in
+                self?.setLineNumberStyle(.dual)
+            },
+            UIAction(
+                title: "Single Column",
+                state: lineNumberStyle == .single ? .on : .off
+            ) { [weak self] _ in
+                self?.setLineNumberStyle(.single)
+            },
+        ])
+        let markersMenu = UIMenu(title: "Change Markers", options: .displayInline, children: [
+            UIAction(
+                title: "Show +/− Markers",
+                state: showsChangeMarkers ? .on : .off
+            ) { [weak self] _ in
+                self?.toggleChangeMarkers()
+            },
+        ])
+        return UIMenu(title: "Gutter", children: [lineNumberMenu, markersMenu])
+    }
+
+    private func setLineNumberStyle(_ style: MarkdownTheme.Diff.LineNumberStyle) {
+        lineNumberStyle = style
+        navigationItem.rightBarButtonItem?.menu = makeGutterStyleMenu()
+        applyTheme()
+    }
+
+    private func toggleChangeMarkers() {
+        showsChangeMarkers.toggle()
+        navigationItem.rightBarButtonItem?.menu = makeGutterStyleMenu()
+        applyTheme()
+    }
+
+    private func applyTheme() {
+        var theme = MarkdownTheme.default
+        theme.diff.lineNumberStyle = lineNumberStyle
+        theme.diff.showsChangeMarkers = showsChangeMarkers
+        markdownView.theme = theme
     }
 
     // MARK: - Text Selection
