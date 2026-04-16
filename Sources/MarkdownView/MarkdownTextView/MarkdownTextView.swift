@@ -22,6 +22,7 @@ enum ContentPipelineMode {
         public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
         public var lineSelectionHandler: LineSelectionHandler?
+        public var lineSelectionEndedHandler: LineSelectionHandler?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
@@ -83,6 +84,11 @@ enum ContentPipelineMode {
                 }
             }
             lineSelectionHandler?(info)
+        }
+
+        /// Forwards the end-of-gesture selection info to the public `lineSelectionEndedHandler`.
+        func handleLineSelectionEnded(from _: UIView, info: LineSelectionInfo?) {
+            lineSelectionEndedHandler?(info)
         }
 
         @available(*, unavailable)
@@ -160,6 +166,7 @@ enum ContentPipelineMode {
         public var imageTapHandler: ((String, CGPoint) -> Void)?
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
         public var lineSelectionHandler: LineSelectionHandler?
+        public var lineSelectionEndedHandler: LineSelectionHandler?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
@@ -220,6 +227,11 @@ enum ContentPipelineMode {
                 }
             }
             lineSelectionHandler?(info)
+        }
+
+        /// Forwards the end-of-gesture selection info to the public `lineSelectionEndedHandler`.
+        func handleLineSelectionEnded(from _: NSView, info: LineSelectionInfo?) {
+            lineSelectionEndedHandler?(info)
         }
 
         @available(*, unavailable)

@@ -13,4 +13,8 @@ public struct LineSelectionInfo {
 }
 
 /// A closure that handles line selection changes. Receives `nil` when the selection is cleared.
+///
+/// Used for both `lineSelectionHandler` (fires on every change, including intermediate
+/// drag updates) and `lineSelectionEndedHandler` (fires once when the user's gesture
+/// settles — tap completes, or long-press/drag ends).
 public typealias LineSelectionHandler = (LineSelectionInfo?) -> Void

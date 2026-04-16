@@ -270,6 +270,8 @@ Custom items appear after the built-in Copy, Select All, and Share actions. On i
 
 Setting `lineSelectionHandler` switches code blocks and diff views from text selection to line selection. Tap to select a single line, or long-press-and-drag to select a range. The selected lines are highlighted and a callback provides the 1-based line range, the text contents, and the language.
 
+Set `lineSelectionEndedHandler` to be notified only when the gesture settles — a tap completing, or a long-press/drag releasing. It fires exactly once per interaction with the final range. Use `lineSelectionHandler` for live visual feedback that should track the drag, and `lineSelectionEndedHandler` for actions that should only happen after the user lifts their finger (e.g. animating in a contextual button).
+
 <details>
 <summary>Show line selection example</summary>
 

@@ -79,6 +79,7 @@ import Litext
         }
 
         var lineSelectionHandler: LineSelectionHandler?
+        var lineSelectionEndedHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
@@ -89,6 +90,25 @@ import Litext
             guard selectedLineRange != nil else { return }
             selectedLineRange = nil
             selectionOverlay.clearSelection()
+        }
+
+        private func currentLineSelectionInfo() -> LineSelectionInfo? {
+            guard let range = selectedLineRange else { return nil }
+            let lines = content.components(separatedBy: .newlines)
+            let contents = (range.lowerBound...range.upperBound).compactMap { idx -> String? in
+                let arrayIdx = idx - 1
+                guard arrayIdx >= 0, arrayIdx < lines.count else { return nil }
+                return lines[arrayIdx]
+            }
+            return LineSelectionInfo(
+                lineRange: range,
+                contents: contents,
+                language: language.isEmpty ? nil : language
+            )
+        }
+
+        private func fireLineSelectionEnded() {
+            lineSelectionEndedHandler?(currentLineSelectionInfo())
         }
 
         private func lineIndex(at point: CGPoint) -> Int? {
@@ -140,6 +160,7 @@ import Litext
             #if !os(visionOS)
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             #endif
+            fireLineSelectionEnded()
         }
 
         @objc func handleLineLongPress(_ gesture: UILongPressGestureRecognizer) {
@@ -164,6 +185,7 @@ import Litext
                 }
             case .ended, .cancelled, .failed:
                 dragAnchorLine = nil
+                fireLineSelectionEnded()
             default:
                 break
             }
@@ -352,14 +374,35 @@ import Litext
         }
 
         var lineSelectionHandler: LineSelectionHandler?
+        var lineSelectionEndedHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
+        private var pendingSelectionEndFire: Bool = false
 
         func clearLineSelection() {
             guard selectedLineRange != nil else { return }
             selectedLineRange = nil
             selectionOverlay.clearSelection()
+        }
+
+        private func currentLineSelectionInfo() -> LineSelectionInfo? {
+            guard let range = selectedLineRange else { return nil }
+            let lines = content.components(separatedBy: .newlines)
+            let contents = (range.lowerBound...range.upperBound).compactMap { idx -> String? in
+                let arrayIdx = idx - 1
+                guard arrayIdx >= 0, arrayIdx < lines.count else { return nil }
+                return lines[arrayIdx]
+            }
+            return LineSelectionInfo(
+                lineRange: range,
+                contents: contents,
+                language: language.isEmpty ? nil : language
+            )
+        }
+
+        private func fireLineSelectionEnded() {
+            lineSelectionEndedHandler?(currentLineSelectionInfo())
         }
 
         private func lineIndex(at point: CGPoint) -> Int? {
@@ -406,9 +449,11 @@ import Litext
             if selectedLineRange != nil {
                 updateLineSelection(nil)
                 dragAnchorLine = nil
+                pendingSelectionEndFire = true
             } else if let line = line {
                 dragAnchorLine = line
                 updateLineSelection(line...line)
+                pendingSelectionEndFire = true
             } else {
                 super.mouseDown(with: event)
             }
@@ -430,6 +475,10 @@ import Litext
 
         override func mouseUp(with event: NSEvent) {
             dragAnchorLine = nil
+            if pendingSelectionEndFire {
+                pendingSelectionEndFire = false
+                fireLineSelectionEnded()
+            }
             super.mouseUp(with: event)
         }
 

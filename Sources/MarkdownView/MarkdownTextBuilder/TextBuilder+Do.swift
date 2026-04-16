@@ -184,6 +184,10 @@ extension TextBuilder {
                     guard let view, let codeView else { return }
                     view.handleLineSelection(from: codeView, info: info)
                 }
+                codeView.lineSelectionEndedHandler = { [weak view, weak codeView] info in
+                    guard let view, let codeView else { return }
+                    view.handleLineSelectionEnded(from: codeView, info: info)
+                }
             }
             .withDiffDrawing { [weak view] _, line, lineOrigin in
                 guard let view else { return }
@@ -210,6 +214,10 @@ extension TextBuilder {
                 diffView.lineSelectionHandler = { [weak view, weak diffView] info in
                     guard let view, let diffView else { return }
                     view.handleLineSelection(from: diffView, info: info)
+                }
+                diffView.lineSelectionEndedHandler = { [weak view, weak diffView] info in
+                    guard let view, let diffView else { return }
+                    view.handleLineSelectionEnded(from: diffView, info: info)
                 }
             }
             .withTableDrawing { [weak view] _, line, lineOrigin in

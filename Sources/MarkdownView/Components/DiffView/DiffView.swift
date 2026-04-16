@@ -853,6 +853,7 @@ private func makeSideBySideAttributedText(
         }
 
         var lineSelectionHandler: LineSelectionHandler?
+        var lineSelectionEndedHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         private lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private lazy var gutterSelectionOverlay: LineSelectionOverlayView = .init()
@@ -865,6 +866,19 @@ private func makeSideBySideAttributedText(
             selectedLineRange = nil
             selectionOverlay.clearSelection()
             gutterSelectionOverlay.clearSelection()
+        }
+
+        private func currentLineSelectionInfo() -> LineSelectionInfo? {
+            guard let range = selectedLineRange else { return nil }
+            return LineSelectionInfo(
+                lineRange: range,
+                contents: rowContents(for: range),
+                language: renderBlock.language
+            )
+        }
+
+        private func fireLineSelectionEnded() {
+            lineSelectionEndedHandler?(currentLineSelectionInfo())
         }
 
         private func diffRowCount() -> Int {
@@ -922,6 +936,7 @@ private func makeSideBySideAttributedText(
             #if !os(visionOS)
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             #endif
+            fireLineSelectionEnded()
         }
 
         @objc private func handleDiffLineLongPress(_ gesture: UILongPressGestureRecognizer) {
@@ -946,6 +961,7 @@ private func makeSideBySideAttributedText(
                 }
             case .ended, .cancelled, .failed:
                 dragAnchorLine = nil
+                fireLineSelectionEnded()
             default:
                 break
             }
@@ -1702,16 +1718,31 @@ private func makeSideBySideAttributedText(
         }
 
         var lineSelectionHandler: LineSelectionHandler?
+        var lineSelectionEndedHandler: LineSelectionHandler?
         private(set) var selectedLineRange: ClosedRange<Int>?
         private lazy var selectionOverlay: LineSelectionOverlayView = .init()
         private lazy var gutterSelectionOverlay: LineSelectionOverlayView = .init()
         private var dragAnchorLine: Int?
+        private var pendingSelectionEndFire: Bool = false
 
         func clearLineSelection() {
             guard selectedLineRange != nil else { return }
             selectedLineRange = nil
             selectionOverlay.clearSelection()
             gutterSelectionOverlay.clearSelection()
+        }
+
+        private func currentLineSelectionInfo() -> LineSelectionInfo? {
+            guard let range = selectedLineRange else { return nil }
+            return LineSelectionInfo(
+                lineRange: range,
+                contents: rowContents(for: range),
+                language: renderBlock.language
+            )
+        }
+
+        private func fireLineSelectionEnded() {
+            lineSelectionEndedHandler?(currentLineSelectionInfo())
         }
 
         private func diffRowCount() -> Int {
@@ -1765,9 +1796,11 @@ private func makeSideBySideAttributedText(
             if selectedLineRange != nil {
                 updateDiffLineSelection(nil)
                 dragAnchorLine = nil
+                pendingSelectionEndFire = true
             } else if let row = row {
                 dragAnchorLine = row
                 updateDiffLineSelection(row...row)
+                pendingSelectionEndFire = true
             } else {
                 super.mouseDown(with: event)
             }
@@ -1789,6 +1822,10 @@ private func makeSideBySideAttributedText(
 
         override func mouseUp(with event: NSEvent) {
             dragAnchorLine = nil
+            if pendingSelectionEndFire {
+                pendingSelectionEndFire = false
+                fireLineSelectionEnded()
+            }
             super.mouseUp(with: event)
         }
 

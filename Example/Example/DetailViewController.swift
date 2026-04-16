@@ -143,7 +143,10 @@ class DetailViewController: UIViewController {
 
     private func setupLineSelection() {
         markdownView.lineSelectionHandler = { [weak self] info in
-            self?.updateCommentButton(info: info)
+            self?.updateCommentButton(info: info, animated: false)
+        }
+        markdownView.lineSelectionEndedHandler = { [weak self] info in
+            self?.updateCommentButton(info: info, animated: true)
         }
 
         setupCommentButton()
@@ -171,7 +174,7 @@ class DetailViewController: UIViewController {
         ])
     }
 
-    private func updateCommentButton(info: LineSelectionInfo?) {
+    private func updateCommentButton(info: LineSelectionInfo?, animated: Bool) {
         currentSelectionInfo = info
         guard let info else {
             commentButton.isHidden = true
@@ -188,6 +191,7 @@ class DetailViewController: UIViewController {
         commentButton.configuration?.title = title
         commentButton.isHidden = false
 
+        guard animated else { return }
         UIView.animate(withDuration: 0.2) {
             self.commentButton.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
         } completion: { _ in
