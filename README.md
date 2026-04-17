@@ -46,7 +46,49 @@ dependencies: [
 ]
 ```
 
-Then add `"MarkdownView"` as a dependency of your target.
+### All languages (default)
+
+Use the `MarkdownViewAll` product to include all 19 bundled language parsers:
+
+```swift
+.target(name: "YourApp", dependencies: [
+    .product(name: "MarkdownViewAll", package: "MarkdownView"),
+])
+```
+
+Then register the languages at app launch:
+
+```swift
+import MarkdownView
+import MarkdownLanguages
+
+// In your App.init or AppDelegate:
+MarkdownLanguages.registerAll()
+```
+
+### Core only (reduced binary size)
+
+Use the `MarkdownView` product for just the core renderer without any language parsers (~40 MB smaller):
+
+```swift
+.target(name: "YourApp", dependencies: [
+    .product(name: "MarkdownView", package: "MarkdownView"),
+])
+```
+
+Then register only the languages you need by adding their tree-sitter packages
+to your own dependencies and calling `CodeHighlighter.registerLanguage`:
+
+```swift
+import MarkdownView
+import SwiftTreeSitter
+import TreeSitterPython
+
+// Register individual languages at app launch:
+CodeHighlighter.registerLanguage(aliases: ["python", "py", "python3"]) {
+    try CodeHighlighter.makeConfig(tree_sitter_python(), name: "Python")
+}
+```
 
 ## Usage
 

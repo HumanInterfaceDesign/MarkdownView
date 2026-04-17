@@ -1,4 +1,5 @@
 import XCTest
+import MarkdownLanguages
 @testable import MarkdownParser
 @testable import MarkdownView
 #if canImport(AppKit)
@@ -8,6 +9,11 @@ import XCTest
 #endif
 
 final class DiffViewTests: XCTestCase {
+
+    override class func setUp() {
+        super.setUp()
+        MarkdownLanguages.registerAll()
+    }
 
     private let parser = MarkdownParser()
     private let userProvidedMixedDiff = """
