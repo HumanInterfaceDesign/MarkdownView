@@ -38,11 +38,19 @@ The plain-text streaming fast path applies to safe token appends that do not int
 
 ## Installation
 
-Add to your `Package.swift`:
+In Xcode, add this repository as a Swift Package dependency:
+
+```text
+https://github.com/HumanInterfaceDesign/MarkdownView
+```
+
+Choose the `main` branch to use the latest version.
+
+Or add it to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/user/MarkdownView", from: "1.0.0"),
+    .package(url: "https://github.com/HumanInterfaceDesign/MarkdownView", branch: "main"),
 ]
 ```
 
@@ -376,4 +384,3 @@ The library is split into two modules:
 ## License
 
 MIT
-
