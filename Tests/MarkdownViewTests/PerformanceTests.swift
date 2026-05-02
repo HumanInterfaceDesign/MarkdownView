@@ -1,8 +1,14 @@
 import XCTest
+import MarkdownLanguages
 @testable import MarkdownParser
 @testable import MarkdownView
 
 final class PerformanceTests: XCTestCase {
+
+    override class func setUp() {
+        super.setUp()
+        MarkdownLanguages.registerAll()
+    }
 
     // MARK: - Test Data Generators
 
