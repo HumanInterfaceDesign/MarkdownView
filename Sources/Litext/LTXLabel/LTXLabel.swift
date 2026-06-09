@@ -14,7 +14,12 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     // MARK: - Public Properties
 
     public var attributedText: NSAttributedString = .init() {
-        didSet { textLayout = LTXTextLayout(attributedString: attributedText) }
+        didSet {
+            // Rebuilding the layout recreates the CTFramesetter and triggers a
+            // full relayout; skip it when the content is unchanged.
+            guard !attributedText.isEqual(to: oldValue) else { return }
+            textLayout = LTXTextLayout(attributedString: attributedText)
+        }
     }
 
     public var preferredMaxLayoutWidth: CGFloat = 0 {

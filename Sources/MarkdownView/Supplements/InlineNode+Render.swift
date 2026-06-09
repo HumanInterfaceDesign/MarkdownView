@@ -34,9 +34,14 @@ final class InlineAttributeCache {
 }
 
 extension [MarkdownInlineNode] {
-    func render(theme: MarkdownTheme, context: MarkdownTextView.PreprocessedContent, viewProvider: ReusableViewProvider) -> NSMutableAttributedString {
+    func render(
+        theme: MarkdownTheme,
+        context: MarkdownTextView.PreprocessedContent,
+        viewProvider: ReusableViewProvider,
+        attrCache: InlineAttributeCache? = nil
+    ) -> NSMutableAttributedString {
         let result = NSMutableAttributedString()
-        let cache = InlineAttributeCache(theme: theme)
+        let cache = attrCache ?? InlineAttributeCache(theme: theme)
         for node in self {
             result.append(node.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: cache))
         }
@@ -45,10 +50,6 @@ extension [MarkdownInlineNode] {
 }
 
 extension MarkdownInlineNode {
-    func render(theme: MarkdownTheme, context: MarkdownTextView.PreprocessedContent, viewProvider: ReusableViewProvider) -> NSAttributedString {
-        render(theme: theme, context: context, viewProvider: viewProvider, attrCache: InlineAttributeCache(theme: theme))
-    }
-
     func render(theme: MarkdownTheme, context: MarkdownTextView.PreprocessedContent, viewProvider: ReusableViewProvider, attrCache: InlineAttributeCache) -> NSAttributedString {
         assert(Thread.isMainThread)
         switch self {

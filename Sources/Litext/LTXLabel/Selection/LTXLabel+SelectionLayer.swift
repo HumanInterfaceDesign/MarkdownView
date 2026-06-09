@@ -57,9 +57,10 @@ extension LTXLabel {
             selectionHandleStart.updateHandleColor(handleColor)
             selectionHandleEnd.updateHandleColor(handleColor)
 
-            var beginRect = textLayout.rects(
-                for: NSRange(location: range.location, length: 1)
-            ).first ?? .zero
+            // The first/last selection rects share the line geometry of the
+            // first/last selected characters, so reuse them instead of
+            // computing per-character rects with two more layout passes.
+            var beginRect = selectionRects.first ?? .zero
             beginRect = convertRectFromTextLayout(beginRect, insetForInteraction: false)
             selectionHandleStart.frame = .init(
                 x: beginRect.minX - LTXSelectionHandle.knobRadius - 1,
@@ -67,9 +68,7 @@ extension LTXLabel {
                 width: LTXSelectionHandle.knobRadius * 2,
                 height: beginRect.height + LTXSelectionHandle.knobRadius
             )
-            var endRect = textLayout.rects(
-                for: NSRange(location: range.location + range.length - 1, length: 1)
-            ).first ?? .zero
+            var endRect = selectionRects.last ?? .zero
             endRect = convertRectFromTextLayout(endRect, insetForInteraction: false)
             selectionHandleEnd.frame = .init(
                 x: endRect.maxX - LTXSelectionHandle.knobRadius + 1,

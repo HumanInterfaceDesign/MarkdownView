@@ -24,6 +24,7 @@ final class BlockProcessor {
     private let tableDrawing: TextBuilder.DrawingCallback?
     private let blockquoteMarking: TextBuilder.BlockquoteMarkingCallback?
     private let blockquoteDrawing: TextBuilder.BlockquoteDrawingCallback?
+    private let attrCache: InlineAttributeCache
 
     init(
         theme: MarkdownTheme,
@@ -45,6 +46,7 @@ final class BlockProcessor {
         self.tableDrawing = tableDrawing
         self.blockquoteMarking = blockquoteMarking
         self.blockquoteDrawing = blockquoteDrawing
+        attrCache = InlineAttributeCache(theme: theme)
     }
 
     func processHeading(level _: Int, contents: [MarkdownInlineNode]) -> NSAttributedString {
@@ -54,7 +56,7 @@ final class BlockProcessor {
             paragraph.paragraphSpacing = 16
             paragraph.paragraphSpacingBefore = 16
         }) {
-            let string = contents.render(theme: theme, context: context, viewProvider: viewProvider)
+            let string = contents.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)
             string.addAttributes(
                 [.font: font],
                 range: NSRange(location: 0, length: string.length)
@@ -65,7 +67,7 @@ final class BlockProcessor {
 
     func processParagraph(contents: [MarkdownInlineNode]) -> NSAttributedString {
         buildWithParagraphSync {
-            let rendered = contents.render(theme: theme, context: context, viewProvider: viewProvider)
+            let rendered = contents.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)
             if rendered.length == 0 {
                 return NSMutableAttributedString(string: " ", attributes: [.font: theme.fonts.body])
             }
@@ -151,7 +153,7 @@ final class BlockProcessor {
                 assertionFailure("Blockquote should only contain paragraphs after flattening")
                 continue
             }
-            let paragraphContent = content.render(theme: theme, context: context, viewProvider: viewProvider)
+            let paragraphContent = content.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)
             result.append(paragraphContent)
         }
 
@@ -192,7 +194,7 @@ final class BlockProcessor {
         let tableView = viewProvider.acquireTableView()
         let contents = rows.map {
             $0.cells.map { rawCell in
-                rawCell.content.render(theme: theme, context: context, viewProvider: viewProvider)
+                rawCell.content.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)
             }
         }
         let allContent = contents
