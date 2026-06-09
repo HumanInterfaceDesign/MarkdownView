@@ -49,6 +49,35 @@ public final class CodeHighlighter {
         return cache
     }()
 
+    /// Reusable tree-sitter parsers keyed by language alias. Parsers are not
+    /// thread-safe, so they are checked out of the pool for the duration of a
+    /// parse and returned afterwards.
+    private var parserPool: [String: [Parser]] = [:]
+    private let parserPoolLock = NSLock()
+    private static let maxPooledParsersPerLanguage = 4
+
+    private func acquireParser(for alias: String, language: Language) -> Parser? {
+        parserPoolLock.lock()
+        let pooled = parserPool[alias]?.popLast()
+        parserPoolLock.unlock()
+        if let pooled { return pooled }
+
+        let parser = Parser()
+        do {
+            try parser.setLanguage(language)
+        } catch {
+            return nil
+        }
+        return parser
+    }
+
+    private func releaseParser(_ parser: Parser, for alias: String) {
+        parserPoolLock.lock()
+        defer { parserPoolLock.unlock() }
+        guard parserPool[alias, default: []].count < Self.maxPooledParsersPerLanguage else { return }
+        parserPool[alias, default: []].append(parser)
+    }
+
     private init() {}
 
     public static let current = CodeHighlighter()
@@ -295,12 +324,8 @@ public final class CodeHighlighter {
         guard let config = Self.languageConfiguration(for: lang) else { return [:] }
         guard let query = config.queries[.highlights] else { return [:] }
 
-        let parser = Parser()
-        do {
-            try parser.setLanguage(config.language)
-        } catch {
-            return [:]
-        }
+        guard let parser = acquireParser(for: lang, language: config.language) else { return [:] }
+        defer { releaseParser(parser, for: lang) }
 
         guard let tree = parser.parse(content) else { return [:] }
 

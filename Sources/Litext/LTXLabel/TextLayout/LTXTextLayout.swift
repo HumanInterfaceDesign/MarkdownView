@@ -38,9 +38,12 @@ public class LTXTextLayout: NSObject {
 
     private var framesetter: CTFramesetter
     private var lines: [CTLine]?
+    private var lineOrigins: [CGPoint]?
     private var _highlightRegions: [Int: LTXHighlightRegion]
     private var cachedSuggestedSize: CGSize?
     private var cachedSuggestedSizeConstraint: CGSize?
+    private let hasLineDrawingActions: Bool
+    private let hasHighlightAttributes: Bool
 
     public class func textLayout(
         withAttributedString attributedString: NSAttributedString
@@ -55,6 +58,26 @@ public class LTXTextLayout: NSObject {
             attributedString
         )
         _highlightRegions = [:]
+
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        var foundDrawingAction = false
+        var foundHighlight = false
+        if fullRange.length > 0 {
+            attributedString.enumerateAttributes(in: fullRange) { attributes, _, stop in
+                if attributes[LTXLineDrawingCallbackName] != nil {
+                    foundDrawingAction = true
+                }
+                if _hasHighlightAttributes(attributes) {
+                    foundHighlight = true
+                }
+                if foundDrawingAction, foundHighlight {
+                    stop.pointee = true
+                }
+            }
+        }
+        hasLineDrawingActions = foundDrawingAction
+        hasHighlightAttributes = foundHighlight
+
         super.init()
     }
 
@@ -103,6 +126,7 @@ public class LTXTextLayout: NSObject {
     }
 
     private func processLineDrawingActions(in context: CGContext) {
+        guard hasLineDrawingActions else { return }
         enumerateLines { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
 
@@ -134,18 +158,14 @@ public class LTXTextLayout: NSObject {
     }
 
     public func lineRects() -> [CGRect] {
-        guard let ctFrame else { return [] }
+        guard let lines, let origins = lineOrigins else { return [] }
 
-        let lines = CTFrameGetLines(ctFrame) as NSArray
         let lineCount = lines.count
-        var origins = [CGPoint](repeating: .zero, count: lineCount)
-        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
-
         var rects: [CGRect] = []
         rects.reserveCapacity(lineCount)
 
         for i in 0 ..< lineCount {
-            let line = lines[i] as! CTLine
+            let line = lines[i]
             var ascent: CGFloat = 0
             var descent: CGFloat = 0
             var leading: CGFloat = 0
@@ -165,15 +185,12 @@ public class LTXTextLayout: NSObject {
     }
 
     public func enumerateTextRects(in range: NSRange, using block: (CGRect) -> Void) {
-        guard let ctFrame else { return }
+        guard let lines, let origins = lineOrigins else { return }
 
-        let lines = CTFrameGetLines(ctFrame) as NSArray
         let lineCount = lines.count
-        var origins = [CGPoint](repeating: .zero, count: lineCount)
-        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
 
         for i in 0 ..< lineCount {
-            let line = lines[i] as! CTLine
+            let line = lines[i]
             let lineRange = CTLineGetStringRange(line)
 
             let lineStart = lineRange.location
@@ -181,7 +198,12 @@ public class LTXTextLayout: NSObject {
             let selStart = range.location
             let selEnd = selStart + range.length
 
-            if selEnd < lineStart || selStart > lineEnd {
+            // Lines are ordered by string position; once past the range, no
+            // later line can overlap it.
+            if selEnd < lineStart {
+                break
+            }
+            if selStart > lineEnd {
                 continue
             }
 
@@ -263,6 +285,7 @@ public class LTXTextLayout: NSObject {
 
     private func generateLayout() {
         lines = nil
+        lineOrigins = nil
 
         let containerBounds = CGRect(
             origin: .zero,
@@ -280,11 +303,19 @@ public class LTXTextLayout: NSObject {
         )
 
         if let ctFrame {
-            lines = CTFrameGetLines(ctFrame) as? [CTLine]
+            let frameLines = CTFrameGetLines(ctFrame) as? [CTLine]
+            lines = frameLines
+
+            if let frameLines {
+                var origins = [CGPoint](repeating: .zero, count: frameLines.count)
+                CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
+                lineOrigins = origins
+            }
         }
     }
 
     private func extractHighlightRegions() {
+        guard hasHighlightAttributes else { return }
         enumerateLines { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
 
@@ -358,59 +389,38 @@ public class LTXTextLayout: NSObject {
     private func enumerateLines(
         using block: (CTLine, Int, CGPoint) -> Void
     ) {
-        guard let lines, let ctFrame else { return }
+        guard let lines, let lineOrigins else { return }
 
-        let lineCount = lines.count
-        var lineOrigins = [CGPoint](repeating: .zero, count: lineCount)
-        CTFrameGetLineOrigins(
-            ctFrame,
-            CFRange(location: 0, length: 0),
-            &lineOrigins
-        )
-
-        for i in 0 ..< lineCount {
-            let line = lines[i]
-            let origin = lineOrigins[i]
-            block(line, i, origin)
+        for i in 0 ..< lines.count {
+            block(lines[i], i, lineOrigins[i])
         }
     }
 
     // MARK: - Text Index Helpers
 
     public func textIndex(at point: CGPoint) -> Int? {
-        guard let ctFrame else { return nil }
-
-        if let lineInfo = findLineContainingPoint(point, ctFrame: ctFrame) {
+        if let lineInfo = findLineContainingPoint(point) {
             return findCharacterIndexInLine(point, lineInfo: lineInfo)
         }
 
-        let lines = CTFrameGetLines(ctFrame) as [AnyObject]
-        guard !lines.isEmpty else { return nil }
-        var lineOrigins = [CGPoint](repeating: .zero, count: lines.count)
-        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &lineOrigins)
+        guard let lines, let lineOrigins, !lines.isEmpty else { return nil }
 
         guard point.y < lineOrigins[lines.count - 1].y else { return nil }
-        let lastLine = lines[lines.count - 1] as! CTLine
+        let lastLine = lines[lines.count - 1]
         let range = CTLineGetStringRange(lastLine)
         return range.location + range.length
     }
 
     public func nearestTextIndex(at point: CGPoint) -> Int? {
-        guard let ctFrame else { return nil }
-
-        if let lineInfo = findLineContainingPoint(point, ctFrame: ctFrame) {
+        if let lineInfo = findLineContainingPoint(point) {
             return findCharacterIndexInLine(point, lineInfo: lineInfo)
         }
 
-        let lines = CTFrameGetLines(ctFrame) as [AnyObject]
-        guard !lines.isEmpty else { return nil }
-
-        var lineOrigins = [CGPoint](repeating: .zero, count: lines.count)
-        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &lineOrigins)
+        guard let lines, let lineOrigins, !lines.isEmpty else { return nil }
 
         // 如果点在文本上方
         if point.y > lineOrigins[0].y {
-            let firstLine = lines[0] as! CTLine
+            let firstLine = lines[0]
             if point.x < lineOrigins[0].x {
                 return CTLineGetStringRange(firstLine).location
             } else {
@@ -426,7 +436,7 @@ public class LTXTextLayout: NSObject {
 
         // 如果点在文本下方
         if point.y < lineOrigins[lines.count - 1].y {
-            let lastLine = lines[lines.count - 1] as! CTLine
+            let lastLine = lines[lines.count - 1]
             if point.x < lineOrigins[lines.count - 1].x {
                 return CTLineGetStringRange(lastLine).location
             } else {
@@ -445,7 +455,7 @@ public class LTXTextLayout: NSObject {
         var minDistance = CGFloat.greatestFiniteMagnitude
 
         for i in 0 ..< lines.count {
-            let line = lines[i] as! CTLine
+            let line = lines[i]
             let origin = lineOrigins[i]
             var ascent: CGFloat = 0
             var descent: CGFloat = 0
@@ -462,7 +472,7 @@ public class LTXTextLayout: NSObject {
             }
         }
 
-        let closestLine = lines[closestLineIndex] as! CTLine
+        let closestLine = lines[closestLineIndex]
         let closestOrigin = lineOrigins[closestLineIndex]
 
         return findCharacterIndexInLine(point, lineInfo: (closestLine, closestOrigin, closestLineIndex))
@@ -471,12 +481,9 @@ public class LTXTextLayout: NSObject {
     // MARK: - Private Text Index Helpers
 
     private func findLineContainingPoint(
-        _ point: CGPoint,
-        ctFrame: CTFrame
+        _ point: CGPoint
     ) -> (line: CTLine, origin: CGPoint, index: Int)? {
-        let lines = CTFrameGetLines(ctFrame) as [AnyObject]
-        var lineOrigins = [CGPoint](repeating: .zero, count: lines.count)
-        CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &lineOrigins)
+        guard let lines, let lineOrigins else { return nil }
 
         for i in 0 ..< lines.count {
             let origin = lineOrigins[i]
@@ -484,7 +491,7 @@ public class LTXTextLayout: NSObject {
             var descent: CGFloat = 0
             var leading: CGFloat = 0
 
-            let line = lines[i] as! CTLine
+            let line = lines[i]
             let lineWidth = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
             let lineHeight = ascent + descent + leading
 
@@ -515,24 +522,11 @@ public class LTXTextLayout: NSObject {
             return lineRange.location
         }
 
-        for characterOffset in 0 ..< lineRange.length {
-            let characterIndex = lineRange.location + characterOffset
-            let positionOffset = CTLineGetOffsetForStringIndex(line, characterIndex, nil)
-
-            if positionOffset >= point.x - lineOrigin.x {
-                let distanceToNextChar = positionOffset - (point.x - lineOrigin.x)
-                if characterOffset > 0 {
-                    let previousCharIndex = characterIndex - 1
-                    let previousPositionOffset = CTLineGetOffsetForStringIndex(line, previousCharIndex, nil)
-                    let distanceToPrevChar = (point.x - lineOrigin.x) - previousPositionOffset
-                    if distanceToNextChar > distanceToPrevChar {
-                        return previousCharIndex
-                    }
-                }
-                return characterIndex
-            }
+        let positionInLine = CGPoint(x: point.x - lineOrigin.x, y: 0)
+        let index = CTLineGetStringIndexForPosition(line, positionInLine)
+        if index == kCFNotFound {
+            return lineRange.location + lineRange.length
         }
-
-        return lineRange.location + lineRange.length
+        return index
     }
 }

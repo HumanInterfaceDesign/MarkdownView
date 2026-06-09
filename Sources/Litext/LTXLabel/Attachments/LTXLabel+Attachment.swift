@@ -36,7 +36,9 @@ extension LTXLabel {
                 let rect = highlightRegion.rects.first!.rectValue
             #endif
             let convertedRect = convertRectFromTextLayout(rect, insetForInteraction: false)
-            view.frame = convertedRect
+            if view.frame != convertedRect {
+                view.frame = convertedRect
+            }
         }
 
         for view in viewsToRemove {

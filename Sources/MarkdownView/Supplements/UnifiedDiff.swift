@@ -156,7 +156,41 @@ private extension UnifiedDiffParser {
         )
     }()
 
+    /// A parseable diff must start (after empty lines) with a preamble line or
+    /// a hunk header; anything else makes `parse` return nil. Checking just the
+    /// first non-empty line avoids normalizing and splitting the entire content
+    /// for ordinary code blocks, which dominate during streaming updates.
+    private static func quickLooksLikeDiff(_ content: String) -> Bool {
+        var remainder = Substring(content)
+        while let newlineIndex = remainder.firstIndex(where: \.isNewline) {
+            let line = remainder[..<newlineIndex]
+            if !line.isEmpty {
+                return looksLikeDiffStart(line)
+            }
+            remainder = remainder[remainder.index(after: newlineIndex)...]
+        }
+        return !remainder.isEmpty && looksLikeDiffStart(remainder)
+    }
+
+    private static func looksLikeDiffStart(_ line: Substring) -> Bool {
+        line.hasPrefix("@@ -")
+            || line.hasPrefix("diff --git ")
+            || line.hasPrefix("--- ")
+            || line.hasPrefix("+++ ")
+            || line.hasPrefix("index ")
+            || line.hasPrefix("new file mode ")
+            || line.hasPrefix("deleted file mode ")
+            || line.hasPrefix("rename from ")
+            || line.hasPrefix("rename to ")
+            || line.hasPrefix("old mode ")
+            || line.hasPrefix("new mode ")
+            || line.hasPrefix("similarity index ")
+            || line.hasPrefix("dissimilarity index ")
+    }
+
     static func parse(content: String, language: String?) -> ParsedBlock? {
+        guard quickLooksLikeDiff(content) else { return nil }
+
         let normalized = content
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")

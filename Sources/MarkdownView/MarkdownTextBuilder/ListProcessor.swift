@@ -21,6 +21,8 @@ final class ListProcessor {
     private let bulletDrawing: TextBuilder.BulletDrawingCallback?
     private let numberedDrawing: TextBuilder.NumberedDrawingCallback?
     private let checkboxDrawing: TextBuilder.CheckboxDrawingCallback?
+    private let attrCache: InlineAttributeCache
+    private var paragraphStyleCache: [Int: NSParagraphStyle] = [:]
 
     init(
         theme: MarkdownTheme,
@@ -36,6 +38,23 @@ final class ListProcessor {
         self.bulletDrawing = bulletDrawing
         self.numberedDrawing = numberedDrawing
         self.checkboxDrawing = checkboxDrawing
+        attrCache = InlineAttributeCache(theme: theme)
+    }
+
+    /// List items at the same depth share identical paragraph styles, so reuse
+    /// one immutable instance instead of allocating per item.
+    private func listParagraphStyle(depth: Int, reduceLineSpacing: Bool) -> NSParagraphStyle {
+        let key = depth << 1 | (reduceLineSpacing ? 1 : 0)
+        if let cached = paragraphStyleCache[key] { return cached }
+        let style = NSMutableParagraphStyle()
+        style.paragraphSpacing = reduceLineSpacing ? 8 : 16
+        style.lineSpacing = 4
+        let indent = CGFloat(depth + 1) * 24
+        style.firstLineHeadIndent = indent
+        style.headIndent = indent
+        let immutable = style.copy() as! NSParagraphStyle
+        paragraphStyleCache[key] = immutable
+        return immutable
     }
 
     func processBulletedList(items: [RawListItem]) -> NSAttributedString {
@@ -65,12 +84,7 @@ final class ListProcessor {
     }
 
     private func renderListItem(_ item: ListItem, reduceLineSpacing: Bool = false, total _: Int) -> NSAttributedString {
-        let paragraphStyle: NSMutableParagraphStyle = .init()
-        paragraphStyle.paragraphSpacing = reduceLineSpacing ? 8 : 16
-        paragraphStyle.lineSpacing = 4
-        let indent = CGFloat(item.depth + 1) * 24
-        paragraphStyle.firstLineHeadIndent = indent
-        paragraphStyle.headIndent = indent
+        let paragraphStyle = listParagraphStyle(depth: item.depth, reduceLineSpacing: reduceLineSpacing)
 
         let bulletDrawing = bulletDrawing!
         let numberedDrawing = numberedDrawing!
@@ -89,7 +103,7 @@ final class ListProcessor {
                 }
             }),
         ]))
-        string.append(item.paragraph.render(theme: theme, context: context, viewProvider: viewProvider))
+        string.append(item.paragraph.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache))
 
         string.addAttributes(
             [.paragraphStyle: paragraphStyle],
