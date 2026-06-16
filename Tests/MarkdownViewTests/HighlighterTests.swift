@@ -1,8 +1,14 @@
 import XCTest
+import MarkdownLanguages
 @testable import MarkdownParser
 @testable import MarkdownView
 
 final class HighlighterTests: XCTestCase {
+
+    override class func setUp() {
+        super.setUp()
+        MarkdownLanguages.registerAll()
+    }
 
     // MARK: - CodeHighlighter Key Generation
 
