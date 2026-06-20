@@ -34,7 +34,7 @@ The plain-text streaming fast path applies to safe token appends that do not int
 ## Requirements
 
 - iOS 16+ / macOS 13+ / visionOS 1+
-- Swift 5.9+
+- Swift 6.1+ (Swift tools 6.1, required for package traits)
 
 ## Installation
 
@@ -55,6 +55,24 @@ dependencies: [
 ```
 
 Then add `"MarkdownView"` as a dependency of your target.
+
+### Selecting languages with package traits
+
+Syntax highlighting ships grammars for many languages, each behind a [package trait](https://docs.swift.org/swiftpm/documentation/packagemanagerdocs/packagetraits/). By default every language is enabled, so no configuration is needed.
+
+To keep only the languages you use — pruning the rest from resolution and build — disable the defaults and list the traits you want:
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/HumanInterfaceDesign/MarkdownView",
+        branch: "main",
+        traits: ["Swift", "JSON"]
+    ),
+]
+```
+
+Available traits: `Python`, `JavaScript`, `TypeScript` (includes TSX), `Go`, `Rust`, `Swift`, `C`, `CPP`, `Java`, `Ruby`, `Bash`, `JSON`, `HTML`, `CSS`, `CSharp`, `Kotlin`, `SQL`, `YAML`. A language whose trait is disabled simply renders as plain text. Traits are a SwiftPM feature; adding the package through Xcode's UI always uses the default (all-languages) set.
 
 ## Usage
 
