@@ -5,25 +5,61 @@
 
 import Foundation
 import SwiftTreeSitter
-import TreeSitterPython
-import TreeSitterJavaScript
-import TreeSitterTypeScript
-import TreeSitterTSX
-import TreeSitterGo
-import TreeSitterRust
-import TreeSitterSwift
-import TreeSitterC
-import TreeSitterCPP
-import TreeSitterJava
-import TreeSitterRuby
-import TreeSitterBash
-import TreeSitterJSON
-import TreeSitterHTML
-import TreeSitterCSS
-import TreeSitterCSharp
-import TreeSitterKotlin
-import TreeSitterSql
-import TreeSitterYAML
+#if Python
+    import TreeSitterPython
+#endif
+#if JavaScript
+    import TreeSitterJavaScript
+#endif
+#if TypeScript
+    import TreeSitterTypeScript
+    import TreeSitterTSX
+#endif
+#if Go
+    import TreeSitterGo
+#endif
+#if Rust
+    import TreeSitterRust
+#endif
+#if Swift
+    import TreeSitterSwift
+#endif
+#if C
+    import TreeSitterC
+#endif
+#if CPP
+    import TreeSitterCPP
+#endif
+#if Java
+    import TreeSitterJava
+#endif
+#if Ruby
+    import TreeSitterRuby
+#endif
+#if Bash
+    import TreeSitterBash
+#endif
+#if JSON
+    import TreeSitterJSON
+#endif
+#if HTML
+    import TreeSitterHTML
+#endif
+#if CSS
+    import TreeSitterCSS
+#endif
+#if CSharp
+    import TreeSitterCSharp
+#endif
+#if Kotlin
+    import TreeSitterKotlin
+#endif
+#if SQL
+    import TreeSitterSql
+#endif
+#if YAML
+    import TreeSitterYAML
+#endif
 
 #if canImport(UIKit)
     import UIKit
@@ -149,69 +185,105 @@ public final class CodeHighlighter {
             }
         }
 
-        register(["swift"]) {
-            try makeConfig(tree_sitter_swift(), name: "Swift")
-        }
-        register(["python", "py", "python3"]) {
-            try makeConfig(tree_sitter_python(), name: "Python")
-        }
-        register(["javascript", "js", "jsx"]) {
-            try makeConfig(tree_sitter_javascript(), name: "JavaScript")
-        }
-        register(["typescript", "ts"]) {
-            try makeConfig(tree_sitter_typescript(), name: "TypeScript",
-                           bundleName: "TreeSitterTypeScript_TreeSitterTypeScript")
-        }
-        register(["tsx"]) {
-            try makeConfig(tree_sitter_tsx(), name: "TSX",
-                           bundleName: "TreeSitterTypeScript_TreeSitterTSX")
-        }
-        register(["go", "golang"]) {
-            try makeConfig(tree_sitter_go(), name: "Go")
-        }
-        register(["rust", "rs"]) {
-            try makeConfig(tree_sitter_rust(), name: "Rust")
-        }
-        register(["c", "h"]) {
-            try makeConfig(tree_sitter_c(), name: "C")
-        }
-        register(["cpp", "c++", "cc", "cxx", "hpp"]) {
-            try makeConfig(tree_sitter_cpp(), name: "CPP")
-        }
-        register(["java"]) {
-            try makeConfig(tree_sitter_java(), name: "Java")
-        }
-        register(["ruby", "rb"]) {
-            try makeConfig(tree_sitter_ruby(), name: "Ruby")
-        }
-        register(["bash", "sh", "shell", "zsh"]) {
-            try makeConfig(tree_sitter_bash(), name: "Bash")
-        }
-        register(["json", "jsonc"]) {
-            try makeConfig(tree_sitter_json(), name: "JSON")
-        }
-        register(["html", "htm"]) {
-            try makeConfig(tree_sitter_html(), name: "HTML")
-        }
-        register(["css"]) {
-            try makeConfig(tree_sitter_css(), name: "CSS")
-        }
-        register(["csharp", "c#", "cs"]) {
-            try makeConfig(tree_sitter_c_sharp(), name: "CSharp",
-                           bundleName: "TreeSitterCSharp_TreeSitterCSharp")
-        }
-        register(["kotlin", "kt", "kts"]) {
-            try makeConfig(tree_sitter_kotlin(), name: "Kotlin",
-                           bundleName: "TreeSitterKotlin_TreeSitterKotlin")
-        }
-        register(["sql"]) {
-            try makeConfig(tree_sitter_sql(), name: "SQL",
-                           bundleName: "TreeSitterSql_TreeSitterSql")
-        }
-        register(["yaml", "yml"]) {
-            try makeConfig(tree_sitter_yaml(), name: "YAML",
-                           bundleName: "TreeSitterYAML_TreeSitterYAML")
-        }
+        #if Swift
+            register(["swift"]) {
+                try makeConfig(tree_sitter_swift(), name: "Swift")
+            }
+        #endif
+        #if Python
+            register(["python", "py", "python3"]) {
+                try makeConfig(tree_sitter_python(), name: "Python")
+            }
+        #endif
+        #if JavaScript
+            register(["javascript", "js", "jsx"]) {
+                try makeConfig(tree_sitter_javascript(), name: "JavaScript")
+            }
+        #endif
+        #if TypeScript
+            register(["typescript", "ts"]) {
+                try makeConfig(tree_sitter_typescript(), name: "TypeScript",
+                               bundleName: "TreeSitterTypeScript_TreeSitterTypeScript")
+            }
+            register(["tsx"]) {
+                try makeConfig(tree_sitter_tsx(), name: "TSX",
+                               bundleName: "TreeSitterTypeScript_TreeSitterTSX")
+            }
+        #endif
+        #if Go
+            register(["go", "golang"]) {
+                try makeConfig(tree_sitter_go(), name: "Go")
+            }
+        #endif
+        #if Rust
+            register(["rust", "rs"]) {
+                try makeConfig(tree_sitter_rust(), name: "Rust")
+            }
+        #endif
+        #if C
+            register(["c", "h"]) {
+                try makeConfig(tree_sitter_c(), name: "C")
+            }
+        #endif
+        #if CPP
+            register(["cpp", "c++", "cc", "cxx", "hpp"]) {
+                try makeConfig(tree_sitter_cpp(), name: "CPP")
+            }
+        #endif
+        #if Java
+            register(["java"]) {
+                try makeConfig(tree_sitter_java(), name: "Java")
+            }
+        #endif
+        #if Ruby
+            register(["ruby", "rb"]) {
+                try makeConfig(tree_sitter_ruby(), name: "Ruby")
+            }
+        #endif
+        #if Bash
+            register(["bash", "sh", "shell", "zsh"]) {
+                try makeConfig(tree_sitter_bash(), name: "Bash")
+            }
+        #endif
+        #if JSON
+            register(["json", "jsonc"]) {
+                try makeConfig(tree_sitter_json(), name: "JSON")
+            }
+        #endif
+        #if HTML
+            register(["html", "htm"]) {
+                try makeConfig(tree_sitter_html(), name: "HTML")
+            }
+        #endif
+        #if CSS
+            register(["css"]) {
+                try makeConfig(tree_sitter_css(), name: "CSS")
+            }
+        #endif
+        #if CSharp
+            register(["csharp", "c#", "cs"]) {
+                try makeConfig(tree_sitter_c_sharp(), name: "CSharp",
+                               bundleName: "TreeSitterCSharp_TreeSitterCSharp")
+            }
+        #endif
+        #if Kotlin
+            register(["kotlin", "kt", "kts"]) {
+                try makeConfig(tree_sitter_kotlin(), name: "Kotlin",
+                               bundleName: "TreeSitterKotlin_TreeSitterKotlin")
+            }
+        #endif
+        #if SQL
+            register(["sql"]) {
+                try makeConfig(tree_sitter_sql(), name: "SQL",
+                               bundleName: "TreeSitterSql_TreeSitterSql")
+            }
+        #endif
+        #if YAML
+            register(["yaml", "yml"]) {
+                try makeConfig(tree_sitter_yaml(), name: "YAML",
+                               bundleName: "TreeSitterYAML_TreeSitterYAML")
+            }
+        #endif
         return factories
     }()
 
