@@ -223,7 +223,7 @@ final class BlockProcessor {
 extension BlockProcessor {
     private static let defaultParagraphStyle: NSParagraphStyle = {
         let style = NSMutableParagraphStyle()
-        style.paragraphSpacing = 16
+        style.paragraphSpacing = 8
         style.lineSpacing = 4
         return style.copy() as! NSParagraphStyle
     }()
