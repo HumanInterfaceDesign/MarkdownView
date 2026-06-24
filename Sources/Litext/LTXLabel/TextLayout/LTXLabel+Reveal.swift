@@ -42,10 +42,19 @@ extension LTXLabel {
         revealAppearance = []
         revealActive = false
         revealLastStamp = 0
+        revealCursor = 0
         stopRevealDriver()
     }
 
-    /// Stamp newly-appended characters with the current time so they fade in.
+    /// How far ahead of "now" the reveal schedule is allowed to run, so a fast
+    /// stream can't make the sweep lag indefinitely (it compresses to keep up).
+    private var revealMaxLeadTime: CFTimeInterval { 0.6 }
+
+    /// Schedule appearance times for newly-appended characters. Instead of stamping
+    /// the whole batch at `now` (which fades a chunk in as one block), the batch is
+    /// spread left→right at `streamingRevealCharactersPerSecond`, continuing from
+    /// where the previous batch left off so the sweep stays continuous. The
+    /// schedule is capped at `revealMaxLeadTime` ahead of now to bound the lag.
     func handleRevealTextChange() {
         guard streamingReveal else {
             // Keep a fade that's still settling so it finishes smoothly when
@@ -58,19 +67,42 @@ extension LTXLabel {
         }
 
         let newLength = attributedText.length
-        if newLength > revealAppearance.count {
-            let now = CACurrentMediaTime()
-            revealAppearance.append(
-                contentsOf: repeatElement(now, count: newLength - revealAppearance.count)
-            )
-            revealLastStamp = now
-            revealActive = true
-            startRevealDriver()
-            setNeedsDisplayForReveal()
-        } else if newLength < revealAppearance.count {
+        guard newLength != revealAppearance.count else { return }
+
+        if newLength < revealAppearance.count {
             // Content shrank (reset / re-render) — drop stale stamps.
             revealAppearance = Array(revealAppearance.prefix(newLength))
+            return
         }
+
+        let now = CACurrentMediaTime()
+        let count = newLength - revealAppearance.count
+        let baseInterval = streamingRevealCharactersPerSecond > 0
+            ? 1.0 / CFTimeInterval(streamingRevealCharactersPerSecond)
+            : 0
+
+        // Continue the typewriter from the cursor, but never start in the past.
+        var start = max(now, revealCursor)
+        // Cap how far ahead the batch may finish; compress the spacing if the
+        // batch is large so the reveal keeps up with the incoming stream.
+        let deadline = now + revealMaxLeadTime
+        var interval = baseInterval
+        if start > deadline {
+            start = deadline
+            interval = 0
+        } else if start + CFTimeInterval(count) * baseInterval > deadline {
+            interval = max(0, (deadline - start) / CFTimeInterval(count))
+        }
+
+        revealAppearance.reserveCapacity(newLength)
+        for index in 0 ..< count {
+            revealAppearance.append(start + CFTimeInterval(index) * interval)
+        }
+        revealCursor = start + CFTimeInterval(count) * interval
+        revealLastStamp = start + CFTimeInterval(max(0, count - 1)) * interval
+        revealActive = true
+        startRevealDriver()
+        setNeedsDisplayForReveal()
     }
 
     func handleStreamingRevealChanged() {

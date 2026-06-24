@@ -269,17 +269,18 @@ Selection tint is theme-driven. By default, `selectionBackground` is derived fro
 
 ### Streaming Reveal
 
-For chat / LLM UIs where text arrives token-by-token, `streamingReveal` fades each newly-appended character in (left→right as it arrives) instead of having it pop in. The fade is per-character and time-driven, so it stays fluid between content updates, always settles to fully opaque, and composes into one continuous stream even when a response is rendered across several `MarkdownTextView`s.
+For chat / LLM UIs where text arrives token-by-token, `streamingReveal` fades newly-appended characters in (left→right as they arrive) instead of having them pop in. The reveal sweeps through characters at a steady pace, so even when a whole block arrives in a single chunk it still reveals word-by-word rather than fading in as one block. It stays fluid between content updates, always settles to fully opaque, and composes into one continuous stream even when a response is rendered across several `MarkdownTextView`s.
 
 ```swift
 let markdownView = MarkdownTextView()
 
 // Turn the reveal on before streaming, off when the stream finishes.
 markdownView.streamingReveal = true
-markdownView.streamingRevealDuration = 0.4 // seconds per character (default 0.4)
+markdownView.streamingRevealCharactersPerSecond = 90 // sweep speed (default 90)
+markdownView.streamingRevealDuration = 0.4           // per-character fade softness (default 0.4)
 
 // Feed the growing text on each chunk — characters appended since the last
-// update fade in; already-revealed text stays put.
+// update are swept in; already-revealed text stays put.
 func onChunk(_ accumulatedMarkdown: String) {
     let result = parser.parse(accumulatedMarkdown)
     markdownView.setMarkdown(.init(parserResult: result, theme: markdownView.theme))
@@ -294,7 +295,8 @@ func onComplete() {
 
 Notes:
 
-- `streamingRevealDuration` controls how long each character takes to fade in. Lower values feel snappier; higher values make the trailing fade edge longer.
+- `streamingRevealCharactersPerSecond` controls how fast the reveal sweeps through text. This is the main "how fast it types" knob — lower values feel slower and more deliberate. Bursty arrivals (a whole block at once) are still revealed at this pace; the sweep is capped so it can't lag indefinitely behind a fast stream (it compresses to keep up).
+- `streamingRevealDuration` controls how soft the fade edge is — how long a single character takes to go from hidden to fully visible.
 - Set `streamingReveal = false` when the stream ends — the last characters finish fading on their own.
 - Call `cancelStreamingReveal()` to drop an in-flight fade immediately (e.g. when reusing a cell for new content) so a stale fade never bleeds onto it.
 - When no reveal is in flight, drawing uses the standard fast path, so there's no cost for non-streaming content.

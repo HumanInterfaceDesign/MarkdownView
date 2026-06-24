@@ -35,12 +35,22 @@ public class LTXLabel: LTXPlatformView, Identifiable {
         didSet { handleStreamingRevealChanged() }
     }
 
-    /// Per-character fade duration for `streamingReveal`.
+    /// Per-character fade duration for `streamingReveal` (how soft the fade edge is).
     public var streamingRevealDuration: CFTimeInterval = 0.4
 
+    /// How fast the reveal sweeps through characters, in characters per second.
+    /// A burst of text that arrives at once is still revealed left→right at this
+    /// pace (rather than fading in as one block). Lower = slower / more deliberate.
+    public var streamingRevealCharactersPerSecond: CGFloat = 90
+
     /// Wall-clock appearance time per character index; empty when not revealing.
+    /// Times may be scheduled slightly into the future so a bursty arrival reveals
+    /// as a paced sweep instead of all at once.
     var revealAppearance: [CFTimeInterval] = []
-    /// Most recent appearance stamp — the reveal settles `duration` after this.
+    /// The scheduled appearance time for the next character — the "typewriter"
+    /// cursor that carries pacing across batches.
+    var revealCursor: CFTimeInterval = 0
+    /// Latest scheduled appearance — the reveal settles `duration` after this.
     var revealLastStamp: CFTimeInterval = 0
     /// True while any character is still mid-fade (drives the per-glyph draw path).
     var revealActive: Bool = false

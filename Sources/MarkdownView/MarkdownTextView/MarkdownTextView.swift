@@ -121,10 +121,17 @@ enum ContentPipelineMode {
             set { textView.streamingReveal = newValue }
         }
 
-        /// Per-character fade duration for `streamingReveal`.
+        /// Per-character fade duration for `streamingReveal` (fade softness).
         public var streamingRevealDuration: CFTimeInterval {
             get { textView.streamingRevealDuration }
             set { textView.streamingRevealDuration = newValue }
+        }
+
+        /// How fast the reveal sweeps through characters (characters per second).
+        /// Bursty arrivals are still revealed left→right at this pace. Lower = slower.
+        public var streamingRevealCharactersPerSecond: CGFloat {
+            get { textView.streamingRevealCharactersPerSecond }
+            set { textView.streamingRevealCharactersPerSecond = newValue }
         }
 
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
@@ -291,10 +298,17 @@ enum ContentPipelineMode {
             set { textView.streamingReveal = newValue }
         }
 
-        /// Per-character fade duration for `streamingReveal`.
+        /// Per-character fade duration for `streamingReveal` (fade softness).
         public var streamingRevealDuration: CFTimeInterval {
             get { textView.streamingRevealDuration }
             set { textView.streamingRevealDuration = newValue }
+        }
+
+        /// How fast the reveal sweeps through characters (characters per second).
+        /// Bursty arrivals are still revealed left→right at this pace. Lower = slower.
+        public var streamingRevealCharactersPerSecond: CGFloat {
+            get { textView.streamingRevealCharactersPerSecond }
+            set { textView.streamingRevealCharactersPerSecond = newValue }
         }
 
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
