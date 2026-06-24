@@ -178,7 +178,16 @@
                 }
             }
 
-            guard selectionRange == nil, !isTouchReallyMoved(location) else { return }
+            guard selectionRange == nil else { return }
+            // The 3pt `isTouchReallyMoved` threshold is meant for selection drags and is
+            // too strict to gate a tap: a finger on a touch screen jitters several points
+            // on a normal tap, which would otherwise drop link/attachment taps on device.
+            let tapSlop: CGFloat = 10
+            let tapDistance = hypot(
+                location.x - interactionState.initialTouchLocation.x,
+                location.y - interactionState.initialTouchLocation.y
+            )
+            guard tapDistance <= tapSlop else { return }
             for region in highlightRegions {
                 let rects = region.rects.map {
                     convertRectFromTextLayout($0.cgRectValue, insetForInteraction: true)
