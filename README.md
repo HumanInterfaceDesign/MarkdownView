@@ -12,6 +12,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - GitHub-style unified diff rendering for fenced `diff` / `patch` blocks, fenced auto-detection, and raw unified patch strings passed to `setMarkdown(string:)` or `PreprocessedContent(markdown:theme:)`
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
+- Streaming "typing" reveal: per-character fade-in for text as it streams in, with a configurable duration
 - Comprehensive theming with fonts, colors, and spacing
 - Two selection modes: text selection (default) with long-press and custom menu items, or opt-in line selection with tap/drag and callback
 - VoiceOver accessibility for text, code blocks, tables, and math content
@@ -265,6 +266,38 @@ markdownView.theme = theme
 </details>
 
 Selection tint is theme-driven. By default, `selectionBackground` is derived from `selectionTint` with a 20% alpha. Set `selectionBackground` explicitly when you want a different selection fill without changing the tint.
+
+### Streaming Reveal
+
+For chat / LLM UIs where text arrives token-by-token, `streamingReveal` fades each newly-appended character in (left→right as it arrives) instead of having it pop in. The fade is per-character and time-driven, so it stays fluid between content updates, always settles to fully opaque, and composes into one continuous stream even when a response is rendered across several `MarkdownTextView`s.
+
+```swift
+let markdownView = MarkdownTextView()
+
+// Turn the reveal on before streaming, off when the stream finishes.
+markdownView.streamingReveal = true
+markdownView.streamingRevealDuration = 0.4 // seconds per character (default 0.4)
+
+// Feed the growing text on each chunk — characters appended since the last
+// update fade in; already-revealed text stays put.
+func onChunk(_ accumulatedMarkdown: String) {
+    let result = parser.parse(accumulatedMarkdown)
+    markdownView.setMarkdown(.init(parserResult: result, theme: markdownView.theme))
+}
+
+// When the response completes, stop arming new text. In-flight fades still
+// settle smoothly; no need to re-render.
+func onComplete() {
+    markdownView.streamingReveal = false
+}
+```
+
+Notes:
+
+- `streamingRevealDuration` controls how long each character takes to fade in. Lower values feel snappier; higher values make the trailing fade edge longer.
+- Set `streamingReveal = false` when the stream ends — the last characters finish fading on their own.
+- Call `cancelStreamingReveal()` to drop an in-flight fade immediately (e.g. when reusing a cell for new content) so a stale fade never bleeds onto it.
+- When no reveal is in flight, drawing uses the standard fast path, so there's no cost for non-streaming content.
 
 ### Selection Modes
 

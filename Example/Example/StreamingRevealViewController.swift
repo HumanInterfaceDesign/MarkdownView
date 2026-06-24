@@ -17,6 +17,16 @@ final class StreamingRevealViewController: UIViewController {
     private let markdownView = MarkdownTextView()
     private let parser = MarkdownParser()
 
+    /// Selectable per-character fade durations, surfaced via the segmented control.
+    private let durations: [(title: String, value: CFTimeInterval)] = [
+        ("Fast · 0.2s", 0.2),
+        ("Default · 0.4s", 0.4),
+        ("Slow · 0.8s", 0.8),
+    ]
+    private lazy var durationControl = UISegmentedControl(
+        items: durations.map(\.title)
+    )
+
     /// Characters appended per tick — small values mimic token-by-token streaming.
     private let charactersPerTick = 3
     private let tickInterval: TimeInterval = 0.03
@@ -57,14 +67,24 @@ final class StreamingRevealViewController: UIViewController {
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         markdownView.translatesAutoresizingMaskIntoConstraints = false
+        durationControl.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
+        view.addSubview(durationControl)
         scrollView.addSubview(markdownView)
+
+        // Changing the duration re-streams so the effect is immediately visible.
+        durationControl.selectedSegmentIndex = 1
+        durationControl.addAction(UIAction { [weak self] _ in self?.startStreaming() }, for: .valueChanged)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: durationControl.topAnchor, constant: -12),
+
+            durationControl.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            durationControl.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            durationControl.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
 
             markdownView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 16),
             markdownView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
@@ -72,8 +92,6 @@ final class StreamingRevealViewController: UIViewController {
             markdownView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
             markdownView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32),
         ])
-
-        markdownView.streamingRevealDuration = 0.4
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -96,6 +114,7 @@ final class StreamingRevealViewController: UIViewController {
         // Cancel any in-flight fade from a previous run, then arm the reveal so
         // every appended chunk fades in as it lands.
         markdownView.cancelStreamingReveal()
+        markdownView.streamingRevealDuration = durations[durationControl.selectedSegmentIndex].value
         markdownView.streamingReveal = true
         render(prefixLength: 0)
 
