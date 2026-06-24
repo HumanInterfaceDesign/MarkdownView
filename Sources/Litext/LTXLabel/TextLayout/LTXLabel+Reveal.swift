@@ -88,8 +88,13 @@ extension LTXLabel {
         setNeedsDisplayForReveal()
         let now = CACurrentMediaTime()
         if now >= revealLastStamp + streamingRevealDuration {
+            // Settle: switch to the opaque fast path (driven by `revealActive`),
+            // but KEEP the appearance stamps. Streaming UIs commonly re-emit an
+            // already-finished block unchanged on later chunks; if we cleared the
+            // stamps here, that same-length re-emission would look "new" and
+            // re-fade a block that already settled. Stamps are only cleared on a
+            // real shrink/reset (`handleRevealTextChange`) or `cancelStreamingReveal`.
             revealActive = false
-            revealAppearance = []
             stopRevealDriver()
             setNeedsDisplayForReveal() // final fully-opaque pass (fast path)
         }
