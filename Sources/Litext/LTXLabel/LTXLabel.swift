@@ -19,8 +19,36 @@ public class LTXLabel: LTXPlatformView, Identifiable {
             // full relayout; skip it when the content is unchanged.
             guard !attributedText.isEqual(to: oldValue) else { return }
             textLayout = LTXTextLayout(attributedString: attributedText)
+            handleRevealTextChange()
         }
     }
+
+    // MARK: - Streaming reveal
+
+    /// When `true`, characters appended to `attributedText` fade in (left→right as
+    /// they arrive) instead of appearing instantly — the streaming "typing" reveal.
+    /// Each character fades over `streamingRevealDuration` from when it first
+    /// appears, so text flowing across several labels composes into one
+    /// continuous stream. Set back to `false` when the stream finishes; in-flight
+    /// fades still settle.
+    public var streamingReveal: Bool = false {
+        didSet { handleStreamingRevealChanged() }
+    }
+
+    /// Per-character fade duration for `streamingReveal`.
+    public var streamingRevealDuration: CFTimeInterval = 0.4
+
+    /// Wall-clock appearance time per character index; empty when not revealing.
+    var revealAppearance: [CFTimeInterval] = []
+    /// Most recent appearance stamp — the reveal settles `duration` after this.
+    var revealLastStamp: CFTimeInterval = 0
+    /// True while any character is still mid-fade (drives the per-glyph draw path).
+    var revealActive: Bool = false
+    #if canImport(UIKit)
+        var revealDisplayLink: CADisplayLink?
+    #else
+        var revealTimer: Timer?
+    #endif
 
     public var preferredMaxLayoutWidth: CGFloat = 0 {
         didSet {
@@ -149,6 +177,7 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     }
 
     deinit {
+        stopRevealDriver()
         cancelLongPressTimer()
         attributedText = .init()
         attachmentViews = []

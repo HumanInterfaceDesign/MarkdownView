@@ -14,7 +14,7 @@ import Foundation
         override func draw(_: CGRect) {
             guard let context = UIGraphicsGetCurrentContext() else { return }
             UIGraphicsPushContext(context)
-            textLayout.draw(in: context)
+            textLayout.draw(in: context, glyphAlpha: revealGlyphAlphaProvider())
             UIGraphicsPopContext()
         }
     }
@@ -26,7 +26,7 @@ import Foundation
         override func draw(_ dirtyRect: NSRect) {
             super.draw(dirtyRect)
             guard let context = NSGraphicsContext.current?.cgContext else { return }
-            textLayout.draw(in: context)
+            textLayout.draw(in: context, glyphAlpha: revealGlyphAlphaProvider())
         }
 
         override var isFlipped: Bool {

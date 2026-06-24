@@ -110,6 +110,13 @@ public class LTXTextLayout: NSObject {
     }
 
     public func draw(in context: CGContext) {
+        draw(in: context, glyphAlpha: nil)
+    }
+
+    /// Draws the laid-out text. When `glyphAlpha` is supplied, glyphs are drawn
+    /// run-by-run with a per-character alpha (used for the streaming fade-in
+    /// reveal); otherwise the fast `CTFrameDraw` path is used unchanged.
+    public func draw(in context: CGContext, glyphAlpha: ((Int) -> CGFloat)?) {
         context.saveGState()
 
         context.setAllowsAntialiasing(true)
@@ -118,11 +125,53 @@ public class LTXTextLayout: NSObject {
         context.translateBy(x: 0, y: containerSize.height)
         context.scaleBy(x: 1, y: -1)
 
-        if let ctFrame { CTFrameDraw(ctFrame, context) }
+        if let glyphAlpha {
+            drawGlyphs(in: context, glyphAlpha: glyphAlpha)
+        } else if let ctFrame {
+            CTFrameDraw(ctFrame, context)
+        }
 
         processLineDrawingActions(in: context)
 
         context.restoreGState()
+    }
+
+    /// Per-run draw that varies alpha by character index. Consecutive glyphs with
+    /// near-equal alpha are batched into a single `CTRunDraw` so the cost stays
+    /// close to the frame draw while still producing a smooth fade edge.
+    private func drawGlyphs(in context: CGContext, glyphAlpha: (Int) -> CGFloat) {
+        context.textMatrix = .identity
+        enumerateLines { line, _, lineOrigin in
+            let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
+            for runIndex in 0 ..< glyphRuns.count {
+                guard let run = glyphRuns[runIndex] as! CTRun? else { continue }
+                let glyphCount = CTRunGetGlyphCount(run)
+                guard glyphCount > 0 else { continue }
+
+                var indices = [CFIndex](repeating: 0, count: glyphCount)
+                CTRunGetStringIndices(run, CFRange(location: 0, length: 0), &indices)
+
+                context.textPosition = lineOrigin
+                var start = 0
+                while start < glyphCount {
+                    let alpha = clampAlpha(glyphAlpha(indices[start]))
+                    var end = start + 1
+                    while end < glyphCount, abs(clampAlpha(glyphAlpha(indices[end])) - alpha) < 0.03 {
+                        end += 1
+                    }
+                    if alpha > 0.001 {
+                        context.setAlpha(alpha)
+                        CTRunDraw(run, context, CFRange(location: start, length: end - start))
+                    }
+                    start = end
+                }
+            }
+        }
+        context.setAlpha(1)
+    }
+
+    private func clampAlpha(_ value: CGFloat) -> CGFloat {
+        max(0, min(1, value))
     }
 
     private func processLineDrawingActions(in context: CGContext) {

@@ -15,23 +15,41 @@ class ViewController: UITableViewController {
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
     }
 
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        2
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        section == 0 ? "Streaming" : "Diff & Selection"
+    }
+
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        examples.count
+        section == 0 ? 1 : examples.count
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        let example = examples[indexPath.row]
         var config = cell.defaultContentConfiguration()
-        config.text = example.title
-        config.secondaryText = example.subtitle
+        if indexPath.section == 0 {
+            config.text = "Streaming Reveal"
+            config.secondaryText = "Per-character fade-in as text streams"
+        } else {
+            let example = examples[indexPath.row]
+            config.text = example.title
+            config.secondaryText = example.subtitle
+        }
         cell.contentConfiguration = config
         cell.accessoryType = .disclosureIndicator
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let detail = DetailViewController(example: examples[indexPath.row])
-        navigationController?.pushViewController(detail, animated: true)
+        let destination: UIViewController
+        if indexPath.section == 0 {
+            destination = StreamingRevealViewController()
+        } else {
+            destination = DetailViewController(example: examples[indexPath.row])
+        }
+        navigationController?.pushViewController(destination, animated: true)
     }
 }

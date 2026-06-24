@@ -114,6 +114,24 @@ enum ContentPipelineMode {
             return textView.intrinsicContentSize
         }
 
+        /// Streaming "typing" reveal — forwards to the text label
+        /// (see `LTXLabel.streamingReveal`). Set `true` while a message streams.
+        public var streamingReveal: Bool {
+            get { textView.streamingReveal }
+            set { textView.streamingReveal = newValue }
+        }
+
+        /// Per-character fade duration for `streamingReveal`.
+        public var streamingRevealDuration: CFTimeInterval {
+            get { textView.streamingRevealDuration }
+            set { textView.streamingRevealDuration = newValue }
+        }
+
+        /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
+        public func cancelStreamingReveal() {
+            textView.cancelStreamingReveal()
+        }
+
         public func setMarkdownManually(_ content: PreprocessedContent) {
             assert(Thread.isMainThread)
             resetCombine()
@@ -264,6 +282,24 @@ enum ContentPipelineMode {
         public func boundingSize(for width: CGFloat) -> CGSize {
             textView.preferredMaxLayoutWidth = width
             return textView.intrinsicContentSize
+        }
+
+        /// Streaming "typing" reveal — forwards to the text label
+        /// (see `LTXLabel.streamingReveal`). Set `true` while a message streams.
+        public var streamingReveal: Bool {
+            get { textView.streamingReveal }
+            set { textView.streamingReveal = newValue }
+        }
+
+        /// Per-character fade duration for `streamingReveal`.
+        public var streamingRevealDuration: CFTimeInterval {
+            get { textView.streamingRevealDuration }
+            set { textView.streamingRevealDuration = newValue }
+        }
+
+        /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
+        public func cancelStreamingReveal() {
+            textView.cancelStreamingReveal()
         }
 
         public func setMarkdownManually(_ content: PreprocessedContent) {
