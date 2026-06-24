@@ -100,7 +100,7 @@ extension MarkdownInlineNode {
                 [
                     .link: destination,
                     .foregroundColor: theme.colors.highlight,
-                    .underlineStyle: NSUnderlineStyle.single.rawValue,
+                    .underlineStyle: theme.linkUnderlineStyle.rawValue,
                     .underlineColor: theme.colors.highlight,
                 ],
                 range: NSRange(location: 0, length: ans.length)

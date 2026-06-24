@@ -109,6 +109,10 @@ public struct MarkdownTheme: Equatable {
     public var colors: Colors = .init()
     public var showsBlockHeaders: Bool = true
 
+    /// Underline style applied to links. Defaults to a solid single line; set to
+    /// e.g. `[.single, .patternDot]` for a dotted underline.
+    public var linkUnderlineStyle: NSUnderlineStyle = .single
+
     public struct Spacings: Equatable {
         public var final: CGFloat = 16
         public var general: CGFloat = 8
