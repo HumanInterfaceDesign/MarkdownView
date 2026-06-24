@@ -187,12 +187,13 @@ public class LTXTextLayout: NSObject {
                 if let action = attributes[LTXLineDrawingCallbackName] as? LTXLineDrawingAction {
                     context.saveGState()
                     // Fade line decorations (list bullets, quote bars, …) in step
-                    // with the run's text so they reveal together rather than
-                    // popping in at full opacity ahead of the streaming sweep.
+                    // with the text on their line so they reveal together rather
+                    // than popping in ahead of the streaming sweep. Key off the
+                    // line's first character index (the marker sits at the item's
+                    // start); the run's own glyph indices aren't reliable here.
                     if let glyphAlpha {
-                        var index: CFIndex = 0
-                        CTRunGetStringIndices(glyphRun, CFRange(location: 0, length: 1), &index)
-                        context.setAlpha(clampAlpha(glyphAlpha(index)))
+                        let lineStart = CTLineGetStringRange(line).location
+                        context.setAlpha(clampAlpha(glyphAlpha(lineStart)))
                     }
                     action.action(context, line, lineOrigin)
                     context.restoreGState()
