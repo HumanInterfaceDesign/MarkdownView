@@ -96,15 +96,51 @@ extension MarkdownInlineNode {
         case let .link(destination, children):
             let ans = NSMutableAttributedString()
             for child in children { ans.append(child.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)) }
-            ans.addAttributes(
-                [
-                    .link: destination,
-                    .foregroundColor: theme.colors.highlight,
-                    .underlineStyle: theme.linkUnderlineStyle.rawValue,
-                    .underlineColor: theme.colors.highlight,
-                ],
-                range: NSRange(location: 0, length: ans.length)
-            )
+            var attributes: [NSAttributedString.Key: Any] = [
+                .link: destination,
+                .foregroundColor: theme.colors.highlight,
+            ]
+            if let dash = theme.linkUnderlineDash, !dash.isEmpty {
+                // Custom dashed underline: NSUnderlineStyle's pattern lengths aren't
+                // configurable, so draw the line ourselves with the requested dash.
+                let identifier = UUID().uuidString
+                let color = theme.colors.highlight
+                let lineWidth = theme.linkUnderlineWidth
+                // Sit just below the baseline, within the descent. Tunable.
+                let offset = abs(theme.fonts.body.descender) * 0.5
+                attributes[.contextIdentifier] = identifier
+                attributes[LTXLineDrawingCallbackName] = LTXLineDrawingAction { context, line, lineOrigin in
+                    // Sum the extent of this link's run(s) on the current line. A link
+                    // may span several runs (font substitution) or wrap across lines;
+                    // each line's portion is drawn when its runs are visited.
+                    let runs = CTLineGetGlyphRuns(line) as NSArray
+                    var runOffsetX: CGFloat = 0
+                    var startX: CGFloat?
+                    var totalWidth: CGFloat = 0
+                    for i in 0 ..< runs.count {
+                        let run = runs[i] as! CTRun
+                        let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil))
+                        let attrs = CTRunGetAttributes(run) as! [NSAttributedString.Key: Any]
+                        if attrs[.contextIdentifier] as? String == identifier {
+                            if startX == nil { startX = lineOrigin.x + runOffsetX }
+                            totalWidth += width
+                        }
+                        runOffsetX += width
+                    }
+                    guard let startX, totalWidth > 0 else { return }
+                    let y = lineOrigin.y - offset
+                    context.setStrokeColor(color.cgColor)
+                    context.setLineWidth(lineWidth)
+                    context.setLineDash(phase: 0, lengths: dash)
+                    context.move(to: CGPoint(x: startX, y: y))
+                    context.addLine(to: CGPoint(x: startX + totalWidth, y: y))
+                    context.strokePath()
+                }
+            } else {
+                attributes[.underlineStyle] = theme.linkUnderlineStyle.rawValue
+                attributes[.underlineColor] = theme.colors.highlight
+            }
+            ans.addAttributes(attributes, range: NSRange(location: 0, length: ans.length))
             return ans
         case let .image(source, children):
             let altText = children.map { node -> String in

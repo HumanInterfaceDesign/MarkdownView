@@ -109,9 +109,18 @@ public struct MarkdownTheme: Equatable {
     public var colors: Colors = .init()
     public var showsBlockHeaders: Bool = true
 
-    /// Underline style applied to links. Defaults to a solid single line; set to
-    /// e.g. `[.single, .patternDot]` for a dotted underline.
+    /// Underline style applied to links. Used only when `linkUnderlineDash` is
+    /// `nil`. Defaults to a solid single line; set to e.g. `[.single, .patternDot]`
+    /// for a system dotted underline (whose dash length is not configurable).
     public var linkUnderlineStyle: NSUnderlineStyle = .single
+
+    /// When set, links are underlined with a custom-drawn dashed line using these
+    /// dash/gap lengths (e.g. `[6, 3]` = 6pt dash, 3pt gap), overriding
+    /// `linkUnderlineStyle`. `nil` uses the attribute-based `linkUnderlineStyle`.
+    public var linkUnderlineDash: [CGFloat]? = nil
+
+    /// Line width for the custom dashed link underline (`linkUnderlineDash`).
+    public var linkUnderlineWidth: CGFloat = 1
 
     public struct Spacings: Equatable {
         public var final: CGFloat = 16
