@@ -134,6 +134,14 @@ enum ContentPipelineMode {
             set { textView.streamingRevealCharactersPerSecond = newValue }
         }
 
+        /// Group key that sequences the reveal across multiple views as one
+        /// top-to-bottom cascade. Set the same value on every view that makes up a
+        /// single streamed response (e.g. one response split across many cells).
+        public var streamingRevealGroup: String? {
+            get { textView.streamingRevealGroup }
+            set { textView.streamingRevealGroup = newValue }
+        }
+
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
         public func cancelStreamingReveal() {
             textView.cancelStreamingReveal()
@@ -309,6 +317,14 @@ enum ContentPipelineMode {
         public var streamingRevealCharactersPerSecond: CGFloat {
             get { textView.streamingRevealCharactersPerSecond }
             set { textView.streamingRevealCharactersPerSecond = newValue }
+        }
+
+        /// Group key that sequences the reveal across multiple views as one
+        /// top-to-bottom cascade. Set the same value on every view that makes up a
+        /// single streamed response (e.g. one response split across many cells).
+        public var streamingRevealGroup: String? {
+            get { textView.streamingRevealGroup }
+            set { textView.streamingRevealGroup = newValue }
         }
 
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).

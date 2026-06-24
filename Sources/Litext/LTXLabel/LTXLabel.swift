@@ -43,6 +43,13 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// pace (rather than fading in as one block). Lower = slower / more deliberate.
     public var streamingRevealCharactersPerSecond: CGFloat = 90
 
+    /// Optional group key that sequences the reveal across multiple labels. Labels
+    /// sharing a group reveal in append order (block 1, then 2, …) as one
+    /// top-to-bottom cascade — set this to the same value on every label that makes
+    /// up a single streamed response (e.g. one response split across many cells).
+    /// `nil` (default) keeps each label on its own clock.
+    public var streamingRevealGroup: String?
+
     /// Wall-clock appearance time per character index; empty when not revealing.
     /// Times may be scheduled slightly into the future so a bursty arrival reveals
     /// as a paced sweep instead of all at once.

@@ -18,6 +18,11 @@ import QuartzCore
     import AppKit
 #endif
 
+/// Shared typewriter cursors keyed by `streamingRevealGroup`. Main-thread only
+/// (driven from UIKit/AppKit drawing). A single entry per group; values are wall
+/// times that naturally reset to "now" between turns via `max(now, cursor)`.
+private var ltxSharedRevealCursors: [String: CFTimeInterval] = [:]
+
 extension LTXLabel {
     /// Returns a per-character alpha closure while a fade is in flight, else nil
     /// (so the draw path falls back to the fast `CTFrameDraw`).
@@ -46,15 +51,31 @@ extension LTXLabel {
         stopRevealDriver()
     }
 
-    /// How far ahead of "now" the reveal schedule is allowed to run, so a fast
-    /// stream can't make the sweep lag indefinitely (it compresses to keep up).
-    private var revealMaxLeadTime: CFTimeInterval { 0.6 }
+    /// Reference lead (seconds) at which the sweep runs at ~2× to catch up, so a
+    /// burst is revealed faster the further the schedule already runs ahead of now
+    /// — keeping the lag bounded without hard-snapping later text.
+    private var revealCatchUpLead: CFTimeInterval { 0.8 }
+
+    /// The "typewriter" cursor this label schedules from. When `streamingRevealGroup`
+    /// is set, the cursor is shared across all labels in that group so their reveals
+    /// are sequenced strictly in the order they're appended (block 1, then 2, …) —
+    /// giving a single top-to-bottom cascade across many cells rather than each
+    /// cell revealing on its own clock. Otherwise it's per-label.
+    private var sharedRevealCursor: CFTimeInterval {
+        get {
+            if let group = streamingRevealGroup { return ltxSharedRevealCursors[group] ?? 0 }
+            return revealCursor
+        }
+        set {
+            if let group = streamingRevealGroup { ltxSharedRevealCursors[group] = newValue }
+            else { revealCursor = newValue }
+        }
+    }
 
     /// Schedule appearance times for newly-appended characters. Instead of stamping
     /// the whole batch at `now` (which fades a chunk in as one block), the batch is
     /// spread left→right at `streamingRevealCharactersPerSecond`, continuing from
-    /// where the previous batch left off so the sweep stays continuous. The
-    /// schedule is capped at `revealMaxLeadTime` ahead of now to bound the lag.
+    /// the (possibly shared) cursor so the sweep stays continuous and ordered.
     func handleRevealTextChange() {
         guard streamingReveal else {
             // Keep a fade that's still settling so it finishes smoothly when
@@ -81,24 +102,19 @@ extension LTXLabel {
             ? 1.0 / CFTimeInterval(streamingRevealCharactersPerSecond)
             : 0
 
-        // Continue the typewriter from the cursor, but never start in the past.
-        var start = max(now, revealCursor)
-        // Cap how far ahead the batch may finish; compress the spacing if the
-        // batch is large so the reveal keeps up with the incoming stream.
-        let deadline = now + revealMaxLeadTime
-        var interval = baseInterval
-        if start > deadline {
-            start = deadline
-            interval = 0
-        } else if start + CFTimeInterval(count) * baseInterval > deadline {
-            interval = max(0, (deadline - start) / CFTimeInterval(count))
-        }
+        // Continue from the cursor (shared across the group → ordered cascade),
+        // never starting in the past.
+        let start = max(now, sharedRevealCursor)
+        // Sweep faster the further the schedule already leads `now`, so a burst
+        // catches up instead of lagging — without hard-snapping later text.
+        let lead = max(0, start - now)
+        let interval = baseInterval / (1 + lead / revealCatchUpLead)
 
         revealAppearance.reserveCapacity(newLength)
         for index in 0 ..< count {
             revealAppearance.append(start + CFTimeInterval(index) * interval)
         }
-        revealCursor = start + CFTimeInterval(count) * interval
+        sharedRevealCursor = start + CFTimeInterval(count) * interval
         revealLastStamp = start + CFTimeInterval(max(0, count - 1)) * interval
         revealActive = true
         startRevealDriver()
