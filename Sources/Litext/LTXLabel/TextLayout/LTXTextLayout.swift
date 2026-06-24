@@ -131,7 +131,7 @@ public class LTXTextLayout: NSObject {
             CTFrameDraw(ctFrame, context)
         }
 
-        processLineDrawingActions(in: context)
+        processLineDrawingActions(in: context, glyphAlpha: glyphAlpha)
 
         context.restoreGState()
     }
@@ -174,7 +174,7 @@ public class LTXTextLayout: NSObject {
         max(0, min(1, value))
     }
 
-    private func processLineDrawingActions(in context: CGContext) {
+    private func processLineDrawingActions(in context: CGContext, glyphAlpha: ((Int) -> CGFloat)? = nil) {
         guard hasLineDrawingActions else { return }
         enumerateLines { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
@@ -186,6 +186,14 @@ public class LTXTextLayout: NSObject {
                 let attributes = CTRunGetAttributes(glyphRun) as! [NSAttributedString.Key: Any]
                 if let action = attributes[LTXLineDrawingCallbackName] as? LTXLineDrawingAction {
                     context.saveGState()
+                    // Fade line decorations (list bullets, quote bars, …) in step
+                    // with the run's text so they reveal together rather than
+                    // popping in at full opacity ahead of the streaming sweep.
+                    if let glyphAlpha {
+                        var index: CFIndex = 0
+                        CTRunGetStringIndices(glyphRun, CFRange(location: 0, length: 1), &index)
+                        context.setAlpha(clampAlpha(glyphAlpha(index)))
+                    }
                     action.action(context, line, lineOrigin)
                     context.restoreGState()
                 }
