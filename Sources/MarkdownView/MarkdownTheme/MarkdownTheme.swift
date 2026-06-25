@@ -194,6 +194,9 @@ public struct MarkdownTheme: Equatable {
         public var scrollBehavior: ScrollBehavior = .horizontalOnly
         public var lineNumberStyle: LineNumberStyle = .dual
         public var showsChangeMarkers: Bool = true
+        /// Corner radius of the diff container. Set to 0 for square edges (e.g.
+        /// when the diff fills a sheet/card that owns its own rounding).
+        public var cornerRadius: CGFloat = 10
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2
         #if canImport(UIKit)

@@ -245,6 +245,7 @@ theme.colors.lineSelectionBackground = .systemBlue.withAlphaComponent(0.15)
 
 // Diff-specific styling
 theme.diff.backgroundColor = .black
+theme.diff.cornerRadius = 0 // square edges; default is 10
 theme.diff.borderColor = .darkGray
 theme.diff.borderWidth = 1
 theme.diff.changeHighlightStyle = .both

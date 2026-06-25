@@ -1024,7 +1024,7 @@ private func makeSideBySideAttributedText(
         }
 
         private func configureSubviews() {
-            layer.cornerRadius = DiffViewConfiguration.cornerRadius
+            // cornerRadius is theme-driven (set in applyTheme); curve + clip here.
             layer.cornerCurve = .continuous
             clipsToBounds = true
 
@@ -1082,6 +1082,7 @@ private func makeSideBySideAttributedText(
 
         private func applyTheme() {
             backgroundColor = theme.diff.backgroundColor ?? theme.colors.codeBackground.withAlphaComponent(0.08)
+            layer.cornerRadius = theme.diff.cornerRadius
             layer.borderWidth = theme.diff.borderWidth
             layer.borderColor = theme.diff.borderColor.cgColor
             barView.backgroundColor = theme.diff.fileHeaderBackground
@@ -1902,7 +1903,7 @@ private func makeSideBySideAttributedText(
 
         private func configureSubviews() {
             wantsLayer = true
-            layer?.cornerRadius = DiffViewConfiguration.cornerRadius
+            // cornerRadius is theme-driven (set in applyTheme).
 
             barView.wantsLayer = true
             addSubview(barView)
@@ -1951,6 +1952,7 @@ private func makeSideBySideAttributedText(
 
         private func applyTheme() {
             layer?.backgroundColor = (theme.diff.backgroundColor ?? theme.colors.codeBackground.withAlphaComponent(0.08)).cgColor
+            layer?.cornerRadius = theme.diff.cornerRadius
             layer?.borderWidth = theme.diff.borderWidth
             layer?.borderColor = theme.diff.borderColor.cgColor
             barView.layer?.backgroundColor = theme.diff.fileHeaderBackground.cgColor
