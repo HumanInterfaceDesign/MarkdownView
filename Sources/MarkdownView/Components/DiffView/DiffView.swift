@@ -164,7 +164,7 @@ private func diffRowRect(
     let isLastRow = index == max(rowCount - 1, 0)
     return CGRect(
         x: bounds.minX,
-        y: DiffViewConfiguration.verticalPadding + CGFloat(index) * rowAdvance,
+        y: DiffViewConfiguration.contentVerticalPadding(theme: theme) + CGFloat(index) * rowAdvance,
         width: bounds.width,
         height: lineHeight + (isLastRow ? 0 : lineSpacing)
     )
@@ -622,7 +622,7 @@ private func diffContentContainerHeight(
     scrollBounds: CGSize,
     theme: MarkdownTheme
 ) -> CGFloat {
-    let contentHeight = textSize.height + DiffViewConfiguration.verticalPadding * 2
+    let contentHeight = textSize.height + DiffViewConfiguration.contentVerticalPadding(theme: theme) * 2
     switch theme.diff.scrollBehavior {
     case .horizontalOnly:
         return scrollBounds.height
@@ -894,7 +894,7 @@ private func makeSideBySideAttributedText(
             let font = theme.fonts.code
             let lineHeight = font.lineHeight
             let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let adjustedY = contentPoint.y - DiffViewConfiguration.verticalPadding
+            let adjustedY = contentPoint.y - DiffViewConfiguration.contentVerticalPadding(theme: theme)
             guard adjustedY >= 0 else { return nil }
             let row = Int(adjustedY / rowAdvance) + 1
             guard row >= 1, row <= diffRowCount() else { return nil }
@@ -1216,7 +1216,7 @@ private func makeSideBySideAttributedText(
                 backgroundView.frame = contentContainerView.bounds
                 textView.frame = CGRect(
                     x: DiffViewConfiguration.horizontalPadding,
-                    y: DiffViewConfiguration.verticalPadding,
+                    y: DiffViewConfiguration.contentVerticalPadding(theme: theme),
                     width: max(
                         scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
                         textSize.width
@@ -1279,7 +1279,7 @@ private func makeSideBySideAttributedText(
             backgroundView.frame = contentContainerView.bounds
             textView.frame = CGRect(
                 x: DiffViewConfiguration.horizontalPadding,
-                y: DiffViewConfiguration.verticalPadding,
+                y: DiffViewConfiguration.contentVerticalPadding(theme: theme),
                 width: max(
                     scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
                     textSize.width
@@ -1455,8 +1455,8 @@ private func makeSideBySideAttributedText(
         override var intrinsicContentSize: CGSize {
             let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let maxHeight = max(
-                contentHeight + DiffViewConfiguration.verticalPadding * 2,
-                font.lineHeight + DiffViewConfiguration.verticalPadding * 2
+                contentHeight + DiffViewConfiguration.contentVerticalPadding(theme: theme) * 2,
+                font.lineHeight + DiffViewConfiguration.contentVerticalPadding(theme: theme) * 2
             )
             return CGSize(width: metrics.totalWidth, height: maxHeight)
         }
@@ -1756,7 +1756,7 @@ private func makeSideBySideAttributedText(
             let font = theme.fonts.code
             let lineHeight = font.ascender + abs(font.descender) + font.leading
             let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let adjustedY = localPoint.y - barHeight - DiffViewConfiguration.verticalPadding
+            let adjustedY = localPoint.y - barHeight - DiffViewConfiguration.contentVerticalPadding(theme: theme)
             guard adjustedY >= 0 else { return nil }
             let row = Int(adjustedY / rowAdvance) + 1
             guard row >= 1, row <= diffRowCount() else { return nil }
@@ -2087,7 +2087,7 @@ private func makeSideBySideAttributedText(
                 backgroundView.frame = contentContainerView.bounds
                 textView.frame = CGRect(
                     x: DiffViewConfiguration.horizontalPadding,
-                    y: DiffViewConfiguration.verticalPadding,
+                    y: DiffViewConfiguration.contentVerticalPadding(theme: theme),
                     width: max(
                         scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
                         textSize.width
@@ -2147,7 +2147,7 @@ private func makeSideBySideAttributedText(
             backgroundView.frame = contentContainerView.bounds
             textView.frame = CGRect(
                 x: DiffViewConfiguration.horizontalPadding,
-                y: DiffViewConfiguration.verticalPadding,
+                y: DiffViewConfiguration.contentVerticalPadding(theme: theme),
                 width: max(
                     scrollView.bounds.width - DiffViewConfiguration.horizontalPadding * 2,
                     textSize.width
@@ -2323,8 +2323,8 @@ private func makeSideBySideAttributedText(
             let metrics = diffGutterMetrics(for: displayRows, font: font, theme: theme)
             let fontHeight = font.ascender + abs(font.descender) + font.leading
             let maxHeight = max(
-                contentHeight + DiffViewConfiguration.verticalPadding * 2,
-                fontHeight + DiffViewConfiguration.verticalPadding * 2
+                contentHeight + DiffViewConfiguration.contentVerticalPadding(theme: theme) * 2,
+                fontHeight + DiffViewConfiguration.contentVerticalPadding(theme: theme) * 2
             )
             return CGSize(width: metrics.totalWidth, height: maxHeight)
         }

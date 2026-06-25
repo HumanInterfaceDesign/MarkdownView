@@ -199,6 +199,11 @@ public struct MarkdownTheme: Equatable {
         public var cornerRadius: CGFloat = 10
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2
+        /// Vertical padding above the first and below the last diff row, inside the
+        /// content area. `nil` keeps the default (matches code blocks); set to 0 to
+        /// let the diff sit flush against its container (e.g. a sheet pinned to the
+        /// navigation bar).
+        public var contentVerticalPadding: CGFloat?
         #if canImport(UIKit)
             public var gutterBackground = CodeHighlighter.dynamicColor(
                 light: UIColor(red: 0.965, green: 0.969, blue: 0.976, alpha: 1),

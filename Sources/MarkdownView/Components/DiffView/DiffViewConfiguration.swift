@@ -18,6 +18,12 @@ enum DiffViewConfiguration {
     static let minimumLineNumberText = "0"
     static let buttonSize = CGSize(width: 32, height: 32)
 
+    /// Content vertical padding, honoring the theme override when set. Defaults to
+    /// `verticalPadding` so existing diff renders are unchanged.
+    static func contentVerticalPadding(theme: MarkdownTheme) -> CGFloat {
+        theme.diff.contentVerticalPadding ?? verticalPadding
+    }
+
     static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
         guard theme.showsBlockHeaders else { return 0 }
         let font = theme.fonts.code
@@ -58,7 +64,7 @@ enum DiffViewConfiguration {
         #endif
         let numberOfRows = presentationLineCount(for: block, theme: theme)
         let codeHeight = lineHeight * CGFloat(numberOfRows)
-            + verticalPadding * 2
+            + contentVerticalPadding(theme: theme) * 2
             + CodeViewConfiguration.codeLineSpacing * CGFloat(max(numberOfRows - 1, 0))
         return ceil(barHeight(theme: theme) + codeHeight)
     }
