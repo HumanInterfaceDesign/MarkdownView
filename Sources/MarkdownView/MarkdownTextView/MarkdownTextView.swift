@@ -147,6 +147,12 @@ enum ContentPipelineMode {
             textView.cancelStreamingReveal()
         }
 
+        /// Seeds the reveal frontier so a recycled cell continues an in-progress
+        /// reveal instead of restarting (forward-only).
+        public func seedStreamingRevealFrontier(_ position: Double) {
+            textView.seedStreamingRevealFrontier(position)
+        }
+
         public func setMarkdownManually(_ content: PreprocessedContent) {
             assert(Thread.isMainThread)
             resetCombine()
@@ -330,6 +336,12 @@ enum ContentPipelineMode {
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
         public func cancelStreamingReveal() {
             textView.cancelStreamingReveal()
+        }
+
+        /// Seeds the reveal frontier so a recycled cell continues an in-progress
+        /// reveal instead of restarting (forward-only).
+        public func seedStreamingRevealFrontier(_ position: Double) {
+            textView.seedStreamingRevealFrontier(position)
         }
 
         public func setMarkdownManually(_ content: PreprocessedContent) {

@@ -37,6 +37,13 @@ extension LTXLabel {
         }
     }
 
+    /// Seeds the reveal frontier (character position already swept) so a recycled
+    /// cell continues an in-progress reveal instead of restarting from zero. Only
+    /// advances forward — a stale seed never pulls the frontier backward.
+    public func seedStreamingRevealFrontier(_ position: Double) {
+        revealFrontier = max(revealFrontier, position)
+    }
+
     /// Immediately clears any in-flight reveal (e.g. on cell reuse) so a stale
     /// fade never bleeds onto new content.
     public func cancelStreamingReveal() {
