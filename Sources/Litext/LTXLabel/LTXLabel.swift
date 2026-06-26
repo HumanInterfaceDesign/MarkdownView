@@ -50,23 +50,14 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// `nil` (default) keeps each label on its own clock.
     public var streamingRevealGroup: String?
 
-    /// Wall-clock appearance time per character index; empty when not revealing.
-    /// Times may be scheduled slightly into the future so a bursty arrival reveals
-    /// as a paced sweep instead of all at once.
-    var revealAppearance: [CFTimeInterval] = []
-    /// The scheduled appearance time for the next character — the "typewriter"
-    /// cursor that carries pacing across batches.
-    var revealCursor: CFTimeInterval = 0
-    /// Latest scheduled appearance — the reveal settles `duration` after this.
-    var revealLastStamp: CFTimeInterval = 0
-    /// True while any character is still mid-fade (drives the per-glyph draw path).
+    /// Reveal "frontier": the fractional character position the fade has swept to.
+    /// Monotonic — alpha is a function of character index vs this counter, so a
+    /// mid-stream markdown restructure (shifting later characters) can't misalign it.
+    var revealFrontier: Double = 0
+    /// Wall time the frontier last advanced (0 = idle/unset).
+    var revealFrontierTime: CFTimeInterval = 0
+    /// True while the fade is in flight (drives the per-glyph draw path).
     var revealActive: Bool = false
-    /// The last rendered string the appearance stamps were computed against. Used to
-    /// find the unchanged common prefix when the text changes: rendered markdown can
-    /// restructure mid-string (a closed inline span strips its `` ` ``/`*` syntax,
-    /// shifting later characters), and per-index stamps must be re-aligned or the
-    /// fade tears into mid-paragraph holes.
-    var revealLastText: String = ""
     #if canImport(UIKit)
         var revealDisplayLink: CADisplayLink?
     #else

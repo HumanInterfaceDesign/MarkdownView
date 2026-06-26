@@ -2,10 +2,13 @@
 //  LTXLabel+Reveal.swift
 //  Litext
 //
-//  Streaming "typing" reveal: characters appended to `attributedText` fade in
-//  over `streamingRevealDuration` from when they first appear. Driven by a
-//  display link so the fade is continuous between content updates and always
-//  settles to fully opaque — independent of how chunky the stream is.
+//  Streaming "typing" reveal. A monotonic "frontier" (a fractional character
+//  position) advances left→right over time; each character's alpha is purely a
+//  function of its index vs the frontier. Because alpha depends only on the index
+//  and a forward-only counter — never on per-index timestamps captured at append
+//  time — the fade is immune to the rendered markdown restructuring mid-stream
+//  (a closed inline span stripping its `` ` ``/`*` syntax shifts later characters):
+//  already-passed indices stay opaque, the frontier keeps sweeping, no holes.
 //
 
 import CoreText
@@ -18,25 +21,18 @@ import QuartzCore
     import AppKit
 #endif
 
-/// Shared typewriter cursors keyed by `streamingRevealGroup`. Main-thread only
-/// (driven from UIKit/AppKit drawing). A single entry per group; values are wall
-/// times that naturally reset to "now" between turns via `max(now, cursor)`.
-private var ltxSharedRevealCursors: [String: CFTimeInterval] = [:]
-
 extension LTXLabel {
     /// Returns a per-character alpha closure while a fade is in flight, else nil
     /// (so the draw path falls back to the fast `CTFrameDraw`).
     func revealGlyphAlphaProvider() -> ((Int) -> CGFloat)? {
-        guard revealActive, !revealAppearance.isEmpty else { return nil }
-        let now = CACurrentMediaTime()
-        let duration = max(0.0001, streamingRevealDuration)
-        let appearance = revealAppearance
+        guard revealActive else { return nil }
+        let frontier = revealFrontier
+        let fade = fadeWindowChars
         return { index in
-            guard index >= 0, index < appearance.count else { return 1 }
-            let elapsed = now - appearance[index]
-            if elapsed >= duration { return 1 }
-            if elapsed <= 0 { return 0 }
-            let t = elapsed / duration
+            let pos = Double(index)
+            if pos <= frontier - fade { return 1 }
+            if pos >= frontier { return 0 }
+            let t = (frontier - pos) / fade
             return 1 - pow(1 - t, 2) // easeOut
         }
     }
@@ -44,93 +40,40 @@ extension LTXLabel {
     /// Immediately clears any in-flight reveal (e.g. on cell reuse) so a stale
     /// fade never bleeds onto new content.
     public func cancelStreamingReveal() {
-        revealAppearance = []
-        revealLastText = ""
+        revealFrontier = 0
+        revealFrontierTime = 0
         revealActive = false
-        revealLastStamp = 0
-        revealCursor = 0
         stopRevealDriver()
     }
 
-    /// Reference lead (seconds) at which the sweep runs at ~2× to catch up, so a
-    /// burst is revealed faster the further the schedule already runs ahead of now
-    /// — keeping the lag bounded without hard-snapping later text.
-    private var revealCatchUpLead: CFTimeInterval { 0.8 }
-
-    /// The "typewriter" cursor this label schedules from. When `streamingRevealGroup`
-    /// is set, the cursor is shared across all labels in that group so their reveals
-    /// are sequenced strictly in the order they're appended (block 1, then 2, …) —
-    /// giving a single top-to-bottom cascade across many cells rather than each
-    /// cell revealing on its own clock. Otherwise it's per-label.
-    private var sharedRevealCursor: CFTimeInterval {
-        get {
-            if let group = streamingRevealGroup { return ltxSharedRevealCursors[group] ?? 0 }
-            return revealCursor
-        }
-        set {
-            if let group = streamingRevealGroup { ltxSharedRevealCursors[group] = newValue }
-            else { revealCursor = newValue }
-        }
+    /// Width of the soft fade edge, in characters. A character spends
+    /// `fadeWindowChars / charactersPerSecond` ≈ `streamingRevealDuration` seconds
+    /// ramping from 0→1 as the frontier passes over it.
+    private var fadeWindowChars: Double {
+        max(1, Double(streamingRevealCharactersPerSecond) * max(0.0001, streamingRevealDuration))
     }
 
-    /// Schedule appearance times for newly-appended characters. Instead of stamping
-    /// the whole batch at `now` (which fades a chunk in as one block), the batch is
-    /// spread left→right at `streamingRevealCharactersPerSecond`, continuing from
-    /// the (possibly shared) cursor so the sweep stays continuous and ordered.
+    /// How far behind the live length (in characters) the frontier sweeps at ~2×,
+    /// so a bursty arrival catches up instead of lagging.
+    private var revealCatchUpChars: Double { 240 }
+
+    /// Content changed. The frontier is a character count independent of content,
+    /// so there are no per-index stamps to re-align — just keep the driver running
+    /// while there's still text (plus the trailing fade window) left to reveal.
     func handleRevealTextChange() {
         guard streamingReveal else {
-            // Keep a fade that's still settling so it finishes smoothly when
-            // streaming ends; only clear once it has gone idle.
-            if !revealActive, !revealAppearance.isEmpty {
-                revealAppearance = []
-                revealLastText = ""
-                stopRevealDriver()
-            }
+            // Let an in-flight fade finish; only stop once it has settled.
+            if !revealActive { stopRevealDriver() }
             return
         }
 
-        // Preserve stamps only for the leading run that's unchanged from the last
-        // render. Rendered markdown restructures mid-string (a closed inline span
-        // strips its syntax, shifting later characters), so anything from the first
-        // divergence must be re-stamped — keeping those stamps by index misaligns
-        // the fade into mid-paragraph holes.
-        let oldText = revealLastText as NSString
-        let newText = attributedText.string as NSString
-        let newLength = newText.length
-        let compareLimit = min(oldText.length, newText.length)
-        var commonPrefix = 0
-        while commonPrefix < compareLimit,
-              oldText.character(at: commonPrefix) == newText.character(at: commonPrefix) {
-            commonPrefix += 1
-        }
-        revealLastText = attributedText.string
+        let length = Double(attributedText.length)
+        // Text shrank below the frontier (reset / large re-render) — clamp so the
+        // frontier never sits past the end.
+        if revealFrontier > length { revealFrontier = length }
 
-        if commonPrefix < revealAppearance.count {
-            revealAppearance = Array(revealAppearance.prefix(commonPrefix))
-        }
-        // Nothing new past the preserved prefix (pure shrink / restyle).
-        guard newLength > revealAppearance.count else { return }
-
-        let now = CACurrentMediaTime()
-        let count = newLength - revealAppearance.count
-        let baseInterval = streamingRevealCharactersPerSecond > 0
-            ? 1.0 / CFTimeInterval(streamingRevealCharactersPerSecond)
-            : 0
-
-        // Continue from the cursor (shared across the group → ordered cascade),
-        // never starting in the past.
-        let start = max(now, sharedRevealCursor)
-        // Sweep faster the further the schedule already leads `now`, so a burst
-        // catches up instead of lagging — without hard-snapping later text.
-        let lead = max(0, start - now)
-        let interval = baseInterval / (1 + lead / revealCatchUpLead)
-
-        revealAppearance.reserveCapacity(newLength)
-        for index in 0 ..< count {
-            revealAppearance.append(start + CFTimeInterval(index) * interval)
-        }
-        sharedRevealCursor = start + CFTimeInterval(count) * interval
-        revealLastStamp = start + CFTimeInterval(max(0, count - 1)) * interval
+        guard revealFrontier < length + fadeWindowChars else { return }
+        if revealFrontierTime == 0 { revealFrontierTime = CACurrentMediaTime() }
         revealActive = true
         startRevealDriver()
         setNeedsDisplayForReveal()
@@ -143,24 +86,34 @@ extension LTXLabel {
         } else if !revealActive {
             stopRevealDriver()
         }
-        // When turning off mid-fade, the driver keeps running until the last
-        // stamp settles, then finalizes in `stepReveal`.
+        // Turning off mid-fade: the driver keeps running until the frontier settles.
     }
 
     @objc func stepReveal() {
+        advanceFrontier()
         setNeedsDisplayForReveal()
-        let now = CACurrentMediaTime()
-        if now >= revealLastStamp + streamingRevealDuration {
-            // Settle: switch to the opaque fast path (driven by `revealActive`),
-            // but KEEP the appearance stamps. Streaming UIs commonly re-emit an
-            // already-finished block unchanged on later chunks; if we cleared the
-            // stamps here, that same-length re-emission would look "new" and
-            // re-fade a block that already settled. Stamps are only cleared on a
-            // real shrink/reset (`handleRevealTextChange`) or `cancelStreamingReveal`.
+        // Settle once the frontier has passed the end by the fade window, so the
+        // last characters finish ramping to opaque.
+        if revealFrontier >= Double(attributedText.length) + fadeWindowChars {
             revealActive = false
+            revealFrontierTime = 0
             stopRevealDriver()
             setNeedsDisplayForReveal() // final fully-opaque pass (fast path)
         }
+    }
+
+    /// Move the frontier toward the live length at the reveal rate, sweeping faster
+    /// the further it trails the current text so a burst doesn't lag.
+    private func advanceFrontier() {
+        let now = CACurrentMediaTime()
+        let last = revealFrontierTime == 0 ? now : revealFrontierTime
+        revealFrontierTime = now
+        let dt = max(0, now - last)
+        let cps = max(1, Double(streamingRevealCharactersPerSecond))
+        let length = Double(attributedText.length)
+        let behind = max(0, length - revealFrontier)
+        let speed = cps * (1 + behind / revealCatchUpChars)
+        revealFrontier = min(length + fadeWindowChars, revealFrontier + dt * speed)
     }
 
     private func setNeedsDisplayForReveal() {
