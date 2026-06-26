@@ -45,6 +45,7 @@ extension LTXLabel {
     /// fade never bleeds onto new content.
     public func cancelStreamingReveal() {
         revealAppearance = []
+        revealLastText = ""
         revealActive = false
         revealLastStamp = 0
         revealCursor = 0
@@ -82,19 +83,33 @@ extension LTXLabel {
             // streaming ends; only clear once it has gone idle.
             if !revealActive, !revealAppearance.isEmpty {
                 revealAppearance = []
+                revealLastText = ""
                 stopRevealDriver()
             }
             return
         }
 
-        let newLength = attributedText.length
-        guard newLength != revealAppearance.count else { return }
-
-        if newLength < revealAppearance.count {
-            // Content shrank (reset / re-render) — drop stale stamps.
-            revealAppearance = Array(revealAppearance.prefix(newLength))
-            return
+        // Preserve stamps only for the leading run that's unchanged from the last
+        // render. Rendered markdown restructures mid-string (a closed inline span
+        // strips its syntax, shifting later characters), so anything from the first
+        // divergence must be re-stamped — keeping those stamps by index misaligns
+        // the fade into mid-paragraph holes.
+        let oldText = revealLastText as NSString
+        let newText = attributedText.string as NSString
+        let newLength = newText.length
+        let compareLimit = min(oldText.length, newText.length)
+        var commonPrefix = 0
+        while commonPrefix < compareLimit,
+              oldText.character(at: commonPrefix) == newText.character(at: commonPrefix) {
+            commonPrefix += 1
         }
+        revealLastText = attributedText.string
+
+        if commonPrefix < revealAppearance.count {
+            revealAppearance = Array(revealAppearance.prefix(commonPrefix))
+        }
+        // Nothing new past the preserved prefix (pure shrink / restyle).
+        guard newLength > revealAppearance.count else { return }
 
         let now = CACurrentMediaTime()
         let count = newLength - revealAppearance.count

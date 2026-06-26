@@ -61,6 +61,12 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     var revealLastStamp: CFTimeInterval = 0
     /// True while any character is still mid-fade (drives the per-glyph draw path).
     var revealActive: Bool = false
+    /// The last rendered string the appearance stamps were computed against. Used to
+    /// find the unchanged common prefix when the text changes: rendered markdown can
+    /// restructure mid-string (a closed inline span strips its `` ` ``/`*` syntax,
+    /// shifting later characters), and per-index stamps must be re-aligned or the
+    /// fade tears into mid-paragraph holes.
+    var revealLastText: String = ""
     #if canImport(UIKit)
         var revealDisplayLink: CADisplayLink?
     #else
