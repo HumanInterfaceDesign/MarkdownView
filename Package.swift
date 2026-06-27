@@ -17,28 +17,19 @@ let package = Package(
         .library(name: "MarkdownParser", targets: ["MarkdownParser"]),
     ],
     traits: [
-        // By default every language grammar is enabled, so existing consumers
-        // see no change. Opt into a subset by disabling defaults and listing
-        // only the languages you need, e.g. `traits: ["Swift", "JSON"]`.
+        // Default to the web-focused languages v0 chat renders. Trait *selection*
+        // by a consumer isn't carried through Xcode / CocoaPods-generated projects
+        // (the pbxproj has no per-consumer trait field, so Xcode always resolves
+        // with the package default) — so the default is the only lever that prunes
+        // grammars in that environment. The rest stay available by overriding the
+        // default in a SwiftPM (CLI) consumer, e.g. `traits: ["Swift", "Go"]`.
         .default(enabledTraits: [
-            "Python",
             "JavaScript",
             "TypeScript",
-            "Go",
-            "Rust",
-            "Swift",
-            "C",
-            "CPP",
-            "Java",
-            "Ruby",
-            "Bash",
             "JSON",
             "HTML",
             "CSS",
-            "CSharp",
-            "Kotlin",
-            "SQL",
-            "YAML",
+            "Bash",
         ]),
         .trait(name: "Python", description: "Python syntax highlighting"),
         .trait(name: "JavaScript", description: "JavaScript syntax highlighting"),
