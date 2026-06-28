@@ -79,6 +79,17 @@ extension LTXLabel {
         // frontier never sits past the end.
         if revealFrontier > length { revealFrontier = length }
 
+        // A large atomic arrival (a whole block in one chunk, not char-by-char
+        // streaming) would leave the frontier far behind, blanking the new block and
+        // sweeping it from zero over a second-plus. Cap how far it may trail the live
+        // length so a burst snaps the bulk opaque and fades only the trailing window.
+        // Forward-only and only when streaming, so it never disturbs settled text or
+        // an in-progress fine-grained fade (which never lags this far).
+        let maxLag = fadeWindowChars + streamingRevealMaxLagCharacters
+        if length - revealFrontier > maxLag {
+            revealFrontier = length - maxLag
+        }
+
         guard revealFrontier < length + fadeWindowChars else { return }
         if revealFrontierTime == 0 { revealFrontierTime = CACurrentMediaTime() }
         revealActive = true

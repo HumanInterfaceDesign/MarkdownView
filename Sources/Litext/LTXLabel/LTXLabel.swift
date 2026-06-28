@@ -43,6 +43,15 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// pace (rather than fading in as one block). Lower = slower / more deliberate.
     public var streamingRevealCharactersPerSecond: CGFloat = 90
 
+    /// Largest gap (in characters) the frontier is allowed to trail the live text.
+    /// Fine-grained streaming never lags this far, so it's unaffected; but a large
+    /// *atomic* arrival (a whole block delivered in one chunk) would otherwise leave
+    /// the frontier at zero and blank the entire block while it sweeps in over a
+    /// second or more. Clamping the lag means a burst snaps everything past this
+    /// window opaque and fades only the trailing window — a quick fade-in instead of
+    /// a long blank sweep. Generous enough that normal typing reads as typing.
+    public var streamingRevealMaxLagCharacters: Double = 160
+
     /// Optional group key that sequences the reveal across multiple labels. Labels
     /// sharing a group reveal in append order (block 1, then 2, …) as one
     /// top-to-bottom cascade — set this to the same value on every label that makes
