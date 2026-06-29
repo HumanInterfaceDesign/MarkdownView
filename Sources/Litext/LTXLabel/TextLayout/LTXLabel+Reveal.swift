@@ -91,7 +91,9 @@ extension LTXLabel {
             // Fade in whatever is already present at the moment streaming begins.
             handleRevealTextChange()
         } else if !revealActive {
+            // Streaming turned off with nothing in flight — already opaque.
             stopRevealDriver()
+            onStreamingRevealComplete?()
         }
         // Turning off mid-fade: the driver keeps running until the frontier settles.
     }
@@ -106,6 +108,9 @@ extension LTXLabel {
             revealFrontierTime = 0
             stopRevealDriver()
             setNeedsDisplayForReveal() // final fully-opaque pass (fast path)
+            // Only a settle *after* the stream finished is a true completion; a
+            // mid-stream pause that catches the frontier up keeps streaming.
+            if !streamingReveal { onStreamingRevealComplete?() }
         }
     }
 

@@ -142,6 +142,15 @@ enum ContentPipelineMode {
             set { textView.streamingRevealGroup = newValue }
         }
 
+        /// Fires on the main thread once the reveal has fully settled to opaque
+        /// after `streamingReveal` is set back to `false` — the moment the trailing
+        /// fade lands. Use to time post-stream UI (e.g. action buttons) so it waits
+        /// for the reveal instead of racing the still-fading tail.
+        public var onStreamingRevealComplete: (() -> Void)? {
+            get { textView.onStreamingRevealComplete }
+            set { textView.onStreamingRevealComplete = newValue }
+        }
+
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
         public func cancelStreamingReveal() {
             textView.cancelStreamingReveal()
@@ -331,6 +340,15 @@ enum ContentPipelineMode {
         public var streamingRevealGroup: String? {
             get { textView.streamingRevealGroup }
             set { textView.streamingRevealGroup = newValue }
+        }
+
+        /// Fires on the main thread once the reveal has fully settled to opaque
+        /// after `streamingReveal` is set back to `false` — the moment the trailing
+        /// fade lands. Use to time post-stream UI (e.g. action buttons) so it waits
+        /// for the reveal instead of racing the still-fading tail.
+        public var onStreamingRevealComplete: (() -> Void)? {
+            get { textView.onStreamingRevealComplete }
+            set { textView.onStreamingRevealComplete = newValue }
         }
 
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).

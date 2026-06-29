@@ -50,6 +50,16 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// `nil` (default) keeps each label on its own clock.
     public var streamingRevealGroup: String?
 
+    /// Called on the main thread once the reveal has fully settled to opaque
+    /// *after* `streamingReveal` was set back to `false` — i.e. the stream
+    /// finished and the trailing fade has reached the end. Use this to time work
+    /// that should wait for the reveal to land (e.g. animating in post-message
+    /// actions) instead of firing the instant the network stream ends, while the
+    /// tail is still fading. Fires once per completion; a mid-stream pause that
+    /// momentarily catches the frontier up does not fire it, and an abort via
+    /// `cancelStreamingReveal()` does not either.
+    public var onStreamingRevealComplete: (() -> Void)?
+
     /// Reveal "frontier": the fractional character position the fade has swept to.
     /// Monotonic — alpha is a function of character index vs this counter, so a
     /// mid-stream markdown restructure (shifting later characters) can't misalign it.
