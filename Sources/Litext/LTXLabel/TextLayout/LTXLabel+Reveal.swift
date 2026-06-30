@@ -21,6 +21,49 @@ import QuartzCore
     import AppKit
 #endif
 
+// MARK: - Group reveal coordination
+//
+// Labels sharing a `streamingRevealGroup` reveal as one top-to-bottom cascade:
+// only the topmost label whose reveal isn't complete advances its frontier; the
+// rest stay hidden until their turn. Composes a response split across several
+// labels/cells into one continuous stream.
+
+private struct LTXWeakLabel {
+    weak var label: LTXLabel?
+}
+
+private final class LTXRevealGroupRegistry {
+    static let shared = LTXRevealGroupRegistry()
+    private var groups: [String: [LTXWeakLabel]] = [:]
+
+    func add(_ label: LTXLabel, to group: String) {
+        var members = (groups[group] ?? []).filter { $0.label != nil }
+        if !members.contains(where: { $0.label === label }) {
+            members.append(LTXWeakLabel(label: label))
+        }
+        groups[group] = members
+    }
+
+    func remove(_ label: LTXLabel, from group: String) {
+        guard let existing = groups[group] else { return }
+        let members = existing.filter { $0.label != nil && $0.label !== label }
+        groups[group] = members.isEmpty ? nil : members
+    }
+
+    func members(of group: String) -> [LTXLabel] {
+        (groups[group] ?? []).compactMap(\.label)
+    }
+}
+
+public extension Notification.Name {
+    /// Posted on the main thread whenever a label in a streaming-reveal group settles
+    /// (its frontier reaches the end). `userInfo["group"]` is the group key. A
+    /// follower can re-check `isStreamingRevealActive(inGroup:aboveY:)` on each post
+    /// to fade in as soon as the reveals above it finish — without waiting for cells
+    /// below it.
+    static let ltxStreamingRevealGroupDidAdvance = Notification.Name("LTXStreamingRevealGroupDidAdvance")
+}
+
 extension LTXLabel {
     /// Returns a per-character alpha closure while a fade is in flight, else nil
     /// (so the draw path falls back to the fast `CTFrameDraw`).
@@ -51,6 +94,71 @@ extension LTXLabel {
         revealFrontierTime = 0
         revealActive = false
         stopRevealDriver()
+        if let group = streamingRevealGroup {
+            LTXRevealGroupRegistry.shared.remove(self, from: group)
+            postRevealGroupDidAdvance()
+        }
+    }
+
+    /// Joins/leaves the group registry when `streamingRevealGroup` changes (called
+    /// from the property's `didSet`).
+    func revealGroupDidChange(from oldGroup: String?) {
+        if let oldGroup {
+            LTXRevealGroupRegistry.shared.remove(self, from: oldGroup)
+        }
+        if let group = streamingRevealGroup {
+            LTXRevealGroupRegistry.shared.add(self, to: group)
+        }
+    }
+
+    /// True while any label in `group` is still fading or waiting its turn.
+    public static func isStreamingRevealActive(inGroup group: String) -> Bool {
+        LTXRevealGroupRegistry.shared.members(of: group).contains { $0.revealActive }
+    }
+
+    /// True while any label in `group` positioned *above* `threshold` (in window
+    /// coordinates) is still revealing. A following view uses this to fade in once
+    /// the reveals above it finish, without waiting for cells below it.
+    public static func isStreamingRevealActive(inGroup group: String, aboveY threshold: CGFloat) -> Bool {
+        LTXRevealGroupRegistry.shared.members(of: group).contains { $0.revealActive && $0.revealWindowY < threshold }
+    }
+
+    /// A member stops blocking the cascade once it has nothing left to reveal:
+    /// empty, not animating, or its frontier has swept past the end.
+    private var isRevealComplete: Bool {
+        let length = Double(attributedText.length)
+        if length == 0 { return true }
+        if !streamingReveal, !revealActive { return true }
+        return revealFrontier >= length + fadeWindowChars
+    }
+
+    /// Within a group, only the topmost (smallest window-Y) label whose reveal isn't
+    /// complete may advance; the rest wait. No group → always active.
+    private var isActiveRevealMember: Bool {
+        guard let group = streamingRevealGroup else { return true }
+        let members = LTXRevealGroupRegistry.shared.members(of: group)
+            .sorted { $0.revealWindowY < $1.revealWindowY }
+        for member in members {
+            if member === self { return true }
+            if !member.isRevealComplete { return false }
+        }
+        return true
+    }
+
+    private var revealWindowY: CGFloat {
+        convert(bounds.origin, to: nil).y
+    }
+
+    /// Posts `.ltxStreamingRevealGroupDidAdvance` so followers can re-check whether
+    /// the reveals above them have finished. Fires on every settle, not only when the
+    /// whole group goes idle, so a card above a still-revealing cell isn't blocked.
+    private func postRevealGroupDidAdvance() {
+        guard let group = streamingRevealGroup else { return }
+        NotificationCenter.default.post(
+            name: .ltxStreamingRevealGroupDidAdvance,
+            object: nil,
+            userInfo: ["group": group]
+        )
     }
 
     /// Width of the soft fade edge, in characters. A character spends
@@ -79,6 +187,17 @@ extension LTXLabel {
         // frontier never sits past the end.
         if revealFrontier > length { revealFrontier = length }
 
+        // Grouped and not our turn yet: stay fully hidden (frontier 0) until the
+        // labels above us finish, but keep the driver alive so we start on our turn.
+        if streamingRevealGroup != nil, !isActiveRevealMember {
+            revealFrontier = 0
+            revealFrontierTime = 0
+            revealActive = true
+            startRevealDriver()
+            setNeedsDisplayForReveal()
+            return
+        }
+
         // A large atomic arrival (a whole block in one chunk, not char-by-char
         // streaming) would leave the frontier far behind, blanking the new block and
         // sweeping it from zero over a second-plus. Cap how far it may trail the live
@@ -99,17 +218,34 @@ extension LTXLabel {
 
     func handleStreamingRevealChanged() {
         if streamingReveal {
+            if let group = streamingRevealGroup {
+                LTXRevealGroupRegistry.shared.add(self, to: group)
+            }
             // Fade in whatever is already present at the moment streaming begins.
             handleRevealTextChange()
         } else if !revealActive {
             // Streaming turned off with nothing in flight — already opaque.
             stopRevealDriver()
             onStreamingRevealComplete?()
+            postRevealGroupDidAdvance()
         }
-        // Turning off mid-fade: the driver keeps running until the frontier settles.
+        // Turning off mid-fade — whether actively fading or still waiting our turn in
+        // a group — keeps the driver running so the cascade finishes revealing this
+        // label in turn. Never snap a not-yet-revealed label straight to opaque: the
+        // stream ending before the cascade reaches the last cell would otherwise read
+        // as a jarring static pop.
     }
 
     @objc func stepReveal() {
+        // Grouped and not our turn: stay hidden, keep the driver alive, don't advance.
+        if streamingRevealGroup != nil, !isActiveRevealMember {
+            if revealFrontier != 0 || revealFrontierTime != 0 {
+                revealFrontier = 0
+                revealFrontierTime = 0
+                setNeedsDisplayForReveal()
+            }
+            return
+        }
         advanceFrontier()
         setNeedsDisplayForReveal()
         // Settle once the frontier has passed the end by the fade window, so the
@@ -122,6 +258,7 @@ extension LTXLabel {
             // Only a settle *after* the stream finished is a true completion; a
             // mid-stream pause that catches the frontier up keeps streaming.
             if !streamingReveal { onStreamingRevealComplete?() }
+            postRevealGroupDidAdvance()
         }
     }
 

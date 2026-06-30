@@ -406,3 +406,21 @@ enum ContentPipelineMode {
         }
     }
 #endif
+
+public extension MarkdownTextView {
+    /// True while any label in `group` is still revealing (fading or waiting its turn).
+    static func isStreamingRevealActive(inGroup group: String) -> Bool {
+        LTXLabel.isStreamingRevealActive(inGroup: group)
+    }
+
+    /// True while any label in `group` positioned *above* `threshold` (window
+    /// coordinates) is still revealing. A following view fades in once the reveals
+    /// above it finish, without waiting for cells below it.
+    static func isStreamingRevealActive(inGroup group: String, aboveY threshold: CGFloat) -> Bool {
+        LTXLabel.isStreamingRevealActive(inGroup: group, aboveY: threshold)
+    }
+
+    /// Posted on the main thread whenever a streaming-reveal group member settles.
+    /// `userInfo["group"]` is the group key.
+    static let streamingRevealGroupDidAdvanceNotification = Notification.Name.ltxStreamingRevealGroupDidAdvance
+}
