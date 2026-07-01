@@ -57,12 +57,7 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// top-to-bottom cascade — set this to the same value on every label that makes
     /// up a single streamed response (e.g. one response split across many cells).
     /// `nil` (default) keeps each label on its own clock.
-    public var streamingRevealGroup: String? {
-        didSet {
-            guard oldValue != streamingRevealGroup else { return }
-            revealGroupDidChange(from: oldValue)
-        }
-    }
+    public var streamingRevealGroup: String?
 
     /// Called on the main thread once the reveal has fully settled to opaque
     /// *after* `streamingReveal` was set back to `false` — i.e. the stream
