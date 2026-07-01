@@ -68,6 +68,14 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// `cancelStreamingReveal()` does not either.
     public var onStreamingRevealComplete: (() -> Void)?
 
+    /// Called on the main thread whenever the reveal animation starts or stops
+    /// running: `true` while the frontier is actively sweeping, `false` the moment
+    /// it settles — including mid-stream pauses where the frontier catches up to
+    /// the text so far (unlike `onStreamingRevealComplete`, which fires only for
+    /// the final settle after streaming ends). Use this to gate other UI on
+    /// "is the typing animation visibly running right now".
+    public var onStreamingRevealActivityChanged: ((Bool) -> Void)?
+
     /// Reveal "frontier": the fractional character position the fade has swept to.
     /// Monotonic — alpha is a function of character index vs this counter, so a
     /// mid-stream markdown restructure (shifting later characters) can't misalign it.
@@ -75,7 +83,12 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// Wall time the frontier last advanced (0 = idle/unset).
     var revealFrontierTime: CFTimeInterval = 0
     /// True while the fade is in flight (drives the per-glyph draw path).
-    var revealActive: Bool = false
+    var revealActive: Bool = false {
+        didSet {
+            guard oldValue != revealActive else { return }
+            onStreamingRevealActivityChanged?(revealActive)
+        }
+    }
     #if canImport(UIKit)
         var revealDisplayLink: CADisplayLink?
     #else
