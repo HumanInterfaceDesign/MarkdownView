@@ -134,14 +134,6 @@ enum ContentPipelineMode {
             set { textView.streamingRevealCharactersPerSecond = newValue }
         }
 
-        /// Group key that sequences the reveal across multiple views as one
-        /// top-to-bottom cascade. Set the same value on every view that makes up a
-        /// single streamed response (e.g. one response split across many cells).
-        public var streamingRevealGroup: String? {
-            get { textView.streamingRevealGroup }
-            set { textView.streamingRevealGroup = newValue }
-        }
-
         /// Fires on the main thread once the reveal has fully settled to opaque
         /// after `streamingReveal` is set back to `false` — the moment the trailing
         /// fade lands. Use to time post-stream UI (e.g. action buttons) so it waits
@@ -332,14 +324,6 @@ enum ContentPipelineMode {
         public var streamingRevealCharactersPerSecond: CGFloat {
             get { textView.streamingRevealCharactersPerSecond }
             set { textView.streamingRevealCharactersPerSecond = newValue }
-        }
-
-        /// Group key that sequences the reveal across multiple views as one
-        /// top-to-bottom cascade. Set the same value on every view that makes up a
-        /// single streamed response (e.g. one response split across many cells).
-        public var streamingRevealGroup: String? {
-            get { textView.streamingRevealGroup }
-            set { textView.streamingRevealGroup = newValue }
         }
 
         /// Fires on the main thread once the reveal has fully settled to opaque

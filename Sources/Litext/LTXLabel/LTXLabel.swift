@@ -32,7 +32,13 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// continuous stream. Set back to `false` when the stream finishes; in-flight
     /// fades still settle.
     public var streamingReveal: Bool = false {
-        didSet { handleStreamingRevealChanged() }
+        didSet {
+            // Guarded so re-assigning the same value (e.g. `false` on every static
+            // configure of a recycled cell) can't fire a spurious
+            // `onStreamingRevealComplete`.
+            guard oldValue != streamingReveal else { return }
+            handleStreamingRevealChanged()
+        }
     }
 
     /// Per-character fade duration for `streamingReveal` (how soft the fade edge is).
@@ -51,13 +57,6 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// window opaque and fades only the trailing window — a quick fade-in instead of
     /// a long blank sweep. Generous enough that normal typing reads as typing.
     public var streamingRevealMaxLagCharacters: Double = 160
-
-    /// Optional group key that sequences the reveal across multiple labels. Labels
-    /// sharing a group reveal in append order (block 1, then 2, …) as one
-    /// top-to-bottom cascade — set this to the same value on every label that makes
-    /// up a single streamed response (e.g. one response split across many cells).
-    /// `nil` (default) keeps each label on its own clock.
-    public var streamingRevealGroup: String?
 
     /// Called on the main thread once the reveal has fully settled to opaque
     /// *after* `streamingReveal` was set back to `false` — i.e. the stream
