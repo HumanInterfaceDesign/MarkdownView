@@ -64,14 +64,6 @@ public class LTXLabel: LTXPlatformView, Identifiable {
         }
     }
 
-    /// Optional stable ordering key for the group cascade, in document order (e.g. a
-    /// row index). When set, the cascade sequences members by this value instead of
-    /// live window geometry (`revealWindowY`), so ordering stays correct even for
-    /// members that are off-screen, not yet laid out, or being recycled — the cases
-    /// where window geometry is stale or undefined. Use the same key space on every
-    /// member of a group; leave `nil` to fall back to geometry.
-    public var streamingRevealOrder: Int?
-
     /// Called on the main thread once the reveal has fully settled to opaque
     /// *after* `streamingReveal` was set back to `false` — i.e. the stream
     /// finished and the trailing fade has reached the end. Use this to time work
