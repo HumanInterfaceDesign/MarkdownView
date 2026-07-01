@@ -142,6 +142,14 @@ enum ContentPipelineMode {
             set { textView.streamingRevealGroup = newValue }
         }
 
+        /// Stable document-order key for the group cascade (see
+        /// `LTXLabel.streamingRevealOrder`). Set this to the view's row/index so
+        /// sequencing is independent of window geometry.
+        public var streamingRevealOrder: Int? {
+            get { textView.streamingRevealOrder }
+            set { textView.streamingRevealOrder = newValue }
+        }
+
         /// Fires on the main thread once the reveal has fully settled to opaque
         /// after `streamingReveal` is set back to `false` — the moment the trailing
         /// fade lands. Use to time post-stream UI (e.g. action buttons) so it waits
@@ -342,6 +350,14 @@ enum ContentPipelineMode {
             set { textView.streamingRevealGroup = newValue }
         }
 
+        /// Stable document-order key for the group cascade (see
+        /// `LTXLabel.streamingRevealOrder`). Set this to the view's row/index so
+        /// sequencing is independent of window geometry.
+        public var streamingRevealOrder: Int? {
+            get { textView.streamingRevealOrder }
+            set { textView.streamingRevealOrder = newValue }
+        }
+
         /// Fires on the main thread once the reveal has fully settled to opaque
         /// after `streamingReveal` is set back to `false` — the moment the trailing
         /// fade lands. Use to time post-stream UI (e.g. action buttons) so it waits
@@ -418,6 +434,14 @@ public extension MarkdownTextView {
     /// above it finish, without waiting for cells below it.
     static func isStreamingRevealActive(inGroup group: String, aboveY threshold: CGFloat) -> Bool {
         LTXLabel.isStreamingRevealActive(inGroup: group, aboveY: threshold)
+    }
+
+    /// Order-based counterpart to `isStreamingRevealActive(inGroup:aboveY:)`. True
+    /// while any label in `group` whose `streamingRevealOrder` is earlier than
+    /// `threshold` is still revealing. A follower passes its own document-order key
+    /// to fade in once the reveals above it finish, independent of window geometry.
+    static func isStreamingRevealActive(inGroup group: String, aboveOrder threshold: Int) -> Bool {
+        LTXLabel.isStreamingRevealActive(inGroup: group, aboveOrder: threshold)
     }
 
     /// Posted on the main thread whenever a streaming-reveal group member settles.

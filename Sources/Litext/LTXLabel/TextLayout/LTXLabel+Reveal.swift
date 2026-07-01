@@ -123,6 +123,20 @@ extension LTXLabel {
         LTXRevealGroupRegistry.shared.members(of: group).contains { $0.revealActive && $0.revealWindowY < threshold }
     }
 
+    /// Order-based counterpart to `isStreamingRevealActive(inGroup:aboveY:)`. True
+    /// while any label in `group` whose `streamingRevealOrder` is earlier than
+    /// `threshold` is still revealing. A following view (e.g. a card between text
+    /// blocks) passes its own document-order key to fade in once the reveals above it
+    /// finish — without depending on window geometry, so it stays correct while
+    /// scrolling or when the revealing member is partly off-screen. Members with no
+    /// `streamingRevealOrder` set are ignored by this query.
+    public static func isStreamingRevealActive(inGroup group: String, aboveOrder threshold: Int) -> Bool {
+        LTXRevealGroupRegistry.shared.members(of: group).contains { member in
+            guard member.revealActive, let order = member.streamingRevealOrder else { return false }
+            return order < threshold
+        }
+    }
+
     /// A member stops blocking the cascade once it has nothing left to reveal:
     /// empty, not animating, or its frontier has swept past the end.
     private var isRevealComplete: Bool {
@@ -132,17 +146,29 @@ extension LTXLabel {
         return revealFrontier >= length + fadeWindowChars
     }
 
-    /// Within a group, only the topmost (smallest window-Y) label whose reveal isn't
-    /// complete may advance; the rest wait. No group → always active.
+    /// Within a group, only the topmost label whose reveal isn't complete may
+    /// advance; the rest wait. No group → always active. "Topmost" is decided by
+    /// `revealSortKey` — the document-order key when set, else window geometry.
     private var isActiveRevealMember: Bool {
         guard let group = streamingRevealGroup else { return true }
         let members = LTXRevealGroupRegistry.shared.members(of: group)
-            .sorted { $0.revealWindowY < $1.revealWindowY }
+            .sorted { $0.revealSortKey < $1.revealSortKey }
         for member in members {
             if member === self { return true }
             if !member.isRevealComplete { return false }
         }
         return true
+    }
+
+    /// Cascade ordering key. Prefers the caller-supplied document order
+    /// (`streamingRevealOrder`) so sequencing is stable regardless of layout state;
+    /// falls back to live window geometry when no order is set. The two are kept in
+    /// disjoint numeric ranges (geometry is offset far above any realistic index) so
+    /// a group that mixes ordered and unordered members still sorts deterministically
+    /// — ordered members first, in order, then unordered by position.
+    private var revealSortKey: Double {
+        if let order = streamingRevealOrder { return Double(order) }
+        return 1_000_000 + Double(revealWindowY)
     }
 
     private var revealWindowY: CGFloat {
