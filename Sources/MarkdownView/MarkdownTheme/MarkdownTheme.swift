@@ -126,6 +126,14 @@ public struct MarkdownTheme: Equatable {
     /// `nil` matches the link text (`colors.highlight`).
     public var linkUnderlineColor: PlatformColor?
 
+    /// When set, emphasis (`*text*`) is underlined with a custom-drawn dashed
+    /// line using these dash/gap lengths, colored `colors.emphasis`, instead of
+    /// the default thick solid underline.
+    public var emphasisUnderlineDash: [CGFloat]?
+
+    /// Line width for the custom dashed emphasis underline (`emphasisUnderlineDash`).
+    public var emphasisUnderlineWidth: CGFloat = 1
+
     public struct Spacings: Equatable {
         public var final: CGFloat = 16
         public var general: CGFloat = 8

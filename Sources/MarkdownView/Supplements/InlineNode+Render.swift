@@ -50,6 +50,47 @@ extension [MarkdownInlineNode] {
 }
 
 extension MarkdownInlineNode {
+    /// Attributes for a custom-drawn dashed underline: NSUnderlineStyle's pattern
+    /// lengths aren't configurable, so draw the line ourselves with the requested
+    /// dash. `offset` sits the line below the baseline, within the descent.
+    static func dashedUnderlineAttributes(
+        color: PlatformColor,
+        dash: [CGFloat],
+        lineWidth: CGFloat,
+        offset: CGFloat
+    ) -> [NSAttributedString.Key: Any] {
+        let identifier = UUID().uuidString
+        var attributes: [NSAttributedString.Key: Any] = [.contextIdentifier: identifier]
+        attributes[LTXLineDrawingCallbackName] = LTXLineDrawingAction { context, line, lineOrigin in
+            // Sum the extent of this span's run(s) on the current line. A span may
+            // cover several runs (font substitution, nested code spans) or wrap
+            // across lines; each line's portion is drawn when its runs are visited.
+            let runs = CTLineGetGlyphRuns(line) as NSArray
+            var runOffsetX: CGFloat = 0
+            var startX: CGFloat?
+            var totalWidth: CGFloat = 0
+            for i in 0 ..< runs.count {
+                let run = runs[i] as! CTRun
+                let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil))
+                let attrs = CTRunGetAttributes(run) as! [NSAttributedString.Key: Any]
+                if attrs[.contextIdentifier] as? String == identifier {
+                    if startX == nil { startX = lineOrigin.x + runOffsetX }
+                    totalWidth += width
+                }
+                runOffsetX += width
+            }
+            guard let startX, totalWidth > 0 else { return }
+            let y = lineOrigin.y - offset
+            context.setStrokeColor(color.cgColor)
+            context.setLineWidth(lineWidth)
+            context.setLineDash(phase: 0, lengths: dash)
+            context.move(to: CGPoint(x: startX, y: y))
+            context.addLine(to: CGPoint(x: startX + totalWidth, y: y))
+            context.strokePath()
+        }
+        return attributes
+    }
+
     func render(theme: MarkdownTheme, context: MarkdownTextView.PreprocessedContent, viewProvider: ReusableViewProvider, attrCache: InlineAttributeCache) -> NSAttributedString {
         assert(Thread.isMainThread)
         switch self {
@@ -69,13 +110,21 @@ extension MarkdownInlineNode {
         case let .emphasis(children):
             let ans = NSMutableAttributedString()
             for child in children { ans.append(child.render(theme: theme, context: context, viewProvider: viewProvider, attrCache: attrCache)) }
-            ans.addAttributes(
-                [
+            let attributes: [NSAttributedString.Key: Any]
+            if let dash = theme.emphasisUnderlineDash, !dash.isEmpty {
+                attributes = Self.dashedUnderlineAttributes(
+                    color: theme.colors.emphasis,
+                    dash: dash,
+                    lineWidth: theme.emphasisUnderlineWidth,
+                    offset: abs(theme.fonts.body.descender) * 0.5
+                )
+            } else {
+                attributes = [
                     .underlineStyle: NSUnderlineStyle.thick.rawValue,
                     .underlineColor: theme.colors.emphasis,
-                ],
-                range: NSRange(location: 0, length: ans.length)
-            )
+                ]
+            }
+            ans.addAttributes(attributes, range: NSRange(location: 0, length: ans.length))
             return ans
         case let .strong(children):
             let ans = NSMutableAttributedString()
@@ -101,41 +150,13 @@ extension MarkdownInlineNode {
                 .foregroundColor: theme.colors.highlight,
             ]
             if let dash = theme.linkUnderlineDash, !dash.isEmpty {
-                // Custom dashed underline: NSUnderlineStyle's pattern lengths aren't
-                // configurable, so draw the line ourselves with the requested dash.
-                let identifier = UUID().uuidString
-                let color = theme.linkUnderlineColor ?? theme.colors.highlight
-                let lineWidth = theme.linkUnderlineWidth
-                // Sit just below the baseline, within the descent. Tunable.
-                let offset = abs(theme.fonts.body.descender) * 0.5
-                attributes[.contextIdentifier] = identifier
-                attributes[LTXLineDrawingCallbackName] = LTXLineDrawingAction { context, line, lineOrigin in
-                    // Sum the extent of this link's run(s) on the current line. A link
-                    // may span several runs (font substitution) or wrap across lines;
-                    // each line's portion is drawn when its runs are visited.
-                    let runs = CTLineGetGlyphRuns(line) as NSArray
-                    var runOffsetX: CGFloat = 0
-                    var startX: CGFloat?
-                    var totalWidth: CGFloat = 0
-                    for i in 0 ..< runs.count {
-                        let run = runs[i] as! CTRun
-                        let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil))
-                        let attrs = CTRunGetAttributes(run) as! [NSAttributedString.Key: Any]
-                        if attrs[.contextIdentifier] as? String == identifier {
-                            if startX == nil { startX = lineOrigin.x + runOffsetX }
-                            totalWidth += width
-                        }
-                        runOffsetX += width
-                    }
-                    guard let startX, totalWidth > 0 else { return }
-                    let y = lineOrigin.y - offset
-                    context.setStrokeColor(color.cgColor)
-                    context.setLineWidth(lineWidth)
-                    context.setLineDash(phase: 0, lengths: dash)
-                    context.move(to: CGPoint(x: startX, y: y))
-                    context.addLine(to: CGPoint(x: startX + totalWidth, y: y))
-                    context.strokePath()
-                }
+                let dashAttributes = Self.dashedUnderlineAttributes(
+                    color: theme.linkUnderlineColor ?? theme.colors.highlight,
+                    dash: dash,
+                    lineWidth: theme.linkUnderlineWidth,
+                    offset: abs(theme.fonts.body.descender) * 0.5
+                )
+                attributes.merge(dashAttributes) { _, new in new }
             } else {
                 attributes[.underlineStyle] = theme.linkUnderlineStyle.rawValue
                 attributes[.underlineColor] = theme.colors.highlight
