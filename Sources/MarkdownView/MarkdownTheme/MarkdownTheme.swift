@@ -122,6 +122,10 @@ public struct MarkdownTheme: Equatable {
     /// Line width for the custom dashed link underline (`linkUnderlineDash`).
     public var linkUnderlineWidth: CGFloat = 1
 
+    /// Color for the custom dashed link underline (`linkUnderlineDash`).
+    /// `nil` matches the link text (`colors.highlight`).
+    public var linkUnderlineColor: PlatformColor?
+
     public struct Spacings: Equatable {
         public var final: CGFloat = 16
         public var general: CGFloat = 8

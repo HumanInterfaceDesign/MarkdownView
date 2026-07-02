@@ -104,7 +104,7 @@ extension MarkdownInlineNode {
                 // Custom dashed underline: NSUnderlineStyle's pattern lengths aren't
                 // configurable, so draw the line ourselves with the requested dash.
                 let identifier = UUID().uuidString
-                let color = theme.colors.highlight
+                let color = theme.linkUnderlineColor ?? theme.colors.highlight
                 let lineWidth = theme.linkUnderlineWidth
                 // Sit just below the baseline, within the descent. Tunable.
                 let offset = abs(theme.fonts.body.descender) * 0.5
