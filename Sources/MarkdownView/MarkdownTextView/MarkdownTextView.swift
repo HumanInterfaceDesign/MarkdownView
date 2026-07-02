@@ -167,6 +167,11 @@ enum ContentPipelineMode {
 
         /// Seeds the reveal frontier so a recycled cell continues an in-progress
         /// reveal instead of restarting (forward-only).
+        /// Current reveal frontier — capture before cell reuse, re-seed on return.
+        public var streamingRevealFrontier: Double {
+            textView.streamingRevealFrontier
+        }
+
         public func seedStreamingRevealFrontier(_ position: Double) {
             textView.seedStreamingRevealFrontier(position)
         }
@@ -376,6 +381,11 @@ enum ContentPipelineMode {
 
         /// Seeds the reveal frontier so a recycled cell continues an in-progress
         /// reveal instead of restarting (forward-only).
+        /// Current reveal frontier — capture before cell reuse, re-seed on return.
+        public var streamingRevealFrontier: Double {
+            textView.streamingRevealFrontier
+        }
+
         public func seedStreamingRevealFrontier(_ position: Double) {
             textView.seedStreamingRevealFrontier(position)
         }

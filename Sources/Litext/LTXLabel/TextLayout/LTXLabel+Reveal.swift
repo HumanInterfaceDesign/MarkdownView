@@ -37,6 +37,12 @@ extension LTXLabel {
         }
     }
 
+    /// Current reveal frontier (character position already swept). Capture this
+    /// before cell reuse tears the reveal down and re-seed it via
+    /// `seedStreamingRevealFrontier` when the same content comes back, so the
+    /// reveal resumes instead of restarting.
+    public var streamingRevealFrontier: Double { revealFrontier }
+
     /// Seeds the reveal frontier (character position already swept) so a recycled
     /// cell continues an in-progress reveal instead of restarting from zero. Only
     /// advances forward — a stale seed never pulls the frontier backward.
