@@ -51,6 +51,19 @@ extension LTXLabel {
         revealFrontierTime = 0
         revealActive = false
         stopRevealDriver()
+        updateRevealActivityReport()
+    }
+
+    /// Reports reveal activity through `onStreamingRevealActivityChanged`. The
+    /// signal turns off once the frontier is within
+    /// `streamingRevealHandoffCharacters` of the end — the tail keeps animating,
+    /// but followers may proceed — and back on if new text pushes the end away.
+    private func updateRevealActivityReport() {
+        let remaining = max(0, Double(attributedText.length) - revealFrontier)
+        let active = revealActive && remaining > streamingRevealHandoffCharacters
+        guard active != revealReportedActivity else { return }
+        revealReportedActivity = active
+        onStreamingRevealActivityChanged?(active)
     }
 
     /// Width of the soft fade edge, in characters. A character spends
@@ -68,6 +81,7 @@ extension LTXLabel {
     /// so there are no per-index stamps to re-align — just keep the driver running
     /// while there's still text (plus the trailing fade window) left to reveal.
     func handleRevealTextChange() {
+        defer { updateRevealActivityReport() }
         guard streamingReveal else {
             // Let an in-flight fade finish; only stop once it has settled.
             if !revealActive { stopRevealDriver() }
@@ -110,6 +124,7 @@ extension LTXLabel {
     }
 
     @objc func stepReveal() {
+        defer { updateRevealActivityReport() }
         advanceFrontier()
         setNeedsDisplayForReveal()
         // Settle once the frontier has passed the end by the fade window, so the

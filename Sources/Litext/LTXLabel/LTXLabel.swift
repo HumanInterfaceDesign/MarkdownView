@@ -76,6 +76,14 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// "is the typing animation visibly running right now".
     public var onStreamingRevealActivityChanged: ((Bool) -> Void)?
 
+    /// Characters from the end at which the activity signal
+    /// (`onStreamingRevealActivityChanged`) reports `false` while the tail keeps
+    /// animating. Lets a host hand off to follow-on UI slightly before the sweep
+    /// fully settles, so the transition reads as one continuous motion instead of
+    /// animation → pause → next thing. If more text arrives, the signal flips
+    /// back to `true`. 0 (default) reports active until the frontier settles.
+    public var streamingRevealHandoffCharacters: Double = 0
+
     /// Reveal "frontier": the fractional character position the fade has swept to.
     /// Monotonic — alpha is a function of character index vs this counter, so a
     /// mid-stream markdown restructure (shifting later characters) can't misalign it.
@@ -83,12 +91,11 @@ public class LTXLabel: LTXPlatformView, Identifiable {
     /// Wall time the frontier last advanced (0 = idle/unset).
     var revealFrontierTime: CFTimeInterval = 0
     /// True while the fade is in flight (drives the per-glyph draw path).
-    var revealActive: Bool = false {
-        didSet {
-            guard oldValue != revealActive else { return }
-            onStreamingRevealActivityChanged?(revealActive)
-        }
-    }
+    var revealActive: Bool = false
+    /// Last state reported through `onStreamingRevealActivityChanged` — activity
+    /// is a function of `revealActive` *and* how far the frontier is from the end
+    /// (`streamingRevealHandoffCharacters`), re-evaluated as the frontier moves.
+    var revealReportedActivity = false
     #if canImport(UIKit)
         var revealDisplayLink: CADisplayLink?
     #else

@@ -151,6 +151,15 @@ enum ContentPipelineMode {
             set { textView.onStreamingRevealActivityChanged = newValue }
         }
 
+        /// Characters from the end at which the activity signal reports `false`
+        /// while the tail keeps animating — an early handoff so follow-on UI can
+        /// overlap the last beat of the sweep. 0 (default) reports active until
+        /// the frontier fully settles.
+        public var streamingRevealHandoffCharacters: Double {
+            get { textView.streamingRevealHandoffCharacters }
+            set { textView.streamingRevealHandoffCharacters = newValue }
+        }
+
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
         public func cancelStreamingReveal() {
             textView.cancelStreamingReveal()
@@ -349,6 +358,15 @@ enum ContentPipelineMode {
         public var onStreamingRevealActivityChanged: ((Bool) -> Void)? {
             get { textView.onStreamingRevealActivityChanged }
             set { textView.onStreamingRevealActivityChanged = newValue }
+        }
+
+        /// Characters from the end at which the activity signal reports `false`
+        /// while the tail keeps animating — an early handoff so follow-on UI can
+        /// overlap the last beat of the sweep. 0 (default) reports active until
+        /// the frontier fully settles.
+        public var streamingRevealHandoffCharacters: Double {
+            get { textView.streamingRevealHandoffCharacters }
+            set { textView.streamingRevealHandoffCharacters = newValue }
         }
 
         /// Immediately cancels an in-flight reveal (e.g. on cell reuse).
