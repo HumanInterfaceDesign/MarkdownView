@@ -17,6 +17,14 @@ private class ObjectPool<T: Equatable & Hashable> {
         self.factory = factory
     }
 
+    // The optimizer's EarlyPerfInliner infinitely recurses in
+    // `isCallerAndCalleeLayoutConstraintsCompatible` while optimizing the
+    // *implicit* deinitializer of this generic pool, crashing swift-frontend in
+    // optimized (archive / `-O`) builds. An explicit `@_optimize(none)` deinit
+    // keeps that release code out of the inliner and sidesteps the crash.
+    @_optimize(none)
+    deinit {}
+
     func acquire() -> T {
         if !objects.isEmpty {
             objects.removeLast()
