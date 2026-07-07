@@ -184,7 +184,11 @@ extension LTXLabel {
         func startRevealDriver() {
             guard revealTimer == nil else { return }
             let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-                self?.stepReveal()
+                // Added to `RunLoop.main` below, so the callback always fires on
+                // the main actor — the compiler just can't prove it from here.
+                MainActor.assumeIsolated {
+                    self?.stepReveal()
+                }
             }
             RunLoop.main.add(timer, forMode: .common)
             revealTimer = timer

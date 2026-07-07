@@ -13,7 +13,7 @@ import Litext
     import AppKit
 #endif
 
-public struct RenderedTextContent {
+public nonisolated struct RenderedTextContent: Sendable {
     public let image: PlatformImage?
     public let text: String
 

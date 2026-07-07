@@ -7,6 +7,7 @@ import XCTest
     import UIKit
 #endif
 
+@MainActor
 final class DiffViewTests: XCTestCase {
 
     private let parser = MarkdownParser()

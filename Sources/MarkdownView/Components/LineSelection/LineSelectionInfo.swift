@@ -1,7 +1,7 @@
 import Foundation
 
 /// Information about the currently selected lines in a code or diff view.
-public struct LineSelectionInfo {
+public nonisolated struct LineSelectionInfo: Sendable {
     /// The 1-based range of selected lines.
     public let lineRange: ClosedRange<Int>
 

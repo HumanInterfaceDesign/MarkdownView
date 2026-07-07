@@ -11,13 +11,15 @@ import Litext
 import MarkdownParser
 
 extension MarkdownTextView {
-    struct IncrementalParsingContext {
+    // Flows through the background preprocessing queue, so both the context and the
+    // pipeline's update enum are nonisolated (they only carry Sendable payloads).
+    nonisolated struct IncrementalParsingContext {
         let previousRawMarkdown: String
         let previousContent: PreprocessedContent
         let previousRanges: [MarkdownParser.RootBlockRange]?
     }
 
-    enum RawMarkdownUpdate {
+    nonisolated enum RawMarkdownUpdate {
         case ready(content: PreprocessedContent, rawMarkdown: String)
         case parse(markdown: String, theme: MarkdownTheme, incrementalContext: IncrementalParsingContext?)
         case parsedFull(
@@ -39,6 +41,50 @@ extension MarkdownTextView {
         label: "com.markdownview.preprocessing",
         qos: .userInitiated
     )
+
+    /// Heavy parsing + background-safe preprocessing (code highlighting, diff blocks).
+    /// Deliberately `nonisolated` because it executes on `preprocessingQueue`; math
+    /// rendering is deferred to the main actor in the downstream `.sink`.
+    nonisolated static func processOnPreprocessingQueue(_ update: RawMarkdownUpdate) -> RawMarkdownUpdate {
+        switch update {
+        case .ready:
+            return update
+        case let .parse(markdown, theme, incrementalContext):
+            let parser = MarkdownParser()
+            if let incrementalContext,
+               let result = parser.parseIncremental(
+                   previousMarkdown: incrementalContext.previousRawMarkdown,
+                   newMarkdown: markdown,
+                   previousBlocks: incrementalContext.previousContent.blocks,
+                   previousRanges: incrementalContext.previousRanges
+               ) {
+                let tailContent = PreprocessedContent(
+                    parserResult: result.tailResult,
+                    theme: theme,
+                    backgroundSafe: true
+                )
+                return .parsedIncremental(
+                    result: result,
+                    tailContent: tailContent,
+                    context: incrementalContext,
+                    theme: theme,
+                    rawMarkdown: markdown
+                )
+            }
+
+            let result = parser.parse(markdown)
+            // Code highlighting runs on background; math rendering deferred to main
+            let content = PreprocessedContent(parserResult: result, theme: theme, backgroundSafe: true)
+            return .parsedFull(
+                result: result,
+                content: content,
+                theme: theme,
+                rawMarkdown: markdown
+            )
+        case .parsedFull, .parsedIncremental:
+            return update
+        }
+    }
 
     private static let disallowedPlainTextAppendScalars = CharacterSet(
         charactersIn: "\n\r`*_[]()!$<>|~\\"
@@ -94,46 +140,10 @@ extension MarkdownTextView {
                 )
             }
             .receive(on: Self.preprocessingQueue)
-            .map { update -> RawMarkdownUpdate in
-                switch update {
-                case .ready:
-                    return update
-                case let .parse(markdown, theme, incrementalContext):
-                    let parser = MarkdownParser()
-                    if let incrementalContext,
-                       let result = parser.parseIncremental(
-                           previousMarkdown: incrementalContext.previousRawMarkdown,
-                           newMarkdown: markdown,
-                           previousBlocks: incrementalContext.previousContent.blocks,
-                           previousRanges: incrementalContext.previousRanges
-                       ) {
-                        let tailContent = PreprocessedContent(
-                            parserResult: result.tailResult,
-                            theme: theme,
-                            backgroundSafe: true
-                        )
-                        return .parsedIncremental(
-                            result: result,
-                            tailContent: tailContent,
-                            context: incrementalContext,
-                            theme: theme,
-                            rawMarkdown: markdown
-                        )
-                    }
-
-                    let result = parser.parse(markdown)
-                    // Code highlighting runs on background; math rendering deferred to main
-                    let content = PreprocessedContent(parserResult: result, theme: theme, backgroundSafe: true)
-                    return .parsedFull(
-                        result: result,
-                        content: content,
-                        theme: theme,
-                        rawMarkdown: markdown
-                    )
-                case .parsedFull, .parsedIncremental:
-                    return update
-                }
-            }
+            // Runs on `preprocessingQueue` (off the main actor), so it must be a
+            // `nonisolated` function — a main-actor-isolated closure here would trap
+            // the runtime isolation check when Combine delivers it on that queue.
+            .map(Self.processOnPreprocessingQueue)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] update in
                 guard let self else { return }

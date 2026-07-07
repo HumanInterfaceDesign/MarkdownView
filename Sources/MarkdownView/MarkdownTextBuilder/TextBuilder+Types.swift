@@ -32,7 +32,7 @@ struct RenderText {
 
 // MARK: - String Extension
 
-extension String {
+nonisolated extension String {
     func deletingSuffix(of characterSet: CharacterSet) -> String {
         var result = self
         while let lastChar = result.last, characterSet.contains(lastChar.unicodeScalars.first!) {

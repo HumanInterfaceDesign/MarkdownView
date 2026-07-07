@@ -228,7 +228,10 @@ public class LTXLabel: LTXPlatformView, Identifiable {
         fatalError()
     }
 
-    deinit {
+    // The view is `@MainActor`, but Swift 6.2 makes `deinit` nonisolated by
+    // default; this touches main-actor state (`attributedText`, `attachmentViews`,
+    // selection), so keep the deinit on the main actor.
+    isolated deinit {
         stopRevealDriver()
         cancelLongPressTimer()
         attributedText = .init()

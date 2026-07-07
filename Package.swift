@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -76,7 +76,12 @@ let package = Package(
     targets: [
         .target(
             name: "Litext",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            // UIView/NSView-based text label — main-actor by default.
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .defaultIsolation(MainActor.self),
+            ]
         ),
         .target(
             name: "MarkdownView",
@@ -122,12 +127,23 @@ let package = Package(
                 .product(name: "TreeSitterYAML", package: "tree-sitter-yaml",
                          condition: .when(traits: ["YAML"])),
             ],
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            // SwiftUI/UIKit rendering layer — main-actor by default.
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .defaultIsolation(MainActor.self),
+            ]
         ),
-        .target(name: "MarkdownParser", dependencies: [
-            .product(name: "cmark-gfm", package: "swift-cmark"),
-            .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
-        ]),
+        .target(
+            name: "MarkdownParser",
+            dependencies: [
+                .product(name: "cmark-gfm", package: "swift-cmark"),
+                .product(name: "cmark-gfm-extensions", package: "swift-cmark"),
+            ],
+            // Pure data / parsing — safe to run off the main actor, so it stays
+            // nonisolated and models are `Sendable`.
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "MarkdownViewTests",
             dependencies: [
@@ -136,8 +152,9 @@ let package = Package(
             ]
         ),
     ],
-    // Preserve the Swift 5 language mode. Bumping swift-tools-version to 6.1
-    // (required for traits) would otherwise default the package to the Swift 6
-    // language mode and turn pre-existing concurrency warnings into errors.
+    // Targets are migrated to the Swift 6 language mode individually (see each
+    // target's `swiftSettings`). This package default keeps any not-yet-migrated
+    // target in the Swift 5 mode so its pre-existing concurrency warnings don't
+    // become errors mid-migration.
     swiftLanguageModes: [.v5]
 )

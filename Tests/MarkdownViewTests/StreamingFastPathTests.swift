@@ -2,6 +2,7 @@ import XCTest
 @testable import MarkdownParser
 @testable import MarkdownView
 
+@MainActor
 final class StreamingFastPathTests: XCTestCase {
 
     private let parser = MarkdownParser()
