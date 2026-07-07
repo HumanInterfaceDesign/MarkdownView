@@ -10,7 +10,10 @@ import MarkdownParser
 import os.log
 
 public extension MarkdownTextView {
-    final class PreprocessedContent {
+    // Built on the background preprocessing queue (code highlighting, diff blocks),
+    // so it is nonisolated by default. Only the members that perform math rendering
+    // (which needs UIKit/AppKit context) are marked `@MainActor` below.
+    nonisolated final class PreprocessedContent {
         public let blocks: [MarkdownBlockNode]
         public let rendered: RenderedTextContent.Map
         public let highlightMaps: [Int: CodeHighlighter.HighlightMap]
@@ -44,7 +47,7 @@ public extension MarkdownTextView {
             self.imageSources = imageSources
         }
 
-        public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) {
+        @MainActor public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) {
             blocks = parserResult.document
             rendered = parserResult.render(theme: theme)
             highlightMaps = parserResult.render(theme: theme)
@@ -54,27 +57,29 @@ public extension MarkdownTextView {
         }
 
         /// Creates preprocessed content directly from markdown text, including raw unified diffs.
-        public convenience init(markdown: String, theme: MarkdownTheme) {
+        @MainActor public convenience init(markdown: String, theme: MarkdownTheme) {
             let normalizedMarkdown = RawDiffMarkdownNormalizer.normalizeForParsing(markdown)
             let parserResult = MarkdownParser().parse(normalizedMarkdown)
             self.init(parserResult: parserResult, theme: theme)
         }
 
         /// Creates preprocessed content with code highlighting done on the calling thread
-        /// and math rendering deferred. Use this from background queues where UIKit trait
-        /// access is unavailable.
-        public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme, backgroundSafe: Bool) {
+        /// and math rendering deferred. Safe to call from background queues where UIKit
+        /// trait access is unavailable.
+        ///
+        /// - Note: `backgroundSafe` is retained for source compatibility. Math rendering
+        ///   requires the main actor and is now always deferred here — complete it with
+        ///   `completeMathRendering(_:theme:)` on the main actor. The former synchronous
+        ///   full-render (`backgroundSafe: false`) path is not expressible off the main
+        ///   actor under strict concurrency; use `@MainActor init(parserResult:theme:)`
+        ///   when a fully-rendered value is needed up front.
+        nonisolated public init(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme, backgroundSafe: Bool) {
+            _ = backgroundSafe
             blocks = parserResult.document
-            if backgroundSafe {
-                // Code highlighting is thread-safe; math rendering needs main thread context
-                highlightMaps = parserResult.render(theme: theme)
-                diffRenderBlocks = parserResult.renderDiffBlocks()
-                rendered = .init()
-            } else {
-                rendered = parserResult.render(theme: theme)
-                highlightMaps = parserResult.render(theme: theme)
-                diffRenderBlocks = parserResult.renderDiffBlocks()
-            }
+            // Code highlighting is thread-safe; math rendering is deferred to the main actor.
+            highlightMaps = parserResult.render(theme: theme)
+            diffRenderBlocks = parserResult.renderDiffBlocks()
+            rendered = .init()
             imageSources = Self.collectImageSources(in: blocks)
             preloadImages()
         }
@@ -88,7 +93,7 @@ public extension MarkdownTextView {
         }
 
         /// Fills in math-rendered content from main thread after background init.
-        public func completeMathRendering(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) -> PreprocessedContent {
+        @MainActor public func completeMathRendering(parserResult: MarkdownParser.ParseResult, theme: MarkdownTheme) -> PreprocessedContent {
             PreprocessedContent(
                 blocks: blocks,
                 rendered: parserResult.render(theme: theme),
@@ -172,7 +177,7 @@ public extension MarkdownTextView {
     }
 }
 
-private func visitImageURLs(in blocks: [MarkdownBlockNode], urls: inout Set<String>) {
+private nonisolated func visitImageURLs(in blocks: [MarkdownBlockNode], urls: inout Set<String>) {
     for block in blocks {
         switch block {
         case let .paragraph(inlines):
@@ -193,7 +198,7 @@ private func visitImageURLs(in blocks: [MarkdownBlockNode], urls: inout Set<Stri
     }
 }
 
-private func visitInlineImages(in inlines: [MarkdownInlineNode], urls: inout Set<String>) {
+private nonisolated func visitInlineImages(in inlines: [MarkdownInlineNode], urls: inout Set<String>) {
     for inline in inlines {
         switch inline {
         case let .image(source, _):
@@ -228,14 +233,16 @@ public extension MarkdownParser.ParseResult {
         }
     }
 
-    func render(theme: MarkdownTheme) -> RenderedTextContent.Map {
+    // Math rendering uses `MathRenderer` (UIKit/AppKit) and reads `theme` fonts/colors,
+    // so it is main-actor-isolated.
+    @MainActor func render(theme: MarkdownTheme) -> RenderedTextContent.Map {
         var renderedContexts: [String: RenderedTextContent] = [:]
         renderMathContent(theme, &renderedContexts)
         return renderedContexts
     }
 }
 
-private func visitCodeBlocks(
+private nonisolated func visitCodeBlocks(
     in blocks: [MarkdownBlockNode],
     visitor: (String?, String) -> Void
 ) {
@@ -252,7 +259,7 @@ private func visitCodeBlocks(
 }
 
 public extension MarkdownParser.ParseResult {
-    func render(theme: MarkdownTheme) -> [Int: CodeHighlighter.HighlightMap] {
+    nonisolated func render(theme: MarkdownTheme) -> [Int: CodeHighlighter.HighlightMap] {
         var highlightMaps = [Int: CodeHighlighter.HighlightMap]()
         visitCodeBlocks(in: document) { fenceInfo, content in
             guard CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) == nil else { return }
@@ -263,12 +270,12 @@ public extension MarkdownParser.ParseResult {
         return highlightMaps
     }
 
-    internal func renderDiffBlocks() -> [Int: DiffRenderBlock] {
+    internal nonisolated func renderDiffBlocks() -> [Int: DiffRenderBlock] {
         buildDiffRenderBlocks(from: document)
     }
 }
 
-private func retainedHighlightMaps(
+private nonisolated func retainedHighlightMaps(
     from blocks: [MarkdownBlockNode],
     available: [Int: CodeHighlighter.HighlightMap]
 ) -> [Int: CodeHighlighter.HighlightMap] {
@@ -283,7 +290,7 @@ private func retainedHighlightMaps(
     return retained
 }
 
-private func retainedDiffRenderBlocks(
+private nonisolated func retainedDiffRenderBlocks(
     from blocks: [MarkdownBlockNode],
     available: [Int: DiffRenderBlock]
 ) -> [Int: DiffRenderBlock] {
@@ -298,7 +305,7 @@ private func retainedDiffRenderBlocks(
     return retained
 }
 
-private func buildDiffRenderBlocks(from blocks: [MarkdownBlockNode]) -> [Int: DiffRenderBlock] {
+private nonisolated func buildDiffRenderBlocks(from blocks: [MarkdownBlockNode]) -> [Int: DiffRenderBlock] {
     var diffRenderBlocks = [Int: DiffRenderBlock]()
     visitCodeBlocks(in: blocks) { fenceInfo, content in
         guard let diffFenceInfo = CodeBlockClassifier.diffFenceInfo(fenceInfo: fenceInfo, content: content) else { return }
@@ -311,7 +318,7 @@ private func buildDiffRenderBlocks(from blocks: [MarkdownBlockNode]) -> [Int: Di
     return diffRenderBlocks
 }
 
-private func retainedRenderedContexts(
+private nonisolated func retainedRenderedContexts(
     from blocks: [MarkdownBlockNode],
     available: RenderedTextContent.Map
 ) -> RenderedTextContent.Map {
@@ -319,7 +326,7 @@ private func retainedRenderedContexts(
     return available.filter { usedIdentifiers.contains($0.key) }
 }
 
-private func collectMathReplacementIdentifiers(in blocks: [MarkdownBlockNode]) -> Set<String> {
+private nonisolated func collectMathReplacementIdentifiers(in blocks: [MarkdownBlockNode]) -> Set<String> {
     var identifiers = Set<String>()
     for block in blocks {
         switch block {
@@ -352,7 +359,7 @@ private func collectMathReplacementIdentifiers(in blocks: [MarkdownBlockNode]) -
     return identifiers
 }
 
-private func collectMathReplacementIdentifiers(
+private nonisolated func collectMathReplacementIdentifiers(
     in inlines: [MarkdownInlineNode],
     identifiers: inout Set<String>
 ) {

@@ -88,7 +88,9 @@
             item
         }
 
-        deinit {
+        // Runs the main-actor `cleanup` closure; Swift 6.2 deinits are nonisolated
+        // by default, so keep this one on the main actor.
+        isolated deinit {
             cleanup()
         }
     }

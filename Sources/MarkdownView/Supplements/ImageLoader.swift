@@ -14,7 +14,10 @@ import os.log
     import AppKit
 #endif
 
-public final class ImageLoader {
+// A thread-safe background image service (own `NSLock`, background `URLSession`),
+// so it opts out of the module's default main-actor isolation. Thread safety is
+// enforced manually via `lock`, hence `@unchecked Sendable`.
+public nonisolated final class ImageLoader: @unchecked Sendable {
     public static let shared = ImageLoader()
 
     /// Posted on the main thread when an image finishes loading.
@@ -41,7 +44,7 @@ public final class ImageLoader {
     /// otherwise fetches asynchronously and calls completion on main thread.
     public func loadImage(
         from urlString: String,
-        completion: @escaping (PlatformImage?) -> Void
+        completion: @escaping @Sendable (PlatformImage?) -> Void
     ) {
         let cacheKey = urlString as NSString
 
@@ -98,7 +101,9 @@ public final class ImageLoader {
             #if DEBUG
                 Self.log.info("loaded: \(urlString) size=\(image.size.width)x\(image.size.height)")
             #endif
-            self?.cache.setObject(image, forKey: cacheKey)
+            // Re-bridge from the `Sendable` `String` rather than capturing the
+            // non-Sendable `NSString` into this `@Sendable` closure.
+            self?.cache.setObject(image, forKey: urlString as NSString)
             DispatchQueue.main.async {
                 completion(image)
                 NotificationCenter.default.post(

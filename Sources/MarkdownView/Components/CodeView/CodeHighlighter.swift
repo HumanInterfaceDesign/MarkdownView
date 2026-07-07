@@ -71,12 +71,15 @@ import SwiftTreeSitter
     public typealias PlatformColor = NSColor
 #endif
 
-private final class HighlightMapBox {
+private nonisolated final class HighlightMapBox {
     let value: CodeHighlighter.HighlightMap
     init(_ value: CodeHighlighter.HighlightMap) { self.value = value }
 }
 
-public final class CodeHighlighter {
+// Thread-safe syntax-highlighting service (own `parserPoolLock`/`NSCache`, runs on
+// background preprocessing queues), so it opts out of the module's default
+// main-actor isolation. Thread safety is enforced manually, hence `@unchecked Sendable`.
+public nonisolated final class CodeHighlighter: @unchecked Sendable {
     public typealias HighlightMap = [NSRange: PlatformColor]
 
     private var renderCache: NSCache<NSNumber, HighlightMapBox> = {
@@ -175,7 +178,7 @@ public final class CodeHighlighter {
 
     /// Factory closures that create language configurations on demand.
     /// Only the requested language is initialized, avoiding the cost of loading all 15 parsers.
-    private static let languageFactories: [String: () -> LanguageConfiguration?] = {
+    private nonisolated(unsafe) static let languageFactories: [String: () -> LanguageConfiguration?] = {
         var factories: [String: () -> LanguageConfiguration?] = [:]
 
         func register(_ aliases: [String], _ factory: @escaping () throws -> LanguageConfiguration) {
@@ -288,7 +291,7 @@ public final class CodeHighlighter {
     }()
 
     /// Cache of already-initialized language configurations.
-    private static var resolvedLanguages: [String: LanguageConfiguration] = [:]
+    private nonisolated(unsafe) static var resolvedLanguages: [String: LanguageConfiguration] = [:]
     private static let resolvedLanguagesLock = NSLock()
 
     private static func languageConfiguration(for alias: String) -> LanguageConfiguration? {
@@ -416,18 +419,17 @@ public final class CodeHighlighter {
 }
 
 public extension CodeHighlighter {
-    func key(for content: String, language: String?) -> Int {
+    nonisolated func key(for content: String, language: String?) -> Int {
         var hasher = Hasher()
         hasher.combine(content)
         hasher.combine(language?.lowercased() ?? "")
         return hasher.finalize()
     }
 
-    func highlight(
+    nonisolated func highlight(
         key: Int?,
         content: String,
-        language: String?,
-        theme: MarkdownTheme = .default
+        language: String?
     ) -> [NSRange: PlatformColor] {
         let key = key ?? self.key(for: content, language: language)
         let nsKey = NSNumber(value: key)

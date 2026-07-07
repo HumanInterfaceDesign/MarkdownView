@@ -38,7 +38,9 @@ public enum MathRenderer {
             super.init()
         }
 
-        override var hash: Int {
+        // Immutable-state overrides of `NSObject`'s nonisolated members; must be
+        // nonisolated too, since the type is otherwise main-actor-isolated by default.
+        nonisolated override var hash: Int {
             var hasher = Hasher()
             hasher.combine(latex)
             hasher.combine(fontSize)
@@ -49,7 +51,7 @@ public enum MathRenderer {
             return hasher.finalize()
         }
 
-        override func isEqual(_ object: Any?) -> Bool {
+        nonisolated override func isEqual(_ object: Any?) -> Bool {
             guard let other = object as? CacheKey else { return false }
             return latex == other.latex && fontSize == other.fontSize
                 && r == other.r && g == other.g && b == other.b && a == other.a

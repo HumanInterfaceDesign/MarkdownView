@@ -1,6 +1,6 @@
 import Foundation
 
-struct DiffFenceInfo: Hashable {
+nonisolated struct DiffFenceInfo: Hashable {
     let language: String?
 
     static func parseExplicit(_ fenceInfo: String?) -> DiffFenceInfo? {
@@ -52,7 +52,7 @@ struct DiffFenceInfo: Hashable {
     }
 }
 
-enum CodeBlockClassifier {
+nonisolated enum CodeBlockClassifier {
     static func diffFenceInfo(fenceInfo: String?, content: String) -> DiffFenceInfo? {
         if let explicit = DiffFenceInfo.parseExplicit(fenceInfo) {
             return explicit
@@ -61,7 +61,7 @@ enum CodeBlockClassifier {
     }
 }
 
-enum RawDiffMarkdownNormalizer {
+nonisolated enum RawDiffMarkdownNormalizer {
     static func normalizeForParsing(_ markdown: String) -> String {
         guard UnifiedDiffParser.canRender(content: markdown, language: nil) else {
             return markdown
@@ -72,7 +72,7 @@ enum RawDiffMarkdownNormalizer {
     }
 }
 
-struct DiffRenderBlock {
+nonisolated struct DiffRenderBlock {
     enum RowKind: Hashable {
         case fileHeader
         case fileMetadata
@@ -96,7 +96,7 @@ struct DiffRenderBlock {
     let rows: [Row]
 }
 
-extension DiffRenderBlock {
+nonisolated extension DiffRenderBlock {
     static func key(for content: String, language: String?) -> Int {
         let normalizedContent = content.deletingSuffix(of: .newlines)
         var hasher = Hasher()
@@ -106,7 +106,7 @@ extension DiffRenderBlock {
     }
 }
 
-enum UnifiedDiffParser {
+nonisolated enum UnifiedDiffParser {
     static func canRender(content: String, language: String?) -> Bool {
         parse(content: content.deletingSuffix(of: .newlines), language: language) != nil
     }
@@ -123,7 +123,7 @@ enum UnifiedDiffParser {
     }
 }
 
-private extension UnifiedDiffParser {
+private nonisolated extension UnifiedDiffParser {
     struct ParsedBlock {
         let language: String?
         let sections: [ParsedSection]
