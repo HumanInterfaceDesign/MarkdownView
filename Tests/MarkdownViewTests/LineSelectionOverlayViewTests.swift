@@ -68,8 +68,18 @@ final class LineSelectionOverlayViewTests: XCTestCase {
         // Line 3 ends at 78; it owns one trailing gap (< 82).
         XCTAssertEqual(overlay.lineIndex(atY: 78, trailingGap: gap), 3)
         XCTAssertEqual(overlay.lineIndex(atY: 81.5, trailingGap: gap), 3)
-        XCTAssertNil(overlay.lineIndex(atY: 82, trailingGap: gap))
-        XCTAssertNil(overlay.lineIndex(atY: 200, trailingGap: gap))
+    }
+
+    /// CoreText emits no line for a trailing blank row (text ending in a
+    /// newline), so logical rows can outnumber resolved rects. Points past
+    /// the last rect extrapolate at the last line's advance; callers cap to
+    /// their logical line count.
+    func testExtrapolatesBeyondLastRect() {
+        let overlay = makeOverlay()
+        // Line 3's owned region ends at 82; each extrapolated row advances 24.
+        XCTAssertEqual(overlay.lineIndex(atY: 82, trailingGap: gap), 4)
+        XCTAssertEqual(overlay.lineIndex(atY: 105.5, trailingGap: gap), 4)
+        XCTAssertEqual(overlay.lineIndex(atY: 106, trailingGap: gap), 5)
     }
 
     func testSingleLine() {
@@ -77,7 +87,9 @@ final class LineSelectionOverlayViewTests: XCTestCase {
         XCTAssertNil(overlay.lineIndex(atY: 9, trailingGap: gap))
         XCTAssertEqual(overlay.lineIndex(atY: 10, trailingGap: gap), 1)
         XCTAssertEqual(overlay.lineIndex(atY: 33, trailingGap: gap), 1)
-        XCTAssertNil(overlay.lineIndex(atY: 34, trailingGap: gap))
+        // Beyond the owned region: extrapolated to the (possibly virtual)
+        // next row, for the caller's count guard to accept or reject.
+        XCTAssertEqual(overlay.lineIndex(atY: 34, trailingGap: gap), 2)
     }
 
     /// The motivating case for rect-based hit-testing: lines whose real
