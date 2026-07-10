@@ -112,6 +112,23 @@ import Litext
         }
 
         private func lineIndex(at point: CGPoint) -> Int? {
+            // Hit-test in the selection overlay's space against the resolved
+            // CoreText line rects it draws, so the picked line always matches
+            // the rendered highlight. Estimating from a uniform row advance
+            // (font.lineHeight + spacing) drifts from the real layout as
+            // blocks grow: the actual per-line advance differs by fractions
+            // of a point that accumulate over hundreds of lines, and lines
+            // with fallback-font glyphs are taller still.
+            if selectionOverlay.hasLineRects {
+                let overlayPoint = selectionOverlay.convert(point, from: self)
+                guard let line = selectionOverlay.lineIndex(
+                    atY: overlayPoint.y,
+                    trailingGap: CodeViewConfiguration.codeLineSpacing
+                ), line <= cachedLineCount else { return nil }
+                return line
+            }
+
+            // Fallback before the first layout pass resolves line rects.
             let localPoint = scrollView.convert(point, from: self)
             let contentPoint = CGPoint(
                 x: localPoint.x + scrollView.contentOffset.x,
@@ -120,7 +137,6 @@ import Litext
             let font = theme.fonts.code
             let lineHeight = font.lineHeight
             let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let barHeight = CodeViewConfiguration.barHeight(theme: theme)
             let adjustedY = contentPoint.y
             guard adjustedY >= CodeViewConfiguration.codePadding else { return nil }
             let line = Int((adjustedY - CodeViewConfiguration.codePadding) / rowAdvance) + 1
@@ -405,13 +421,29 @@ import Litext
             lineSelectionEndedHandler?(currentLineSelectionInfo())
         }
 
+        /// `point` is in this view's coordinate space (the mouse handlers
+        /// convert from the window before calling).
         private func lineIndex(at point: CGPoint) -> Int? {
-            let localPoint = convert(point, from: nil)
+            // Hit-test in the selection overlay's space against the resolved
+            // CoreText line rects it draws, so the picked line always matches
+            // the rendered highlight (the arithmetic estimate below drifts
+            // from the real layout as blocks grow). The overlay is flipped,
+            // so the converted point is top-down like the rects.
+            if selectionOverlay.hasLineRects {
+                let overlayPoint = selectionOverlay.convert(point, from: self)
+                guard let line = selectionOverlay.lineIndex(
+                    atY: overlayPoint.y,
+                    trailingGap: CodeViewConfiguration.codeLineSpacing
+                ), line <= cachedLineCount else { return nil }
+                return line
+            }
+
+            // Fallback before the first layout pass resolves line rects.
             let font = theme.fonts.code
             let lineHeight = font.ascender + abs(font.descender) + font.leading
             let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
             let barHeight = CodeViewConfiguration.barHeight(theme: theme)
-            let adjustedY = localPoint.y - barHeight
+            let adjustedY = point.y - barHeight
             guard adjustedY >= CodeViewConfiguration.codePadding else { return nil }
             let line = Int((adjustedY - CodeViewConfiguration.codePadding) / rowAdvance) + 1
             guard line >= 1, line <= cachedLineCount else { return nil }

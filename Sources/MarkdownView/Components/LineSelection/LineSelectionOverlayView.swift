@@ -15,6 +15,8 @@
 
         private var lineRects: [CGRect] = []
 
+        var hasLineRects: Bool { !lineRects.isEmpty }
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             isOpaque = false
@@ -27,6 +29,29 @@
         func updateLineRects(_ rects: [CGRect]) {
             lineRects = rects
             setNeedsDisplay()
+        }
+
+        /// Maps a y in this overlay's coordinate space to a 1-based line index
+        /// using the same rects the highlight draws, so a hit-tested line always
+        /// matches the rendered selection. Each line owns the spacing gap below
+        /// it; nil above the first line. Indices past the last rect are
+        /// extrapolated at the last line's advance — CoreText emits no line for
+        /// a trailing blank row (text ending in a newline), so logical rows can
+        /// outnumber resolved rects. Callers cap the result to their logical
+        /// line count, which turns points beyond the real content into nil.
+        func lineIndex(atY y: CGFloat, trailingGap: CGFloat) -> Int? {
+            guard let first = lineRects.first, let last = lineRects.last else { return nil }
+            guard y >= first.minY else { return nil }
+            for index in 0 ..< (lineRects.count - 1) where y < lineRects[index + 1].minY {
+                return index + 1
+            }
+            if y < last.maxY + trailingGap {
+                return lineRects.count
+            }
+            let advance = last.height + trailingGap
+            guard advance > 0 else { return nil }
+            let extra = Int((y - (last.maxY + trailingGap)) / advance) + 1
+            return lineRects.count + extra
         }
 
         func clearSelection() {
@@ -74,6 +99,8 @@
 
         private var lineRects: [CGRect] = []
 
+        var hasLineRects: Bool { !lineRects.isEmpty }
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             wantsLayer = true
@@ -88,6 +115,29 @@
         func updateLineRects(_ rects: [CGRect]) {
             lineRects = rects
             needsDisplay = true
+        }
+
+        /// Maps a y in this overlay's coordinate space to a 1-based line index
+        /// using the same rects the highlight draws, so a hit-tested line always
+        /// matches the rendered selection. Each line owns the spacing gap below
+        /// it; nil above the first line. Indices past the last rect are
+        /// extrapolated at the last line's advance — CoreText emits no line for
+        /// a trailing blank row (text ending in a newline), so logical rows can
+        /// outnumber resolved rects. Callers cap the result to their logical
+        /// line count, which turns points beyond the real content into nil.
+        func lineIndex(atY y: CGFloat, trailingGap: CGFloat) -> Int? {
+            guard let first = lineRects.first, let last = lineRects.last else { return nil }
+            guard y >= first.minY else { return nil }
+            for index in 0 ..< (lineRects.count - 1) where y < lineRects[index + 1].minY {
+                return index + 1
+            }
+            if y < last.maxY + trailingGap {
+                return lineRects.count
+            }
+            let advance = last.height + trailingGap
+            guard advance > 0 else { return nil }
+            let extra = Int((y - (last.maxY + trailingGap)) / advance) + 1
+            return lineRects.count + extra
         }
 
         func clearSelection() {
