@@ -1767,6 +1767,8 @@ private func makeSideBySideAttributedText(
             displayRows.effectiveCount
         }
 
+        /// `point` is in this view's coordinate space (the mouse handlers
+        /// convert from the window before calling).
         private func rowIndex(at point: CGPoint) -> Int? {
             // Hit-test in the selection overlay's space against the resolved
             // CoreText line rects it draws, so the picked row always matches
@@ -1774,7 +1776,7 @@ private func makeSideBySideAttributedText(
             // from the real layout as blocks grow). The overlay is flipped,
             // so the converted point is top-down like the rects.
             if selectionOverlay.hasLineRects {
-                let overlayPoint = selectionOverlay.convert(point, from: nil)
+                let overlayPoint = selectionOverlay.convert(point, from: self)
                 guard let row = selectionOverlay.lineIndex(
                     atY: overlayPoint.y,
                     trailingGap: CodeViewConfiguration.codeLineSpacing
@@ -1783,12 +1785,11 @@ private func makeSideBySideAttributedText(
             }
 
             // Fallback before the first layout pass resolves line rects.
-            let localPoint = convert(point, from: nil)
             let barHeight = DiffViewConfiguration.barHeight(theme: theme)
             let font = theme.fonts.code
             let lineHeight = font.ascender + abs(font.descender) + font.leading
             let rowAdvance = lineHeight + CodeViewConfiguration.codeLineSpacing
-            let adjustedY = localPoint.y - barHeight - DiffViewConfiguration.contentVerticalPadding(theme: theme)
+            let adjustedY = point.y - barHeight - DiffViewConfiguration.contentVerticalPadding(theme: theme)
             guard adjustedY >= 0 else { return nil }
             let row = Int(adjustedY / rowAdvance) + 1
             guard row >= 1, row <= diffRowCount() else { return nil }
