@@ -886,6 +886,23 @@ private func makeSideBySideAttributedText(
         }
 
         private func rowIndex(at point: CGPoint) -> Int? {
+            // Hit-test in the selection overlay's space against the resolved
+            // CoreText line rects it draws, so the picked row always matches
+            // the rendered highlight. Estimating from a uniform row advance
+            // (font.lineHeight + spacing) drifts from the real layout as
+            // blocks grow: the actual per-line advance differs by fractions
+            // of a point that accumulate over hundreds of rows, and lines
+            // with fallback-font glyphs are taller still.
+            if selectionOverlay.hasLineRects {
+                let overlayPoint = selectionOverlay.convert(point, from: self)
+                guard let row = selectionOverlay.lineIndex(
+                    atY: overlayPoint.y,
+                    trailingGap: CodeViewConfiguration.codeLineSpacing
+                ), row <= diffRowCount() else { return nil }
+                return row
+            }
+
+            // Fallback before the first layout pass resolves line rects.
             let localPoint = scrollView.convert(point, from: self)
             let contentPoint = CGPoint(
                 x: localPoint.x + scrollView.contentOffset.x,
@@ -1751,6 +1768,21 @@ private func makeSideBySideAttributedText(
         }
 
         private func rowIndex(at point: CGPoint) -> Int? {
+            // Hit-test in the selection overlay's space against the resolved
+            // CoreText line rects it draws, so the picked row always matches
+            // the rendered highlight (the arithmetic estimate below drifts
+            // from the real layout as blocks grow). The overlay is flipped,
+            // so the converted point is top-down like the rects.
+            if selectionOverlay.hasLineRects {
+                let overlayPoint = selectionOverlay.convert(point, from: nil)
+                guard let row = selectionOverlay.lineIndex(
+                    atY: overlayPoint.y,
+                    trailingGap: CodeViewConfiguration.codeLineSpacing
+                ), row <= diffRowCount() else { return nil }
+                return row
+            }
+
+            // Fallback before the first layout pass resolves line rects.
             let localPoint = convert(point, from: nil)
             let barHeight = DiffViewConfiguration.barHeight(theme: theme)
             let font = theme.fonts.code

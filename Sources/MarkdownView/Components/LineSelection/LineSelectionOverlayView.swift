@@ -15,6 +15,8 @@
 
         private var lineRects: [CGRect] = []
 
+        var hasLineRects: Bool { !lineRects.isEmpty }
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             isOpaque = false
@@ -27,6 +29,19 @@
         func updateLineRects(_ rects: [CGRect]) {
             lineRects = rects
             setNeedsDisplay()
+        }
+
+        /// Maps a y in this overlay's coordinate space to a 1-based line index
+        /// using the same rects the highlight draws, so a hit-tested line always
+        /// matches the rendered selection. Each line owns the spacing gap below
+        /// it; nil above the first line or below the last (plus one trailing gap).
+        func lineIndex(atY y: CGFloat, trailingGap: CGFloat) -> Int? {
+            guard let first = lineRects.first, let last = lineRects.last else { return nil }
+            guard y >= first.minY, y < last.maxY + trailingGap else { return nil }
+            for index in 0 ..< (lineRects.count - 1) where y < lineRects[index + 1].minY {
+                return index + 1
+            }
+            return lineRects.count
         }
 
         func clearSelection() {
@@ -74,6 +89,8 @@
 
         private var lineRects: [CGRect] = []
 
+        var hasLineRects: Bool { !lineRects.isEmpty }
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             wantsLayer = true
@@ -88,6 +105,19 @@
         func updateLineRects(_ rects: [CGRect]) {
             lineRects = rects
             needsDisplay = true
+        }
+
+        /// Maps a y in this overlay's coordinate space to a 1-based line index
+        /// using the same rects the highlight draws, so a hit-tested line always
+        /// matches the rendered selection. Each line owns the spacing gap below
+        /// it; nil above the first line or below the last (plus one trailing gap).
+        func lineIndex(atY y: CGFloat, trailingGap: CGFloat) -> Int? {
+            guard let first = lineRects.first, let last = lineRects.last else { return nil }
+            guard y >= first.minY, y < last.maxY + trailingGap else { return nil }
+            for index in 0 ..< (lineRects.count - 1) where y < lineRects[index + 1].minY {
+                return index + 1
+            }
+            return lineRects.count
         }
 
         func clearSelection() {
