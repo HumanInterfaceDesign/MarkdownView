@@ -36,11 +36,21 @@ public struct LTXSelectionContext {
 public struct LTXCustomMenuItem {
     public let title: String
     public let image: PlatformImage?
+    /// Determines whether the item is included for the current selection.
+    /// Evaluated every time the selection range changes, including while the
+    /// user drags either selection handle.
+    public let isAvailable: (LTXSelectionContext) -> Bool
     public let handler: (LTXSelectionContext) -> Void
 
-    public init(title: String, image: PlatformImage? = nil, handler: @escaping (LTXSelectionContext) -> Void) {
+    public init(
+        title: String,
+        image: PlatformImage? = nil,
+        isAvailable: @escaping (LTXSelectionContext) -> Bool = { _ in true },
+        handler: @escaping (LTXSelectionContext) -> Void
+    ) {
         self.title = title
         self.image = image
+        self.isAvailable = isAvailable
         self.handler = handler
     }
 }

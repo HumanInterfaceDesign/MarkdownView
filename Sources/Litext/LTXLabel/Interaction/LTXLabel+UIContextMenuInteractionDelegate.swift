@@ -25,9 +25,13 @@
                             self.perform(selector)
                         }
                     }
-                let customActions: [UIMenuElement] = self.customMenuItems.map { customItem in
-                    UIAction(title: customItem.title, image: customItem.image) { [weak self] _ in
-                        guard let self, let context = self.selectionContext() else { return }
+                let context = selectionContext()
+                let customActions: [UIMenuElement] = self.customMenuItems.compactMap { customItem in
+                    guard let context, customItem.isAvailable(context) else { return nil }
+                    return UIAction(title: customItem.title, image: customItem.image) { [weak self] _ in
+                        guard let self, let context = self.selectionContext(), customItem.isAvailable(context) else {
+                            return
+                        }
                         customItem.handler(context)
                     }
                 }

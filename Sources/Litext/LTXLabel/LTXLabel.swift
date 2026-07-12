@@ -160,10 +160,10 @@ public class LTXLabel: LTXPlatformView, Identifiable {
 
     public internal(set) var selectionRange: NSRange? {
         didSet {
-            updateSelectionLayer()
             if selectionRange != oldValue {
                 delegate?.ltxLabelSelectionDidChange(self, selection: selectionRange)
             }
+            updateSelectionLayer()
         }
     }
 

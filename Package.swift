@@ -147,6 +147,7 @@ let package = Package(
         .testTarget(
             name: "MarkdownViewTests",
             dependencies: [
+                "Litext",
                 "MarkdownView",
                 "MarkdownParser",
             ]
