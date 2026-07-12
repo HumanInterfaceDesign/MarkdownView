@@ -182,6 +182,9 @@ import Foundation
 
         private func showContextMenu() {
             let menu = NSMenu()
+            let availableCustomItems = selectionContext().map { context in
+                customMenuItems.filter { $0.isAvailable(context) }
+            } ?? []
 
             let addBuiltIn = {
                 menu.addItem(
@@ -192,9 +195,12 @@ import Foundation
             }
 
             let addCustom = { [self] in
-                for customItem in self.customMenuItems {
+                for customItem in availableCustomItems {
                     menu.addItem(withTitle: customItem.title, image: customItem.image) { [weak self] in
-                        guard let self, let context = self.selectionContext() else { return }
+                        guard let self,
+                              let context = self.selectionContext(),
+                              customItem.isAvailable(context)
+                        else { return }
                         customItem.handler(context)
                     }
                 }
@@ -203,11 +209,11 @@ import Foundation
             switch customMenuItemPosition {
             case .beforeBuiltIn:
                 addCustom()
-                if !customMenuItems.isEmpty { menu.addItem(.separator()) }
-                addBuiltIn()
+                if !availableCustomItems.isEmpty { menu.addItem(.separator()) }
+                _ = addBuiltIn()
             case .afterBuiltIn:
-                addBuiltIn()
-                if !customMenuItems.isEmpty { menu.addItem(.separator()) }
+                _ = addBuiltIn()
+                if !availableCustomItems.isEmpty { menu.addItem(.separator()) }
                 addCustom()
             }
 

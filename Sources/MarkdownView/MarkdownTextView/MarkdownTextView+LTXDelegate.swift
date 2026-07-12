@@ -11,8 +11,8 @@ import Litext
     import UIKit
 
     extension MarkdownTextView: LTXLabelDelegate {
-        public func ltxLabelSelectionDidChange(_: Litext.LTXLabel, selection _: NSRange?) {
-            // reserved for future use
+        public func ltxLabelSelectionDidChange(_: Litext.LTXLabel, selection: NSRange?) {
+            selectionChangeHandler?(selection)
         }
 
         public func ltxLabelDetectedUserEventMovingAtLocation(_ label: Litext.LTXLabel, location: CGPoint) {
@@ -71,8 +71,8 @@ import Litext
     import AppKit
 
     extension MarkdownTextView: LTXLabelDelegate {
-        public func ltxLabelSelectionDidChange(_: Litext.LTXLabel, selection _: NSRange?) {
-            // reserved for future use
+        public func ltxLabelSelectionDidChange(_: Litext.LTXLabel, selection: NSRange?) {
+            selectionChangeHandler?(selection)
         }
 
         public func ltxLabelDetectedUserEventMovingAtLocation(_ label: Litext.LTXLabel, location: CGPoint) {

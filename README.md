@@ -315,7 +315,11 @@ Text selection is enabled by default. Long-press to select text, then use the st
 
 ```swift
 markdownView.textView.customMenuItems = [
-    LTXCustomMenuItem(title: "Explain", image: UIImage(systemName: "lightbulb")) { context in
+    LTXCustomMenuItem(
+        title: "Explain",
+        image: UIImage(systemName: "lightbulb"),
+        isAvailable: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    ) { context in
         print("Explain: \(context.text) (lines \(context.startLine)-\(context.endLine))")
     },
     LTXCustomMenuItem(title: "Apply", image: UIImage(systemName: "checkmark.circle")) { context in
@@ -326,7 +330,7 @@ markdownView.textView.customMenuItems = [
 
 </details>
 
-Custom items appear after the built-in Copy, Select All, and Share actions. On iOS they integrate with `UIMenuController`, on Mac Catalyst with `UIContextMenuInteraction`, and on macOS with `NSMenu`.
+Custom items appear after the built-in Copy, Select All, and Share actions. Use `isAvailable` to show mutually exclusive commands for different selected ranges; it is reevaluated while the user drags the selection handles. Set `selectionChangeHandler` when the surrounding UI also needs the live selected range. On iOS custom actions integrate with `UIMenuController`, on Mac Catalyst with `UIContextMenuInteraction`, and on macOS with `NSMenu`.
 
 #### Line Selection (Opt-in)
 

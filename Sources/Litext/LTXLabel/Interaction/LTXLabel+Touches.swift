@@ -251,8 +251,10 @@
                         guard canPerformAction(selector, withSender: nil) else { return nil }
                         return UIMenuItem(title: item.title, action: selector)
                     }
+                let context = selectionContext()
                 for (index, customItem) in customMenuItems.enumerated() {
                     guard index < Self.customMenuSelectors.count else { break }
+                    guard let context, customItem.isAvailable(context) else { continue }
                     let selector = Self.customMenuSelectors[index]
                     items.append(UIMenuItem(title: customItem.title, action: selector))
                 }
@@ -295,7 +297,9 @@
                 guard index < customMenuItems.count,
                       let context = selectionContext()
                 else { return }
-                customMenuItems[index].handler(context)
+                let item = customMenuItems[index]
+                guard item.isAvailable(context) else { return }
+                item.handler(context)
             }
 
             @objc func copyMenuItemTapped() {
@@ -353,6 +357,7 @@
                     return index < customMenuItems.count
                         && selectionRange != nil
                         && selectionRange!.length > 0
+                        && selectionContext().map(customMenuItems[index].isAvailable) == true
                 }
                 return false
             }

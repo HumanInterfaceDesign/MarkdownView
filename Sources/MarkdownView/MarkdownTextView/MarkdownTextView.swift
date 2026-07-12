@@ -23,6 +23,9 @@ enum ContentPipelineMode {
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
         public var lineSelectionHandler: LineSelectionHandler?
         public var lineSelectionEndedHandler: LineSelectionHandler?
+        /// Called whenever the selected character range changes, including
+        /// while either selection handle is being dragged.
+        public var selectionChangeHandler: ((NSRange?) -> Void)?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
@@ -229,6 +232,8 @@ enum ContentPipelineMode {
         public var codePreviewHandler: ((String?, NSAttributedString) -> Void)?
         public var lineSelectionHandler: LineSelectionHandler?
         public var lineSelectionEndedHandler: LineSelectionHandler?
+        /// Called whenever the selected character range changes.
+        public var selectionChangeHandler: ((NSRange?) -> Void)?
 
         public internal(set) var document: PreprocessedContent = .init()
         public let textView: LTXLabel = .init()
