@@ -51,7 +51,7 @@ let package = Package(
         .trait(name: "YAML", description: "YAML syntax highlighting"),
     ],
     dependencies: [
-        .package(url: "https://github.com/mgriebling/SwiftMath", from: "1.7.3"),
+        .package(url: "https://github.com/HumanInterfaceDesign/SwiftMath", branch: "main"),
         .package(url: "https://github.com/tree-sitter/swift-tree-sitter", from: "0.9.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-python", "0.23.0"..<"0.25.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-javascript", "0.23.0"..<"0.25.0"),
