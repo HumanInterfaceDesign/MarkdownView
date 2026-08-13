@@ -4,14 +4,18 @@ import Foundation
     import UIKit
 
     /// Sticky section header naming the file a diff section renders, with its
-    /// added/removed counts and a chevron that collapses the file.
+    /// added/removed counts and a trailing chevron that collapses the file,
+    /// rotating a quarter turn to point at the collapsed section.
     final class DiffFileHeaderView: UICollectionReusableView {
+        private static let collapsedChevronRotation = -CGFloat.pi / 2
+
         private lazy var chevronView: UIImageView = .init()
         private lazy var pathLabel: UILabel = .init()
         private lazy var additionsLabel: UILabel = .init()
         private lazy var deletionsLabel: UILabel = .init()
         private lazy var separator: UIView = .init()
         private var tapHandler: (() -> Void)?
+        private var isCollapsed = false
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -47,9 +51,10 @@ import Foundation
 
             chevronView.tintColor = theme.diff.fileMetadataText
             chevronView.image = UIImage(
-                systemName: isCollapsed ? "chevron.right" : "chevron.down",
+                systemName: "chevron.down",
                 withConfiguration: UIImage.SymbolConfiguration(scale: .small)
             )
+            setCollapsed(isCollapsed, animated: self.isCollapsed != isCollapsed && window != nil)
 
             accessibilityLabel = "\(file.displayPath), \(file.additions) added, \(file.deletions) removed"
             accessibilityHint = isCollapsed ? "Expands the file" : "Collapses the file"
@@ -71,7 +76,7 @@ import Foundation
             }
 
             let stack = UIStackView(arrangedSubviews: [
-                chevronView, pathLabel, additionsLabel, deletionsLabel,
+                pathLabel, additionsLabel, deletionsLabel, chevronView,
             ])
             stack.axis = .horizontal
             stack.alignment = .center
@@ -100,6 +105,20 @@ import Foundation
             addGestureRecognizer(
                 UITapGestureRecognizer(target: self, action: #selector(handleTap))
             )
+        }
+
+        private func setCollapsed(_ collapsed: Bool, animated: Bool) {
+            isCollapsed = collapsed
+            let transform: CGAffineTransform = collapsed
+                ? .init(rotationAngle: Self.collapsedChevronRotation)
+                : .identity
+            guard animated else {
+                chevronView.transform = transform
+                return
+            }
+            UIView.animate(withDuration: 0.2) { [chevronView] in
+                chevronView.transform = transform
+            }
         }
 
         @objc private func handleTap() {

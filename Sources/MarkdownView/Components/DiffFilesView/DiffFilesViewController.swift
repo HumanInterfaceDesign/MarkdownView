@@ -316,8 +316,27 @@ import Foundation
                 collapsedFileIDs.insert(fileID)
             }
             applySnapshot(animated: true)
+            // Headers are supplementary views, so no item update reaches them;
+            // reconfigure the visible one so its chevron follows the state.
+            reconfigureHeader(fileID: fileID)
             if let file = document.file(withID: fileID) {
                 fileCollapseHandler?(file.displayPath, !isCollapsed)
+            }
+        }
+
+        private func reconfigureHeader(fileID: Int) {
+            guard let section = document.files.firstIndex(where: { $0.id == fileID }),
+                  let header = collectionView.supplementaryView(
+                      forElementKind: UICollectionView.elementKindSectionHeader,
+                      at: IndexPath(item: 0, section: section)
+                  ) as? DiffFileHeaderView
+            else { return }
+            header.configure(
+                file: document.files[section],
+                theme: theme,
+                isCollapsed: collapsedFileIDs.contains(fileID)
+            ) { [weak self] in
+                self?.toggleCollapse(fileID: fileID)
             }
         }
 
