@@ -432,6 +432,27 @@ markdownView.setMarkdown(content)
 
 Pass the patch string itself, not the surrounding JSON object. Avoid calling `parser.parse(patch)` directly for raw unified diffs, because that bypasses the normalizer that wraps the patch for diff rendering.
 
+### Sectioned Diffs (Files Changed)
+
+`DiffFilesViewController` (iOS/visionOS) renders a multi-file patch as a collection view with **one section per file**: the file's header pins to the top of the viewport while its hunks scroll past, and the gaps the patch omits become expander rows.
+
+```swift
+let controller = DiffFilesViewController(patch: patch, language: "swift")
+
+// Enables the expander below the last hunk — without the file's length there
+// is no way to know whether more lines follow.
+controller.fileLineCountProvider = { path in sources[path]?.count }
+
+// Called when an arrow is tapped; the row shows a spinner until it returns.
+controller.contextProvider = { request in
+    try await api.lines(of: request.filePath, in: request.oldLineRange)
+}
+```
+
+An expander offers an up arrow (lines above the next hunk), a down arrow (lines below the previous hunk), or both when the gap is bounded on both sides and larger than `expansionChunkSize` (20 lines by default). A gap smaller than one chunk collapses to a single control that reveals all of it, and hunks that meet after an expansion are merged into one.
+
+Expanders only appear once `contextProvider` is set. Errors it throws are reported through `expansionFailureHandler`, and tapping a file header collapses the file and calls `fileCollapseHandler`.
+
 ## Architecture
 
 The library is split into two modules:

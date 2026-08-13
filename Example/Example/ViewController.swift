@@ -16,15 +16,19 @@ class ViewController: UITableViewController {
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int {
-        2
+        3
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Streaming" : "Diff & Selection"
+        switch section {
+        case 0: "Streaming"
+        case 1: "Pull Request"
+        default: "Diff & Selection"
+        }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 1 : examples.count
+        section == 2 ? examples.count : 1
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -33,6 +37,9 @@ class ViewController: UITableViewController {
         if indexPath.section == 0 {
             config.text = "Streaming Reveal"
             config.secondaryText = "Per-character fade-in as text streams"
+        } else if indexPath.section == 1 {
+            config.text = "Files Changed"
+            config.secondaryText = "Sticky file sections · Expandable context"
         } else {
             let example = examples[indexPath.row]
             config.text = example.title
@@ -44,11 +51,10 @@ class ViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let destination: UIViewController
-        if indexPath.section == 0 {
-            destination = StreamingRevealViewController()
-        } else {
-            destination = DetailViewController(example: examples[indexPath.row])
+        let destination: UIViewController = switch indexPath.section {
+        case 0: StreamingRevealViewController()
+        case 1: SectionedDiffViewController()
+        default: DetailViewController(example: examples[indexPath.row])
         }
         navigationController?.pushViewController(destination, animated: true)
     }

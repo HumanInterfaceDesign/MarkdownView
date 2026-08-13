@@ -121,6 +121,23 @@ nonisolated enum UnifiedDiffParser {
             rows: buildRenderedRows(from: parsed)
         )
     }
+
+    /// Line ranges encoded in an `@@ -a,b +c,d @@` header.
+    static func hunkRange(
+        fromHeader text: String
+    ) -> (oldStart: Int, oldCount: Int, newStart: Int, newCount: Int)? {
+        guard let header = parseHunkHeader(text) else { return nil }
+        return (header.oldStart, header.oldCount, header.newStart, header.newCount)
+    }
+
+    /// Syntax highlights for a context line pulled in after the fact, e.g. when
+    /// a sectioned diff expands the hidden lines around a hunk.
+    static func contextHighlights(
+        for text: String,
+        language: String?
+    ) -> CodeHighlighter.HighlightMap {
+        highlightMap(for: text, language: language)
+    }
 }
 
 private nonisolated extension UnifiedDiffParser {
