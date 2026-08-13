@@ -24,12 +24,15 @@ import Foundation
 
         /// Theme for the diff inside a section: the section header already names
         /// the file, and the hunks are stacked edge to edge, so the per-block
-        /// chrome is dropped.
+        /// chrome is dropped. Context collapsing is disabled as well, since the
+        /// expander rows are what hide context here — leaving it on would fold
+        /// freshly revealed lines back into a "… unchanged lines …" row.
         static func hunkTheme(from theme: MarkdownTheme) -> MarkdownTheme {
             var hunkTheme = theme
             hunkTheme.showsBlockHeaders = false
             hunkTheme.diff.cornerRadius = 0
             hunkTheme.diff.borderWidth = 0
+            hunkTheme.diff.contextCollapseThreshold = 0
             return hunkTheme
         }
     }
