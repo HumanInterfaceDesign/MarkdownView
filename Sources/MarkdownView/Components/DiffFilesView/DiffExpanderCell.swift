@@ -48,14 +48,21 @@ import Foundation
 
             upControl.isHidden = !directions.contains(.up)
             downControl.isHidden = !directions.contains(.down)
+            // A whole-gap expander has one visible control but records its
+            // in-flight fetch under the expander's own direction (`.both` when
+            // the gap is bounded), so any loading state belongs to that control.
             upControl.apply(
                 theme: theme,
-                isLoading: loadingDirections.contains(.up),
+                isLoading: expander.coversEntireGap
+                    ? !loadingDirections.isEmpty
+                    : loadingDirections.contains(.up),
                 coversEntireGap: expander.coversEntireGap
             )
             downControl.apply(
                 theme: theme,
-                isLoading: loadingDirections.contains(.down),
+                isLoading: expander.coversEntireGap
+                    ? !loadingDirections.isEmpty
+                    : loadingDirections.contains(.down),
                 coversEntireGap: expander.coversEntireGap
             )
 

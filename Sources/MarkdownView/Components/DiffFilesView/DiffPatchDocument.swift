@@ -98,10 +98,13 @@ nonisolated struct DiffExpander: Hashable {
     }
 
     let fileID: Int
-    /// Hunk preceding the gap, expanded downwards.
-    let hunkAbove: Int?
-    /// Hunk following the gap, expanded upwards.
-    let hunkBelow: Int?
+    /// ID of the hunk preceding the gap, expanded downwards. An ID (not an
+    /// index): expansions resolve against the live document, so a merge that
+    /// completes while another expansion is in flight cannot redirect it to a
+    /// different hunk.
+    let hunkAboveID: Int?
+    /// ID of the hunk following the gap, expanded upwards.
+    let hunkBelowID: Int?
     /// Hidden old-file lines, 1-based and inclusive.
     let gapLowerBound: Int
     let gapUpperBound: Int
@@ -194,8 +197,8 @@ nonisolated struct DiffPatchDocument {
                         .expander(
                             makeExpander(
                                 fileID: fileID,
-                                hunkAbove: nil,
-                                hunkBelow: index,
+                                hunkAboveID: nil,
+                                hunkBelowID: hunk.id,
                                 gap: 1 ... (hunk.oldStart - 1),
                                 chunkSize: chunkSize
                             )
@@ -211,8 +214,8 @@ nonisolated struct DiffPatchDocument {
                         .expander(
                             makeExpander(
                                 fileID: fileID,
-                                hunkAbove: index - 1,
-                                hunkBelow: index,
+                                hunkAboveID: previous.id,
+                                hunkBelowID: hunk.id,
                                 gap: gapLowerBound ... gapUpperBound,
                                 chunkSize: chunkSize
                             )
@@ -232,8 +235,8 @@ nonisolated struct DiffPatchDocument {
                 .expander(
                     makeExpander(
                         fileID: fileID,
-                        hunkAbove: file.hunks.count - 1,
-                        hunkBelow: nil,
+                        hunkAboveID: last.id,
+                        hunkBelowID: nil,
                         gap: (last.oldEnd + 1) ... totalOldLineCount,
                         chunkSize: chunkSize
                     )
@@ -261,15 +264,19 @@ nonisolated struct DiffPatchDocument {
 
         // `.both` only reaches here when one tap covers the gap; attach it to
         // the hunk above so the merge below folds the two hunks together.
-        let hunkIndex: Int? = switch direction {
-        case .up: expander.hunkBelow
-        case .down: expander.hunkAbove
-        case .both: expander.hunkAbove ?? expander.hunkBelow
+        let hunkID: Int? = switch direction {
+        case .up: expander.hunkBelowID
+        case .down: expander.hunkAboveID
+        case .both: expander.hunkAboveID ?? expander.hunkBelowID
         }
-        guard let hunkIndex, files[fileIndex].hunks.indices.contains(hunkIndex) else { return }
+        // Resolved by ID at insert time; a hunk swallowed by a merge since the
+        // expander was built makes this a no-op rather than a mis-splice.
+        guard let hunkID,
+              let hunkIndex = files[fileIndex].hunks.firstIndex(where: { $0.id == hunkID })
+        else { return }
 
         let attachesAbove = direction == .up
-            || (direction == .both && expander.hunkAbove == nil)
+            || (direction == .both && expander.hunkAboveID == nil)
         if attachesAbove {
             prependContext(lines: lines, range: range, fileIndex: fileIndex, hunkIndex: hunkIndex)
         } else {
@@ -291,25 +298,25 @@ private nonisolated extension DiffPatchDocument {
 
     func makeExpander(
         fileID: Int,
-        hunkAbove: Int?,
-        hunkBelow: Int?,
+        hunkAboveID: Int?,
+        hunkBelowID: Int?,
         gap: ClosedRange<Int>,
         chunkSize: Int
     ) -> DiffExpander {
         let coversEntireGap = chunkSize <= 0 || gap.count <= chunkSize
         let direction: DiffExpander.Direction = if coversEntireGap {
-            hunkAbove == nil ? .up : (hunkBelow == nil ? .down : .both)
-        } else if hunkAbove == nil {
+            hunkAboveID == nil ? .up : (hunkBelowID == nil ? .down : .both)
+        } else if hunkAboveID == nil {
             .up
-        } else if hunkBelow == nil {
+        } else if hunkBelowID == nil {
             .down
         } else {
             .both
         }
         return .init(
             fileID: fileID,
-            hunkAbove: hunkAbove,
-            hunkBelow: hunkBelow,
+            hunkAboveID: hunkAboveID,
+            hunkBelowID: hunkBelowID,
             gapLowerBound: gap.lowerBound,
             gapUpperBound: gap.upperBound,
             direction: direction,
@@ -343,10 +350,14 @@ private nonisolated extension DiffPatchDocument {
     ) {
         let language = files[fileIndex].language
         var hunk = files[fileIndex].hunks[hunkIndex]
+        // Line i of the response is old line `range.lowerBound + i`, so an
+        // over-long response's tail falls past `range` — cut it before the
+        // hunk-edge alignment below, or the tail would be misnumbered as the
+        // lines nearest the hunk.
+        let ranged = lines.prefix(range.count)
         // Align the fetched lines against the hunk's top edge and trim anything
-        // it already shows, so a stale or over-long response cannot duplicate
-        // lines.
-        let usable = Array(lines.suffix(max(hunk.oldStart - range.lowerBound, 0)))
+        // it already shows, so a stale response cannot duplicate lines.
+        let usable = Array(ranged.suffix(max(hunk.oldStart - range.lowerBound, 0)))
         guard !usable.isEmpty else { return }
 
         let oldStart = hunk.oldStart - usable.count
@@ -358,7 +369,7 @@ private nonisolated extension DiffPatchDocument {
             language: language
         ) + hunk.rows
         hunk.oldStart = oldStart
-        hunk.newStart = max(newStart, 1)
+        hunk.newStart = newStart
         files[fileIndex].hunks[hunkIndex] = hunk
     }
 
@@ -372,8 +383,12 @@ private nonisolated extension DiffPatchDocument {
         var hunk = files[fileIndex].hunks[hunkIndex]
         let oldStart = hunk.oldEnd + 1
         let skipCount = max(oldStart - range.lowerBound, 0)
-        guard skipCount < lines.count else { return }
-        let usable = Array(lines.dropFirst(skipCount))
+        // Line i of the response is old line `range.lowerBound + i`; cutting at
+        // `range.count` keeps an over-long response from spilling past the gap
+        // into the next hunk's lines.
+        let ranged = lines.prefix(range.count)
+        guard skipCount < ranged.count else { return }
+        let usable = Array(ranged.dropFirst(skipCount))
 
         hunk.rows += contextRows(
             lines: usable,
@@ -384,8 +399,8 @@ private nonisolated extension DiffPatchDocument {
         files[fileIndex].hunks[hunkIndex] = hunk
     }
 
-    /// Folds hunks whose ranges now touch or overlap into one, dropping rows
-    /// the preceding hunk already covers.
+    /// Folds hunks whose ranges now touch or overlap into one, dropping the
+    /// duplicate rows in the overlap.
     mutating func mergeAdjacentHunks(fileIndex: Int) {
         var merged: [DiffFileHunk] = []
         for hunk in files[fileIndex].hunks {
@@ -394,6 +409,21 @@ private nonisolated extension DiffPatchDocument {
                 continue
             }
 
+            // Overlap only arises from expansion context appended to the
+            // previous hunk, so its trailing context copies are the rows to
+            // drop — the following hunk's rows are authoritative diff rows and
+            // may mark those same lines as removed.
+            while let last = previous.rows.last,
+                  last.kind == .context,
+                  let oldNumber = last.oldLineNumber,
+                  oldNumber >= hunk.oldStart
+            {
+                previous.rows.removeLast()
+            }
+
+            // Any overlap left means both hunks claim real diff rows for the
+            // same lines (malformed input); trim the duplicate head rows as a
+            // last resort so lines are never double-counted.
             var rows = hunk.rows
             var oldLine = hunk.oldStart
             while let first = rows.first, oldLine <= previous.oldEnd {

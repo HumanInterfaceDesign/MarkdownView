@@ -87,6 +87,12 @@ import Foundation
         public private(set) var patch: String = ""
 
         private var document = DiffPatchDocument(files: [], language: nil)
+        /// Bumped by `setPatch`. In-flight expansions capture the generation
+        /// they were started under and drop their result if the document was
+        /// replaced in the meantime — file IDs restart at 0 for every patch, so
+        /// a stale completion would otherwise splice old-patch lines into the
+        /// new document.
+        private var documentGeneration = 0
         private var collapsedFileIDs: Set<Int> = []
         private var loadingExpansions: Set<ExpansionKey> = []
 
@@ -117,6 +123,7 @@ import Foundation
             self.patch = patch
             document = DiffPatchDocument(patch: patch, language: language)
                 ?? .init(files: [], language: language)
+            documentGeneration += 1
             collapsedFileIDs = []
             loadingExpansions = []
             guard isViewLoaded else { return }
@@ -367,10 +374,14 @@ import Foundation
                 direction: expander.coversEntireGap ? .all : DiffContextDirection(direction)
             )
 
+            let generation = documentGeneration
             Task { [weak self] in
                 do {
                     let lines = try await provider(request)
-                    guard let self else { return }
+                    // The document was replaced while the request was in
+                    // flight; its file IDs restart at 0, so the expander's
+                    // references would resolve against the wrong patch.
+                    guard let self, generation == documentGeneration else { return }
                     loadingExpansions.remove(key)
                     document.insertContext(
                         lines: lines,
@@ -381,7 +392,7 @@ import Foundation
                     )
                     applySnapshot(animated: false, reconfiguringFileWithID: expander.fileID)
                 } catch {
-                    guard let self else { return }
+                    guard let self, generation == documentGeneration else { return }
                     loadingExpansions.remove(key)
                     reconfigure(item: .expander(expander))
                     expansionFailureHandler?(request, error)

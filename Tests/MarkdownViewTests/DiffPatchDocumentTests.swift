@@ -187,12 +187,13 @@ final class DiffPatchDocumentTests: XCTestCase {
         if case .expander = remaining[0] { XCTFail("gap above the first hunk is gone") }
     }
 
-    func testOverlappingResponseDoesNotDuplicateLines() {
+    func testOverlappingRangeDoesNotDuplicateLinesOrSwallowRemovals() {
         var document = makeDocument()
         let items = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 200)
         guard case let .expander(middle) = items[2] else { return XCTFail("expected expander") }
 
-        // Provider returns more than was asked for, overlapping both hunks.
+        // The caller passes a range overlapping both hunks. The merge must drop
+        // the redundant context copies, not the second hunk's removed row.
         document.insertContext(
             lines: (1 ... 120).map { "line\($0)" },
             forOldLineRange: 1 ... 120,
@@ -201,8 +202,135 @@ final class DiffPatchDocumentTests: XCTestCase {
             expander: middle
         )
 
+        XCTAssertEqual(document.files[0].hunks.count, 1)
         let hunk = document.files[0].hunks[0]
         XCTAssertEqual(hunk.oldStart, 10)
-        XCTAssertEqual(hunk.rows.map(\.oldLineNumber).compactMap { $0 }, Array(10 ... 12) + Array(13 ... 120))
+        XCTAssertEqual(hunk.rows.compactMap(\.oldLineNumber), Array(10 ... 101))
+        XCTAssertTrue(hunk.rows.contains { $0.kind == .removed && $0.oldLineNumber == 101 })
+        XCTAssertEqual(document.files[0].additions, 3)
+        XCTAssertEqual(document.files[0].deletions, 2)
+    }
+
+    func testOverLongResponseIsClampedToRequestedRange() {
+        var document = makeDocument()
+        let items = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 200)
+        guard case let .expander(middle) = items[2] else { return XCTFail("expected expander") }
+
+        // Downwards: the provider returns far more lines than the requested
+        // 13...32; the extra tail must not spill towards the next hunk.
+        let downRange = middle.requestedRange(for: .down, chunkSize: 20)
+        document.insertContext(
+            lines: (downRange.lowerBound ... 200).map { "line\($0)" },
+            forOldLineRange: downRange,
+            fileID: 0,
+            direction: .down,
+            expander: middle
+        )
+        XCTAssertEqual(document.files[0].hunks[0].oldEnd, 32)
+        XCTAssertEqual(document.files[0].hunks[0].rows.last?.text, "line32")
+
+        // Upwards: line i of the response is range.lowerBound + i, so an
+        // over-long response's tail (lines past 99, inside the hunk) must be
+        // cut rather than misnumbered as the lines nearest the hunk.
+        let upRange = middle.requestedRange(for: .up, chunkSize: 20)
+        document.insertContext(
+            lines: (upRange.lowerBound ... 150).map { "line\($0)" },
+            forOldLineRange: upRange,
+            fileID: 0,
+            direction: .up,
+            expander: middle
+        )
+        let below = document.files[0].hunks[1]
+        XCTAssertEqual(below.oldStart, 80)
+        XCTAssertEqual(below.rows.first?.text, "line80")
+        XCTAssertEqual(below.rows.first?.oldLineNumber, 80)
+    }
+
+    private let threeHunkPatch = """
+    diff --git a/C.swift b/C.swift
+    --- a/C.swift
+    +++ b/C.swift
+    @@ -10,2 +10,2 @@
+     line10
+    -line11
+    +line11b
+    @@ -20,2 +20,2 @@
+     line20
+    -line21
+    +line21b
+    @@ -100,2 +100,2 @@
+     line100
+    -line101
+    +line101b
+    """
+
+    func testInFlightExpansionSurvivesUnrelatedMerge() {
+        guard var document = DiffPatchDocument(patch: threeHunkPatch, language: "swift") else {
+            return XCTFail("patch should parse")
+        }
+        let items = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 200)
+        guard case let .expander(first) = items[2], // gap 12...19, fits one chunk
+              case let .expander(second) = items[4] // gap 22...99
+        else { return XCTFail("unexpected items: \(items)") }
+        XCTAssertTrue(first.coversEntireGap)
+
+        // Filling the first gap merges hunks 0 and 1 while the second gap's
+        // expansion is still "in flight".
+        document.insertContext(
+            lines: first.gap.map { "line\($0)" },
+            forOldLineRange: first.gap,
+            fileID: 0,
+            direction: .both,
+            expander: first
+        )
+        XCTAssertEqual(document.files[0].hunks.count, 2)
+
+        // The stale expander references hunks by ID, so its upward expansion
+        // still grows the correct (third) hunk after the merge shifted indices.
+        let upRange = second.requestedRange(for: .up, chunkSize: 20)
+        document.insertContext(
+            lines: upRange.map { "line\($0)" },
+            forOldLineRange: upRange,
+            fileID: 0,
+            direction: .up,
+            expander: second
+        )
+        XCTAssertEqual(document.files[0].hunks[1].oldStart, 80)
+        XCTAssertEqual(document.files[0].hunks[1].rows.first?.text, "line80")
+    }
+
+    func testExpansionTargetingSwallowedHunkIsIgnored() {
+        guard var document = DiffPatchDocument(patch: threeHunkPatch, language: "swift") else {
+            return XCTFail("patch should parse")
+        }
+        let items = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 200)
+        guard case let .expander(first) = items[2],
+              case let .expander(second) = items[4]
+        else { return XCTFail("unexpected items: \(items)") }
+
+        document.insertContext(
+            lines: first.gap.map { "line\($0)" },
+            forOldLineRange: first.gap,
+            fileID: 0,
+            direction: .both,
+            expander: first
+        )
+        let hunksAfterMerge = document.files[0].hunks
+
+        // The second expander's "hunk above" was swallowed by the merge; its
+        // downward expansion must be a no-op, not a splice into whichever hunk
+        // now sits at that index.
+        let downRange = second.requestedRange(for: .down, chunkSize: 20)
+        document.insertContext(
+            lines: downRange.map { "line\($0)" },
+            forOldLineRange: downRange,
+            fileID: 0,
+            direction: .down,
+            expander: second
+        )
+        XCTAssertEqual(
+            document.files[0].hunks.map { $0.rows.count },
+            hunksAfterMerge.map { $0.rows.count }
+        )
     }
 }
