@@ -84,6 +84,20 @@ import Foundation
         /// the file.
         public var fileCollapseHandler: ((String, Bool) -> Void)?
 
+        /// Live line-selection updates: the display path of the file being
+        /// selected in, and the selection (`nil` when it clears). A selection
+        /// spans one hunk; selecting in another hunk clears the previous one.
+        /// Line selection is enabled while either selection handler is set.
+        public var lineSelectionHandler: ((String, LineSelectionInfo?) -> Void)? {
+            didSet { reloadEverything() }
+        }
+
+        /// Fires once the selection gesture settles (tap completes, drag ends),
+        /// with the same arguments as `lineSelectionHandler`.
+        public var lineSelectionEndedHandler: ((String, LineSelectionInfo?) -> Void)? {
+            didSet { reloadEverything() }
+        }
+
         public private(set) var patch: String = ""
 
         private var document = DiffPatchDocument(files: [], language: nil)
@@ -95,6 +109,9 @@ import Foundation
         private var documentGeneration = 0
         private var collapsedFileIDs: Set<Int> = []
         private var loadingExpansions: Set<ExpansionKey> = []
+        /// The hunk cell owning the active line selection. `DiffView` clears
+        /// exclusively within one view; across hunk cells it's enforced here.
+        private weak var selectionCell: DiffHunkCell?
 
         private struct ExpansionKey: Hashable {
             let expander: DiffExpander
@@ -126,6 +143,7 @@ import Foundation
             documentGeneration += 1
             collapsedFileIDs = []
             loadingExpansions = []
+            selectionCell = nil
             guard isViewLoaded else { return }
             applySnapshot(animated: false)
         }
@@ -214,8 +232,15 @@ import Foundation
                 else { return }
                 cell.configure(
                     renderBlock: file.renderBlock(forHunkAt: hunkIndex),
-                    theme: theme
+                    theme: theme,
+                    selectionEnabled: isLineSelectionEnabled
                 )
+                cell.onSelectionChanged = { [weak self] cell, info in
+                    self?.hunkSelectionChanged(cell, fileID: fileID, info: info)
+                }
+                cell.onSelectionEnded = { [weak self] cell, info in
+                    self?.hunkSelectionEnded(cell, fileID: fileID, info: info)
+                }
             }
 
             let expanderRegistration = UICollectionView.CellRegistration<DiffExpanderCell, DiffFileItem> {
@@ -345,6 +370,41 @@ import Foundation
             ) { [weak self] in
                 self?.toggleCollapse(fileID: fileID)
             }
+        }
+
+        // MARK: - Line selection
+
+        private var isLineSelectionEnabled: Bool {
+            lineSelectionHandler != nil || lineSelectionEndedHandler != nil
+        }
+
+        private func hunkSelectionChanged(_ cell: DiffHunkCell, fileID: Int, info: LineSelectionInfo?) {
+            guard let path = document.file(withID: fileID)?.displayPath else { return }
+            if info != nil {
+                if let previous = selectionCell, previous !== cell {
+                    previous.clearSelection()
+                }
+                selectionCell = cell
+                lineSelectionHandler?(path, info)
+                return
+            }
+            // Only a clear from the active cell counts — a reused or
+            // reconfigured other cell must not cancel the live selection.
+            guard selectionCell == nil || selectionCell === cell else { return }
+            selectionCell = nil
+            lineSelectionHandler?(path, nil)
+        }
+
+        private func hunkSelectionEnded(_ cell: DiffHunkCell, fileID: Int, info: LineSelectionInfo?) {
+            guard let path = document.file(withID: fileID)?.displayPath else { return }
+            if info != nil {
+                selectionCell = cell
+                lineSelectionEndedHandler?(path, info)
+                return
+            }
+            guard selectionCell == nil || selectionCell === cell else { return }
+            selectionCell = nil
+            lineSelectionEndedHandler?(path, nil)
         }
 
         // MARK: - Context expansion

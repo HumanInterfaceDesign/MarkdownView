@@ -10,6 +10,9 @@ import Foundation
         private lazy var diffView: DiffView = .init()
         private var heightConstraint: NSLayoutConstraint?
 
+        var onSelectionChanged: ((DiffHunkCell, LineSelectionInfo?) -> Void)?
+        var onSelectionEnded: ((DiffHunkCell, LineSelectionInfo?) -> Void)?
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             diffView.translatesAutoresizingMaskIntoConstraints = false
@@ -31,14 +34,36 @@ import Foundation
             fatalError("init(coder:) has not been implemented")
         }
 
-        func configure(renderBlock: DiffRenderBlock, theme: MarkdownTheme) {
+        func configure(renderBlock: DiffRenderBlock, theme: MarkdownTheme, selectionEnabled: Bool = false) {
             let hunkTheme = DiffFilesViewConfiguration.hunkTheme(from: theme)
             diffView.theme = hunkTheme
+            // Setting the render block clears any selection left by a reused cell.
             diffView.renderBlock = renderBlock
             heightConstraint?.constant = DiffViewConfiguration.intrinsicHeight(
                 for: renderBlock,
                 theme: hunkTheme
             )
+
+            diffView.isLineSelectionEnabled = selectionEnabled
+            if selectionEnabled {
+                diffView.lineSelectionHandler = { [weak self] info in
+                    guard let self else { return }
+                    onSelectionChanged?(self, info)
+                }
+                diffView.lineSelectionEndedHandler = { [weak self] info in
+                    guard let self else { return }
+                    onSelectionEnded?(self, info)
+                }
+            } else {
+                diffView.lineSelectionHandler = nil
+                diffView.lineSelectionEndedHandler = nil
+            }
+        }
+
+        /// Drops the highlight without firing the selection handlers — used by
+        /// the controller to enforce one selection across hunk cells.
+        func clearSelection() {
+            diffView.clearLineSelection()
         }
     }
 #endif

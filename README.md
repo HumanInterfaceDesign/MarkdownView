@@ -453,6 +453,8 @@ An expander offers an up arrow (lines above the next hunk), a down arrow (lines 
 
 Expanders only appear once `contextProvider` is set. Errors it throws are reported through `expansionFailureHandler`, and tapping a file header collapses the file and calls `fileCollapseHandler`.
 
+Line selection works like `MarkdownTextView`'s: setting `lineSelectionHandler` / `lineSelectionEndedHandler` enables tap and drag selection over the hunks, and the callbacks receive the file's display path alongside the `LineSelectionInfo` (`nil` when the selection clears). A selection spans one hunk at a time — selecting in another hunk clears the previous one.
+
 ## Architecture
 
 The library is split into two modules:
