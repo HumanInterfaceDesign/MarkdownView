@@ -16,19 +16,20 @@ class ViewController: UITableViewController {
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int {
-        3
+        4
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: "Streaming"
         case 1: "Pull Request"
+        case 2: "Podcast"
         default: "Diff & Selection"
         }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 2 ? examples.count : 1
+        section == 3 ? examples.count : 1
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -40,6 +41,9 @@ class ViewController: UITableViewController {
         } else if indexPath.section == 1 {
             config.text = "Files Changed"
             config.secondaryText = "Sticky file sections · Expandable context"
+        } else if indexPath.section == 2 {
+            config.text = "Audio Transcript"
+            config.secondaryText = "Preview under audio · Show more · Detail sheet"
         } else {
             let example = examples[indexPath.row]
             config.text = example.title
@@ -54,6 +58,7 @@ class ViewController: UITableViewController {
         let destination: UIViewController = switch indexPath.section {
         case 0: StreamingRevealViewController()
         case 1: SectionedDiffViewController()
+        case 2: PodcastTranscriptViewController()
         default: DetailViewController(example: examples[indexPath.row])
         }
         navigationController?.pushViewController(destination, animated: true)

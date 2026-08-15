@@ -13,6 +13,7 @@ A high-performance markdown rendering library for iOS, macOS, and visionOS.
 - LaTeX math rendering
 - Inline image rendering with async loading and caching
 - Streaming "typing" reveal: per-character fade-in for text as it streams in, with a configurable duration
+- Audio transcript components: a collapsed 2–3 line transcript preview with a "Show more" affordance (`TranscriptPreviewView`) and a markdown-rendered full-transcript detail sheet (`TranscriptDetailViewController`), for chat cells that pair generated audio with its transcript
 - Comprehensive theming with fonts, colors, and spacing
 - Two selection modes: text selection (default) with long-press and custom menu items, or opt-in line selection with tap/drag and callback
 - VoiceOver accessibility for text, code blocks, tables, and math content

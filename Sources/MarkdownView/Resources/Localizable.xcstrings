@@ -1,7 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Show more" : {
 
+    },
+    "Transcript" : {
+
+    }
   },
   "version" : "1.0"
 }
