@@ -830,6 +830,24 @@ private func makeSideBySideAttributedText(
         private var displayRows: DiffDisplayRows = .unified([])
         private var sideBySideTextMetrics: DiffSideBySideTextMetrics?
 
+        // MARK: - TILED CONTENT (oversized diffs)
+
+        /// Past this laid-out height the content draws through
+        /// `tiledContentView` instead of the three full-content layers (text
+        /// label, row backgrounds, selection overlay). Those cost
+        /// width × height × scale² × 4 bytes *each* — a 150-line lockfile
+        /// chunk is ~200MB per layer — and past ~5,400pt at 3x they cross
+        /// Core Animation's backing-store ceiling and render blank (#9).
+        /// Typical transcript diffs stay below the threshold and keep the
+        /// regular path, including the streaming reveal.
+        private static let tiledContentHeightThreshold: CGFloat = 2048
+
+        private var usesTiledContent = false
+        private var displayAttributedText = NSAttributedString()
+        private var tiledTextLayout: LTXTextLayout?
+        private var tiledTextSize: CGSize = .zero
+        private lazy var tiledContentView: DiffTiledContentView = .init()
+
         // MARK: - LINE SELECTION
 
         var isLineSelectionEnabled = false {
@@ -866,6 +884,7 @@ private func makeSideBySideAttributedText(
             selectedLineRange = nil
             selectionOverlay.clearSelection()
             gutterSelectionOverlay.clearSelection()
+            tiledContentView.setSelectedRange(nil)
         }
 
         private func currentLineSelectionInfo() -> LineSelectionInfo? {
@@ -930,6 +949,7 @@ private func makeSideBySideAttributedText(
             selectedLineRange = range
             selectionOverlay.selectedRange = range
             gutterSelectionOverlay.selectedRange = range
+            tiledContentView.setSelectedRange(range)
             if let range = range {
                 let info = LineSelectionInfo(
                     lineRange: range,
@@ -1081,6 +1101,10 @@ private func makeSideBySideAttributedText(
             textView.isSelectable = true
             textView.selectionBackgroundColor = theme.colors.selectionBackground
             contentContainerView.addSubview(textView)
+
+            tiledContentView.isHidden = true
+            contentContainerView.addSubview(tiledContentView)
+
             updateHeaderVisibility()
             setupSelectionOverlays()
         }
@@ -1134,8 +1158,11 @@ private func makeSideBySideAttributedText(
                 sideBySideTextMetrics = nil
             }
 
-            textView.attributedText = makeDisplayAttributedText()
+            let displayText = makeDisplayAttributedText()
+            displayAttributedText = displayText
+            textView.attributedText = displayText
             cachedTextHeight = textView.intrinsicContentSize.height
+            updateContentStrategy()
 
             gutterView.configure(
                 displayRows: displayRows,
@@ -1193,6 +1220,57 @@ private func makeSideBySideAttributedText(
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
             gutterSelectionOverlay.selectionColor = selectionColor
+
+            if usesTiledContent {
+                updateTiledContent(lineRects: lineRects, selectionColor: selectionColor)
+            }
+        }
+
+        /// Oversized content swaps the three full-content layers for the
+        /// tiled composite. The regular views stay populated but hidden —
+        /// hidden layers never display, so they allocate no backing store,
+        /// and `textView` keeps serving measurement and line-rect math.
+        private func updateContentStrategy() {
+            let tiled = cachedTextHeight > Self.tiledContentHeightThreshold
+            usesTiledContent = tiled
+            textView.isHidden = tiled
+            backgroundView.isHidden = tiled
+            selectionOverlay.isHidden = tiled
+            tiledContentView.isHidden = !tiled
+            tiledTextSize = .zero
+            if !tiled {
+                tiledTextLayout = nil
+                tiledContentView.setContent(nil)
+            }
+        }
+
+        private func updateTiledContent(lineRects: [CGRect], selectionColor: UIColor) {
+            tiledContentView.frame = contentContainerView.bounds
+            guard textView.frame.size != .zero else { return }
+            // Rebuild (never mutate) the drawing layout when geometry changes:
+            // tiles render on background threads against the current layout
+            // reference, so the swap must be atomic — in-flight draws finish
+            // against the old instance.
+            if tiledTextSize != textView.frame.size || tiledTextLayout == nil {
+                tiledTextSize = textView.frame.size
+                let layout = LTXTextLayout(attributedString: displayAttributedText)
+                layout.containerSize = textView.frame.size
+                tiledTextLayout = layout
+            }
+            guard let tiledTextLayout else { return }
+            tiledContentView.setContent(
+                .init(
+                    textLayout: tiledTextLayout,
+                    displayRows: displayRows,
+                    sideBySideTextMetrics: sideBySideTextMetrics,
+                    lineRects: lineRects,
+                    contentHeight: cachedTextHeight,
+                    containerSize: contentContainerView.bounds.size,
+                    textOrigin: textView.frame.origin,
+                    theme: theme,
+                    selectionColor: selectionColor
+                )
+            )
         }
 
         private func performLayout() {
@@ -1426,6 +1504,283 @@ private func makeSideBySideAttributedText(
                     )
                 }
             }
+        }
+    }
+
+    private nonisolated final class NoFadeTiledLayer: CATiledLayer {
+        override nonisolated class func fadeDuration() -> CFTimeInterval { 0 }
+    }
+
+    /// Everything a background tile render needs, precomputed on the main
+    /// actor into plain Core Graphics values: row backgrounds and separators
+    /// become `fills` (emitted in ascending-y order for early-out culling),
+    /// and the text draws through a frozen `LTXTextLayout`. `@unchecked`
+    /// because `CGColor` and a frozen layout are immutable.
+    private nonisolated struct DiffTileDrawList: @unchecked Sendable {
+        struct Fill {
+            let rect: CGRect
+            let color: CGColor
+        }
+
+        let fills: [Fill]
+        /// Row rects in the container's coordinate space, for the selection
+        /// highlight.
+        let lineRects: [CGRect]
+        let selectionColor: CGColor
+        let textLayout: LTXTextLayout
+        let textOrigin: CGPoint
+        let containerWidth: CGFloat
+    }
+
+    /// Draws tiles on whatever thread Core Animation calls from; state is
+    /// snapshotted under a lock and treated as immutable while drawing.
+    private nonisolated final class DiffTileRenderer: NSObject, CALayerDelegate, @unchecked Sendable {
+        private let stateLock = NSLock()
+        private var drawList: DiffTileDrawList?
+        private var selectedRange: ClosedRange<Int>?
+
+        func setDrawList(_ newValue: DiffTileDrawList?) {
+            stateLock.lock()
+            drawList = newValue
+            stateLock.unlock()
+        }
+
+        /// Returns the previous range so the caller can invalidate just the
+        /// affected rows.
+        func setSelectedRange(_ range: ClosedRange<Int>?) -> ClosedRange<Int>? {
+            stateLock.lock()
+            let previous = selectedRange
+            selectedRange = range
+            stateLock.unlock()
+            return previous
+        }
+
+        func draw(_: CALayer, in context: CGContext) {
+            stateLock.lock()
+            let drawList = drawList
+            let selectedRange = selectedRange
+            stateLock.unlock()
+            guard let drawList else { return }
+
+            let tileRect = context.boundingBoxOfClipPath
+
+            for fill in drawList.fills {
+                // Fills are emitted top-to-bottom; past the tile nothing below
+                // re-enters it.
+                if fill.rect.minY > tileRect.maxY { break }
+                guard fill.rect.maxY >= tileRect.minY else { continue }
+                context.setFillColor(fill.color)
+                context.fill(fill.rect)
+            }
+
+            if let selectedRange {
+                context.setFillColor(drawList.selectionColor)
+                for lineIndex in selectedRange {
+                    let arrayIndex = lineIndex - 1
+                    guard arrayIndex >= 0, arrayIndex < drawList.lineRects.count else { continue }
+                    let lineRect = drawList.lineRects[arrayIndex]
+                    let highlightRect = CGRect(
+                        x: 0,
+                        y: lineRect.minY,
+                        width: drawList.containerWidth,
+                        height: lineRect.height
+                    )
+                    if highlightRect.intersects(tileRect) {
+                        context.fill(highlightRect)
+                    }
+                }
+            }
+
+            context.saveGState()
+            context.translateBy(x: drawList.textOrigin.x, y: drawList.textOrigin.y)
+            drawList.textLayout.draw(
+                in: context,
+                visibleRect: tileRect.offsetBy(dx: -drawList.textOrigin.x, dy: -drawList.textOrigin.y)
+            )
+            context.restoreGState()
+        }
+    }
+
+    /// Composite content surface for oversized diffs: row backgrounds, the
+    /// line-selection highlight, and the text itself draw together into a
+    /// tiled layer, so memory stays bounded by the visible tiles instead of
+    /// scaling with content — the regular path holds *three* full-content
+    /// backing stores (text label, background view, selection overlay), each
+    /// ~200MB for a wide 150-line lockfile chunk, and goes blank past Core
+    /// Animation's backing-store ceiling (#9).
+    private final class DiffTiledContentView: UIView {
+        struct Content {
+            let textLayout: LTXTextLayout
+            let displayRows: DiffDisplayRows
+            let sideBySideTextMetrics: DiffSideBySideTextMetrics?
+            /// Row rects in this view's coordinate space (text origin applied).
+            let lineRects: [CGRect]
+            let contentHeight: CGFloat
+            let containerSize: CGSize
+            let textOrigin: CGPoint
+            let theme: MarkdownTheme
+            let selectionColor: UIColor
+        }
+
+        private let tiledLayer = NoFadeTiledLayer()
+        private let renderer = DiffTileRenderer()
+        /// Cheap identity of the last applied content — layout passes
+        /// re-snapshot unconditionally, and re-rendering every visible tile
+        /// for an identical snapshot wastes the exact work tiling saves.
+        private var appliedSignature: (layout: ObjectIdentifier, size: CGSize, origin: CGPoint, rects: Int)?
+        private var lastContainerWidth: CGFloat = 0
+        private var lastLineRects: [CGRect] = []
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isOpaque = false
+            backgroundColor = .clear
+            tiledLayer.delegate = renderer
+            tiledLayer.tileSize = CGSize(width: 1024, height: 1024)
+            tiledLayer.levelsOfDetail = 1
+            layer.addSublayer(tiledLayer)
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            tiledLayer.frame = layer.bounds
+            tiledLayer.contentsScale = traitCollection.displayScale
+            CATransaction.commit()
+        }
+
+        func setContent(_ content: Content?) {
+            guard let content else {
+                appliedSignature = nil
+                lastLineRects = []
+                lastContainerWidth = 0
+                renderer.setDrawList(nil)
+                tiledLayer.setNeedsDisplay()
+                return
+            }
+            let signature = (
+                layout: ObjectIdentifier(content.textLayout),
+                size: content.containerSize,
+                origin: content.textOrigin,
+                rects: content.lineRects.count
+            )
+            if let appliedSignature, appliedSignature == signature { return }
+            appliedSignature = signature
+            lastLineRects = content.lineRects
+            lastContainerWidth = content.containerSize.width
+            renderer.setDrawList(Self.makeDrawList(from: content))
+            tiledLayer.setNeedsDisplay()
+        }
+
+        func setSelectedRange(_ range: ClosedRange<Int>?) {
+            let previous = renderer.setSelectedRange(range)
+            guard previous != range, !lastLineRects.isEmpty else { return }
+            // Invalidate only the affected rows — a bare setNeedsDisplay() on
+            // a tiled layer re-renders every visible tile per drag increment.
+            var dirty = CGRect.null
+            for touched in [previous, range].compactMap({ $0 }) {
+                for lineIndex in touched {
+                    let arrayIndex = lineIndex - 1
+                    guard arrayIndex >= 0, arrayIndex < lastLineRects.count else { continue }
+                    let lineRect = lastLineRects[arrayIndex]
+                    dirty = dirty.union(
+                        CGRect(
+                            x: 0,
+                            y: lineRect.minY,
+                            width: lastContainerWidth,
+                            height: lineRect.height
+                        )
+                    )
+                }
+            }
+            guard !dirty.isNull else { return }
+            tiledLayer.setNeedsDisplay(dirty.insetBy(dx: 0, dy: -CodeViewConfiguration.codeLineSpacing))
+        }
+
+        private static func makeDrawList(from content: Content) -> DiffTileDrawList {
+            var fills: [DiffTileDrawList.Fill] = []
+            let bounds = CGRect(origin: .zero, size: content.containerSize)
+            let theme = content.theme
+            let separatorColor = theme.diff.separatorColor.cgColor
+
+            func appendSeparator(below rect: CGRect) {
+                fills.append(
+                    .init(
+                        rect: CGRect(
+                            x: 0,
+                            y: rect.maxY - DiffViewConfiguration.separatorWidth,
+                            width: bounds.width,
+                            height: DiffViewConfiguration.separatorWidth
+                        ),
+                        color: separatorColor
+                    )
+                )
+            }
+
+            switch content.displayRows {
+            case let .unified(rows):
+                for (index, row) in rows.enumerated() {
+                    let rect = resolvedDiffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        bounds: bounds,
+                        theme: theme,
+                        lineRects: content.lineRects
+                    )
+                    if let fillColor = unifiedContentRowBackgroundColor(for: row.kind, theme: theme) {
+                        fills.append(.init(rect: rect, color: fillColor.cgColor))
+                    }
+                    appendSeparator(below: rect)
+                }
+
+            case let .sideBySide(rows, _):
+                let textMetrics = content.sideBySideTextMetrics
+                    ?? .make(maxOldUTF16Length: 0, font: theme.fonts.code)
+                for (index, row) in rows.enumerated() {
+                    let rect = resolvedDiffRowRect(
+                        index: index,
+                        rowCount: rows.count,
+                        bounds: bounds,
+                        theme: theme,
+                        lineRects: content.lineRects
+                    )
+
+                    switch row.kind {
+                    case .fileHeader, .fileMetadata, .hunkHeader, .annotation, .collapsedContext:
+                        if let fillColor = sideBySideRowBackgroundColor(for: row.kind, theme: theme) {
+                            fills.append(.init(rect: rect, color: fillColor.cgColor))
+                        }
+
+                    case .content:
+                        let columnRects = sideBySideContentRects(in: rect, textMetrics: textMetrics)
+
+                        if let oldColor = sideBySideCellBackgroundColor(for: row.oldRole, theme: theme) {
+                            fills.append(.init(rect: columnRects.oldRect, color: oldColor.cgColor))
+                        }
+                        if let newColor = sideBySideCellBackgroundColor(for: row.newRole, theme: theme) {
+                            fills.append(.init(rect: columnRects.newRect, color: newColor.cgColor))
+                        }
+                        fills.append(.init(rect: columnRects.dividerRect, color: separatorColor))
+                    }
+
+                    appendSeparator(below: rect)
+                }
+            }
+
+            return DiffTileDrawList(
+                fills: fills,
+                lineRects: content.lineRects,
+                selectionColor: content.selectionColor.cgColor,
+                textLayout: content.textLayout,
+                textOrigin: content.textOrigin,
+                containerWidth: content.containerSize.width
+            )
         }
     }
 

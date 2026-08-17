@@ -6,7 +6,10 @@
 import CoreText
 import Foundation
 
-public class LTXLineDrawingAction: NSObject {
+/// Nonisolated so `LTXTextLayout` can run drawing actions from background
+/// tile renders; handlers must stick to Core Graphics work on the passed
+/// context (all in-tree handlers draw bullets/quote bars and do).
+public nonisolated class LTXLineDrawingAction: NSObject {
     public typealias ActionHandler = (CGContext, CTLine, CGPoint) -> Void
 
     public var action: ActionHandler

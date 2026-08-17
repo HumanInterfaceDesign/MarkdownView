@@ -98,6 +98,14 @@ import Foundation
             didSet { reloadEverything() }
         }
 
+        /// Files whose changed-line count (additions + deletions) exceeds this
+        /// start collapsed — GitHub's "large diffs are not rendered by
+        /// default". `nil` (the default) renders every file expanded. Applied
+        /// by `setPatch`; the user's explicit header toggles are remembered by
+        /// path and win over the threshold on later `setPatch` calls, so
+        /// progressive loads don't re-collapse a file the user opened.
+        public var largeFileCollapseThreshold: Int?
+
         public private(set) var patch: String = ""
 
         private var document = DiffPatchDocument(files: [], language: nil)
@@ -108,6 +116,11 @@ import Foundation
         /// new document.
         private var documentGeneration = 0
         private var collapsedFileIDs: Set<Int> = []
+        /// Explicit header toggles, remembered by display path so they survive
+        /// `setPatch` (progressive loads reparse the growing patch repeatedly,
+        /// and file IDs restart at 0 each time).
+        private var userCollapsedPaths: Set<String> = []
+        private var userExpandedPaths: Set<String> = []
         private var loadingExpansions: Set<ExpansionKey> = []
         /// The hunk cell owning the active line selection. `DiffView` clears
         /// exclusively within one view; across hunk cells it's enforced here.
@@ -141,7 +154,16 @@ import Foundation
             document = DiffPatchDocument(patch: patch, language: language)
                 ?? .init(files: [], language: language)
             documentGeneration += 1
-            collapsedFileIDs = []
+            collapsedFileIDs = Set(document.files.compactMap { file in
+                if userCollapsedPaths.contains(file.displayPath) { return file.id }
+                if userExpandedPaths.contains(file.displayPath) { return nil }
+                if let threshold = largeFileCollapseThreshold,
+                   file.additions + file.deletions > threshold
+                {
+                    return file.id
+                }
+                return nil
+            })
             loadingExpansions = []
             selectionCell = nil
             guard isViewLoaded else { return }
@@ -366,6 +388,15 @@ import Foundation
                 collapsedFileIDs.remove(fileID)
             } else {
                 collapsedFileIDs.insert(fileID)
+            }
+            if let path = document.file(withID: fileID)?.displayPath {
+                if isCollapsed {
+                    userExpandedPaths.insert(path)
+                    userCollapsedPaths.remove(path)
+                } else {
+                    userCollapsedPaths.insert(path)
+                    userExpandedPaths.remove(path)
+                }
             }
             applySnapshot(animated: true)
             // Headers are supplementary views, so no item update reaches them;

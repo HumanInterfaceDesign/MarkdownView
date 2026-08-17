@@ -8,8 +8,8 @@
 import Foundation
 
 public let LTXReplacementText = "\u{FFFC}"
-public let LTXAttachmentAttributeName = NSAttributedString.Key("LTXAttachment")
-public let LTXLineDrawingCallbackName = NSAttributedString.Key("LTXLineDrawingCallback")
+public nonisolated let LTXAttachmentAttributeName = NSAttributedString.Key("LTXAttachment")
+public nonisolated let LTXLineDrawingCallbackName = NSAttributedString.Key("LTXLineDrawingCallback")
 
 public extension NSAttributedString.Key {
     @inline(__always) static let ltxAttachment = LTXAttachmentAttributeName

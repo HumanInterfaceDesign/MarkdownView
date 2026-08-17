@@ -10,7 +10,7 @@ import QuartzCore
 
 private let kTruncationToken = "\u{2026}"
 
-private func _hasHighlightAttributes(_ attributes: [NSAttributedString.Key: Any]) -> Bool {
+private nonisolated func _hasHighlightAttributes(_ attributes: [NSAttributedString.Key: Any]) -> Bool {
     if attributes[.link] != nil {
         return true
     }
@@ -20,9 +20,15 @@ private func _hasHighlightAttributes(_ attributes: [NSAttributedString.Key: Any]
     return false
 }
 
-public class LTXTextLayout: NSObject {
+/// Nonisolated so a fully built layout can draw from background tile renders
+/// (`draw(in:visibleRect:)`). Not internally synchronized: build and mutate on
+/// one actor, and once a layout is shared with a background renderer treat it
+/// as frozen — swap in a fresh instance instead of mutating `containerSize`.
+/// The highlight-region API stays main-actor: it reaches into attachments,
+/// which hold views.
+public nonisolated class LTXTextLayout: NSObject {
     public private(set) var attributedString: NSAttributedString
-    public var highlightRegions: [LTXHighlightRegion] {
+    @MainActor public var highlightRegions: [LTXHighlightRegion] {
         Array(_highlightRegions.values)
     }
 
@@ -136,12 +142,57 @@ public class LTXTextLayout: NSObject {
         context.restoreGState()
     }
 
+    /// Draws only the lines intersecting `visibleRect`, given in the layout's
+    /// top-left-origin coordinate space. Backs tiled rendering of oversized
+    /// content: each tile pays for its own band of lines instead of the whole
+    /// document. Safe to call off the main thread as long as the layout isn't
+    /// mutated concurrently (swap in a fresh instance rather than changing
+    /// `containerSize` under in-flight draws).
+    public func draw(
+        in context: CGContext,
+        visibleRect: CGRect,
+        glyphAlpha: ((Int) -> CGFloat)? = nil
+    ) {
+        context.saveGState()
+
+        context.setAllowsAntialiasing(true)
+        context.setShouldSmoothFonts(true)
+
+        context.translateBy(x: 0, y: containerSize.height)
+        context.scaleBy(x: 1, y: -1)
+
+        // The container is flipped for CoreText; convert the band once.
+        let band = LineBand(
+            minY: containerSize.height - visibleRect.maxY,
+            maxY: containerSize.height - visibleRect.minY
+        )
+        if let glyphAlpha {
+            drawGlyphs(in: context, band: band, glyphAlpha: glyphAlpha)
+        } else {
+            context.textMatrix = .identity
+            enumerateLines(intersecting: band) { line, _, lineOrigin in
+                context.textPosition = lineOrigin
+                CTLineDraw(line, context)
+            }
+        }
+
+        processLineDrawingActions(in: context, band: band, glyphAlpha: glyphAlpha)
+
+        context.restoreGState()
+    }
+
+    /// Vertical slice of the layout in CoreText (bottom-up) coordinates.
+    private struct LineBand {
+        let minY: CGFloat
+        let maxY: CGFloat
+    }
+
     /// Per-run draw that varies alpha by character index. Consecutive glyphs with
     /// near-equal alpha are batched into a single `CTRunDraw` so the cost stays
     /// close to the frame draw while still producing a smooth fade edge.
-    private func drawGlyphs(in context: CGContext, glyphAlpha: (Int) -> CGFloat) {
+    private func drawGlyphs(in context: CGContext, band: LineBand? = nil, glyphAlpha: (Int) -> CGFloat) {
         context.textMatrix = .identity
-        enumerateLines { line, _, lineOrigin in
+        enumerateLines(intersecting: band) { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
             for runIndex in 0 ..< glyphRuns.count {
                 guard let run = glyphRuns[runIndex] as! CTRun? else { continue }
@@ -174,9 +225,13 @@ public class LTXTextLayout: NSObject {
         max(0, min(1, value))
     }
 
-    private func processLineDrawingActions(in context: CGContext, glyphAlpha: ((Int) -> CGFloat)? = nil) {
+    private func processLineDrawingActions(
+        in context: CGContext,
+        band: LineBand? = nil,
+        glyphAlpha: ((Int) -> CGFloat)? = nil
+    ) {
         guard hasLineDrawingActions else { return }
-        enumerateLines { line, _, lineOrigin in
+        enumerateLines(intersecting: band) { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
 
             for i in 0 ..< glyphRuns.count {
@@ -202,7 +257,7 @@ public class LTXTextLayout: NSObject {
         }
     }
 
-    public func updateHighlightRegions() {
+    @MainActor public func updateHighlightRegions() {
         _highlightRegions.removeAll()
         extractHighlightRegions()
     }
@@ -372,7 +427,7 @@ public class LTXTextLayout: NSObject {
         }
     }
 
-    private func extractHighlightRegions() {
+    @MainActor private func extractHighlightRegions() {
         guard hasHighlightAttributes else { return }
         enumerateLines { line, _, lineOrigin in
             let glyphRuns = CTLineGetGlyphRuns(line) as NSArray
@@ -396,7 +451,7 @@ public class LTXTextLayout: NSObject {
         }
     }
 
-    private func processHighlightRegionForRun(
+    @MainActor private func processHighlightRegionForRun(
         _ glyphRun: CTRun,
         attributes: [NSAttributedString.Key: Any],
         lineOrigin: CGPoint
@@ -445,11 +500,24 @@ public class LTXTextLayout: NSObject {
     }
 
     private func enumerateLines(
+        intersecting band: LineBand? = nil,
         using block: (CTLine, Int, CGPoint) -> Void
     ) {
         guard let lines, let lineOrigins else { return }
 
         for i in 0 ..< lines.count {
+            if let band {
+                let origin = lineOrigins[i]
+                var ascent: CGFloat = 0
+                var descent: CGFloat = 0
+                var leading: CGFloat = 0
+                _ = CTLineGetTypographicBounds(lines[i], &ascent, &descent, &leading)
+                // Same vertical extents as `lineRects()`. Origins descend as
+                // the index grows (CoreText is bottom-up), so once a line falls
+                // below the band no later line can re-enter it.
+                if origin.y - descent > band.maxY { continue }
+                if origin.y + ascent + leading < band.minY { break }
+            }
             block(lines[i], i, lineOrigins[i])
         }
     }
