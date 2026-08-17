@@ -192,7 +192,7 @@ import Foundation
             let configuration = UICollectionViewCompositionalLayoutConfiguration()
             configuration.interSectionSpacing = DiffFilesViewConfiguration.sectionSpacing
 
-            return UICollectionViewCompositionalLayout(
+            return DiffFilesCollapseLayout(
                 sectionProvider: { [weak self] _, _ in
                     let theme = self?.theme ?? .default
                     let itemSize = NSCollectionLayoutSize(
@@ -313,7 +313,24 @@ import Foundation
                 }
                 snapshot.reconfigureItems(hunkItems)
             }
-            dataSource.apply(snapshot, animatingDifferences: animated)
+            if animated {
+                // Diffable's default apply animation is a flat fade at stock
+                // timing — on a large diff that dims the whole section and
+                // feels sluggish. The batch update inherits this spring
+                // instead (fast, front-loaded travel, no overshoot), matching
+                // the card expand/collapse springs in the host app.
+                UIView.animate(
+                    withDuration: 0.45,
+                    delay: 0,
+                    usingSpringWithDamping: 0.78,
+                    initialSpringVelocity: 0.4,
+                    options: [.beginFromCurrentState, .allowUserInteraction]
+                ) {
+                    self.dataSource.apply(snapshot, animatingDifferences: true)
+                }
+            } else {
+                dataSource.apply(snapshot, animatingDifferences: false)
+            }
         }
 
         private func reloadEverything() {
@@ -468,6 +485,35 @@ import Foundation
             case .down: self = .down
             case .both: self = .all
             }
+        }
+    }
+
+    /// Collapse/expand motion for the sectioned diff: appearing and
+    /// disappearing cells travel towards their sticky header while they fade,
+    /// so a toggled section reads as folding into (and unfolding out of) its
+    /// header. The default attributes dissolve cells in place, which dims a
+    /// large section wholesale — that reads as a rendering glitch, not motion.
+    private final class DiffFilesCollapseLayout: UICollectionViewCompositionalLayout {
+        private static let foldTravel: CGFloat = 32
+
+        override func initialLayoutAttributesForAppearingItem(
+            at itemIndexPath: IndexPath
+        ) -> UICollectionViewLayoutAttributes? {
+            guard let attributes = super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)?
+                .copy() as? UICollectionViewLayoutAttributes else { return nil }
+            attributes.alpha = 0
+            attributes.transform = CGAffineTransform(translationX: 0, y: -Self.foldTravel)
+            return attributes
+        }
+
+        override func finalLayoutAttributesForDisappearingItem(
+            at itemIndexPath: IndexPath
+        ) -> UICollectionViewLayoutAttributes? {
+            guard let attributes = super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)?
+                .copy() as? UICollectionViewLayoutAttributes else { return nil }
+            attributes.alpha = 0
+            attributes.transform = CGAffineTransform(translationX: 0, y: -Self.foldTravel)
+            return attributes
         }
     }
 #endif
