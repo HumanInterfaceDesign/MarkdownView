@@ -214,7 +214,7 @@ import Foundation
             let configuration = UICollectionViewCompositionalLayoutConfiguration()
             configuration.interSectionSpacing = DiffFilesViewConfiguration.sectionSpacing
 
-            return DiffFilesCollapseLayout(
+            return UICollectionViewCompositionalLayout(
                 sectionProvider: { [weak self] _, _ in
                     let theme = self?.theme ?? .default
                     let itemSize = NSCollectionLayoutSize(
@@ -335,27 +335,7 @@ import Foundation
                 }
                 snapshot.reconfigureItems(hunkItems)
             }
-            if animated {
-                // Diffable's default apply animation is a flat fade at stock
-                // timing — on a large diff that dims the whole section and
-                // feels sluggish. The batch update inherits this spring
-                // instead: fast, front-loaded travel. Critically damped
-                // (damping 1) on purpose — any overshoot sends the sliding
-                // sections past their targets, and with pinned headers and
-                // transparent cells that crossing draws headers over their
-                // neighbours mid-flight.
-                UIView.animate(
-                    withDuration: 0.45,
-                    delay: 0,
-                    usingSpringWithDamping: 1.0,
-                    initialSpringVelocity: 0.4,
-                    options: [.beginFromCurrentState, .allowUserInteraction]
-                ) {
-                    self.dataSource.apply(snapshot, animatingDifferences: true)
-                }
-            } else {
-                dataSource.apply(snapshot, animatingDifferences: false)
-            }
+            dataSource.apply(snapshot, animatingDifferences: animated)
         }
 
         private func reloadEverything() {
@@ -398,7 +378,12 @@ import Foundation
                     userExpandedPaths.remove(path)
                 }
             }
-            applySnapshot(animated: true)
+            // Toggles snap deliberately (GitHub-app behavior). Every animated
+            // variant misbehaves against translucent rows and pinned headers:
+            // the diffable fade dims the whole section, a bouncy spring drives
+            // headers across their neighbours, and a z-below reveal shows
+            // through the rows sliding over it.
+            applySnapshot(animated: false)
             // Headers are supplementary views, so no item update reaches them;
             // reconfigure the visible one so its chevron follows the state.
             reconfigureHeader(fileID: fileID)
@@ -522,36 +507,4 @@ import Foundation
         }
     }
 
-    /// Collapse/expand motion for the sectioned diff: toggled cells hold
-    /// their final frames at full opacity but *behind* the surrounding
-    /// content (`zIndex` below the default plane), so the sliding sections
-    /// reveal and conceal them like a moving clip — no dissolve. The default
-    /// attributes fade cells in place, which dims a large section wholesale.
-    ///
-    /// Reads correctly when row surfaces are opaque
-    /// (`theme.diff.backgroundColor`); with a translucent theme the toggled
-    /// content shows through the content sliding over it.
-    private final class DiffFilesCollapseLayout: UICollectionViewCompositionalLayout {
-        override func initialLayoutAttributesForAppearingItem(
-            at itemIndexPath: IndexPath
-        ) -> UICollectionViewLayoutAttributes? {
-            guard let attributes = super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)?
-                .copy() as? UICollectionViewLayoutAttributes else { return nil }
-            attributes.alpha = 1
-            attributes.transform = .identity
-            attributes.zIndex = -1
-            return attributes
-        }
-
-        override func finalLayoutAttributesForDisappearingItem(
-            at itemIndexPath: IndexPath
-        ) -> UICollectionViewLayoutAttributes? {
-            guard let attributes = super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)?
-                .copy() as? UICollectionViewLayoutAttributes else { return nil }
-            attributes.alpha = 1
-            attributes.transform = .identity
-            attributes.zIndex = -1
-            return attributes
-        }
-    }
 #endif

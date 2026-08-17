@@ -21,7 +21,6 @@ import Foundation
             effect: UIBlurEffect(style: .systemChromeMaterial)
         )
         private var tapHandler: (() -> Void)?
-        private var isCollapsed = false
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -59,7 +58,10 @@ import Foundation
                 systemName: "chevron.down",
                 withConfiguration: UIImage.SymbolConfiguration(scale: .small)
             )
-            setCollapsed(isCollapsed, animated: self.isCollapsed != isCollapsed && window != nil)
+            // Instant, matching the section toggle itself (which snaps).
+            chevronView.transform = isCollapsed
+                ? CGAffineTransform(rotationAngle: Self.collapsedChevronRotation)
+                : .identity
 
             accessibilityLabel = "\(file.displayPath), \(file.additions) added, \(file.deletions) removed"
             accessibilityHint = isCollapsed ? "Expands the file" : "Collapses the file"
@@ -119,20 +121,6 @@ import Foundation
             addGestureRecognizer(
                 UITapGestureRecognizer(target: self, action: #selector(handleTap))
             )
-        }
-
-        private func setCollapsed(_ collapsed: Bool, animated: Bool) {
-            isCollapsed = collapsed
-            let transform: CGAffineTransform = collapsed
-                ? .init(rotationAngle: Self.collapsedChevronRotation)
-                : .identity
-            guard animated else {
-                chevronView.transform = transform
-                return
-            }
-            UIView.animate(withDuration: 0.2) { [chevronView] in
-                chevronView.transform = transform
-            }
         }
 
         @objc private func handleTap() {
