@@ -487,6 +487,11 @@ import Foundation
                         expander: expander
                     )
                     applySnapshot(animated: false, reconfiguringFileWithID: expander.fileID)
+                    // A no-op insert (empty or fully-trimmed response) leaves
+                    // the same expander in the snapshot — reconfigure it so
+                    // its spinner stops. When the expansion applied, the item
+                    // was replaced and this is a no-op.
+                    reconfigure(item: .expander(expander))
                 } catch {
                     guard let self, generation == documentGeneration else { return }
                     loadingExpansions.remove(key)

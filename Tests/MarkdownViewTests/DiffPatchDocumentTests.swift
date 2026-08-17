@@ -75,6 +75,35 @@ final class DiffPatchDocumentTests: XCTestCase {
         XCTAssertEqual(trailing.direction, .down)
     }
 
+    func testPureInsertionHunkFabricatesNoLineZeroGap() {
+        let newFilePatch = """
+        diff --git a/app/page.tsx b/app/page.tsx
+        --- /dev/null
+        +++ b/app/page.tsx
+        @@ -0,0 +1,3 @@
+        +one
+        +two
+        +three
+        """
+        guard let document = DiffPatchDocument(patch: newFilePatch, language: "tsx") else {
+            return XCTFail("patch should parse")
+        }
+
+        // Empty pre-image: no gap exists anywhere, even though oldEnd (-1) is
+        // below the reported total (0).
+        let emptyPreImage = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 0)
+        XCTAssertEqual(emptyPreImage.count, 1)
+        if case .expander = emptyPreImage[0] { XCTFail("no expander for an empty pre-image") }
+
+        // Non-empty pre-image below a pure-insertion hunk: the gap starts at
+        // line 1, never line 0.
+        let items = document.items(forFileWithID: 0, chunkSize: 20, totalOldLineCount: 5)
+        guard case let .expander(trailing) = items.last else {
+            return XCTFail("expected trailing expander: \(items)")
+        }
+        XCTAssertEqual(trailing.gap, 1 ... 5)
+    }
+
     func testTrailingExpanderNeedsFileLength() {
         let document = makeDocument()
         let items = document.items(forFileWithID: 0, chunkSize: 20)

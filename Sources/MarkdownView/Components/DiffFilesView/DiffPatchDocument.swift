@@ -207,7 +207,10 @@ nonisolated struct DiffPatchDocument {
                 }
             } else {
                 let previous = file.hunks[index - 1]
-                let gapLowerBound = previous.oldEnd + 1
+                // Old-file lines are 1-based; a pure-insertion hunk
+                // (`@@ -0,0 …`) has `oldEnd == -1`, and an unclamped bound
+                // would fabricate a "line 0" gap.
+                let gapLowerBound = max(previous.oldEnd + 1, 1)
                 let gapUpperBound = hunk.oldStart - 1
                 if gapLowerBound <= gapUpperBound {
                     items.append(
@@ -227,21 +230,24 @@ nonisolated struct DiffPatchDocument {
             items.append(.hunk(fileID: fileID, hunkID: hunk.id))
         }
 
-        if let last = file.hunks.last,
-           let totalOldLineCount,
-           last.oldEnd < totalOldLineCount
-        {
-            items.append(
-                .expander(
-                    makeExpander(
-                        fileID: fileID,
-                        hunkAboveID: last.id,
-                        hunkBelowID: nil,
-                        gap: (last.oldEnd + 1) ... totalOldLineCount,
-                        chunkSize: chunkSize
+        if let last = file.hunks.last, let totalOldLineCount {
+            // Same 1-based clamp as above: a trailing pure-insertion hunk has
+            // `oldEnd == -1`, and an empty pre-image (`totalOldLineCount == 0`)
+            // must produce no expander rather than a phantom "line 0" gap.
+            let gapLowerBound = max(last.oldEnd + 1, 1)
+            if gapLowerBound <= totalOldLineCount {
+                items.append(
+                    .expander(
+                        makeExpander(
+                            fileID: fileID,
+                            hunkAboveID: last.id,
+                            hunkBelowID: nil,
+                            gap: gapLowerBound ... totalOldLineCount,
+                            chunkSize: chunkSize
+                        )
                     )
                 )
-            )
+            }
         }
 
         return items
