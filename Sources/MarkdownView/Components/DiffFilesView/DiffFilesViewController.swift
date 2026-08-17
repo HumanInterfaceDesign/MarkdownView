@@ -522,21 +522,24 @@ import Foundation
         }
     }
 
-    /// Collapse/expand motion for the sectioned diff: appearing and
-    /// disappearing cells travel towards their sticky header while they fade,
-    /// so a toggled section reads as folding into (and unfolding out of) its
-    /// header. The default attributes dissolve cells in place, which dims a
-    /// large section wholesale — that reads as a rendering glitch, not motion.
+    /// Collapse/expand motion for the sectioned diff: toggled cells hold
+    /// their final frames at full opacity but *behind* the surrounding
+    /// content (`zIndex` below the default plane), so the sliding sections
+    /// reveal and conceal them like a moving clip — no dissolve. The default
+    /// attributes fade cells in place, which dims a large section wholesale.
+    ///
+    /// Reads correctly when row surfaces are opaque
+    /// (`theme.diff.backgroundColor`); with a translucent theme the toggled
+    /// content shows through the content sliding over it.
     private final class DiffFilesCollapseLayout: UICollectionViewCompositionalLayout {
-        private static let foldTravel: CGFloat = 32
-
         override func initialLayoutAttributesForAppearingItem(
             at itemIndexPath: IndexPath
         ) -> UICollectionViewLayoutAttributes? {
             guard let attributes = super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)?
                 .copy() as? UICollectionViewLayoutAttributes else { return nil }
-            attributes.alpha = 0
-            attributes.transform = CGAffineTransform(translationX: 0, y: -Self.foldTravel)
+            attributes.alpha = 1
+            attributes.transform = .identity
+            attributes.zIndex = -1
             return attributes
         }
 
@@ -545,8 +548,9 @@ import Foundation
         ) -> UICollectionViewLayoutAttributes? {
             guard let attributes = super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)?
                 .copy() as? UICollectionViewLayoutAttributes else { return nil }
-            attributes.alpha = 0
-            attributes.transform = CGAffineTransform(translationX: 0, y: -Self.foldTravel)
+            attributes.alpha = 1
+            attributes.transform = .identity
+            attributes.zIndex = -1
             return attributes
         }
     }
