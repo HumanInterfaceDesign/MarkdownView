@@ -14,6 +14,12 @@ import Foundation
         private lazy var additionsLabel: UILabel = .init()
         private lazy var deletionsLabel: UILabel = .init()
         private lazy var separator: UIView = .init()
+        /// System-material chrome (like grouped-section headers/bars) instead
+        /// of a flat color, so diff content scrolling under the pinned header
+        /// reads through the blur.
+        private lazy var backgroundBlur: UIVisualEffectView = .init(
+            effect: UIBlurEffect(style: .systemChromeMaterial)
+        )
         private var tapHandler: (() -> Void)?
         private var isCollapsed = false
 
@@ -34,7 +40,6 @@ import Foundation
             onToggle: @escaping () -> Void
         ) {
             tapHandler = onToggle
-            backgroundColor = theme.diff.fileHeaderBackground
             separator.backgroundColor = theme.diff.borderColor
 
             pathLabel.font = theme.fonts.code
@@ -63,6 +68,15 @@ import Foundation
         private func configureSubviews() {
             isAccessibilityElement = true
             accessibilityTraits = .button
+
+            backgroundBlur.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(backgroundBlur)
+            NSLayoutConstraint.activate([
+                backgroundBlur.topAnchor.constraint(equalTo: topAnchor),
+                backgroundBlur.leadingAnchor.constraint(equalTo: leadingAnchor),
+                backgroundBlur.trailingAnchor.constraint(equalTo: trailingAnchor),
+                backgroundBlur.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
 
             chevronView.contentMode = .center
             chevronView.setContentHuggingPriority(.required, for: .horizontal)

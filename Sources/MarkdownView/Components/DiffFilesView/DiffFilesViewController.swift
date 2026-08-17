@@ -317,12 +317,15 @@ import Foundation
                 // Diffable's default apply animation is a flat fade at stock
                 // timing — on a large diff that dims the whole section and
                 // feels sluggish. The batch update inherits this spring
-                // instead (fast, front-loaded travel, no overshoot), matching
-                // the card expand/collapse springs in the host app.
+                // instead: fast, front-loaded travel. Critically damped
+                // (damping 1) on purpose — any overshoot sends the sliding
+                // sections past their targets, and with pinned headers and
+                // transparent cells that crossing draws headers over their
+                // neighbours mid-flight.
                 UIView.animate(
                     withDuration: 0.45,
                     delay: 0,
-                    usingSpringWithDamping: 0.78,
+                    usingSpringWithDamping: 1.0,
                     initialSpringVelocity: 0.4,
                     options: [.beginFromCurrentState, .allowUserInteraction]
                 ) {
