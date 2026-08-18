@@ -3,7 +3,7 @@
 //  Litext
 //
 
-#if canImport(AppKit)
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
     import AppKit
 
     final class NSMenuItemActionTrampoline: NSObject {
