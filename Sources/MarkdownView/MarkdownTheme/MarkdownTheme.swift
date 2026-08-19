@@ -209,6 +209,11 @@ public struct MarkdownTheme: Equatable {
         /// Corner radius of the diff container. Set to 0 for square edges (e.g.
         /// when the diff fills a sheet/card that owns its own rounding).
         public var cornerRadius: CGFloat = 10
+        /// Corner radius of each file section header in the sectioned diff
+        /// (`DiffFilesViewController`). A collapsed section rounds all four
+        /// corners (a floating row); an expanded one rounds only the top so it
+        /// stays joined to its hunks. 0 keeps the edge-to-edge default.
+        public var fileHeaderCornerRadius: CGFloat = 0
         public var contextCollapseThreshold: Int = 8
         public var visibleContextLines: Int = 2
         /// Vertical padding above the first and below the last diff row, inside the

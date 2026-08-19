@@ -41,6 +41,17 @@ import Foundation
             tapHandler = onToggle
             separator.backgroundColor = theme.diff.borderColor
 
+            let radius = theme.diff.fileHeaderCornerRadius
+            layer.cornerRadius = radius
+            layer.cornerCurve = .continuous
+            layer.maskedCorners = isCollapsed
+                ? [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+                : [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+            clipsToBounds = radius > 0
+            // A rounded collapsed header floats as its own row — a bottom
+            // hairline would read as an underline.
+            separator.isHidden = radius > 0 && isCollapsed
+
             pathLabel.font = theme.fonts.code
             pathLabel.textColor = theme.diff.fileHeaderText
             pathLabel.text = file.displayPath
