@@ -127,19 +127,26 @@ import Foundation
 
             button.addTarget(self, action: #selector(handleTap), for: .touchUpInside)
 
-            for subview in [button, spinner] as [UIView] {
-                subview.translatesAutoresizingMaskIntoConstraints = false
-                addSubview(subview)
-                NSLayoutConstraint.activate([
-                    subview.centerXAnchor.constraint(equalTo: centerXAnchor),
-                    subview.centerYAnchor.constraint(equalTo: centerYAnchor),
-                ])
-            }
+            button.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(button)
+
+            spinner.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(spinner)
             spinner.hidesWhenStopped = true
 
-            widthAnchor.constraint(
-                equalToConstant: DiffFilesViewConfiguration.expanderControlWidth
-            ).isActive = true
+            NSLayoutConstraint.activate([
+                button.topAnchor.constraint(equalTo: topAnchor),
+                button.leadingAnchor.constraint(equalTo: leadingAnchor),
+                button.trailingAnchor.constraint(equalTo: trailingAnchor),
+                button.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+                spinner.centerXAnchor.constraint(equalTo: centerXAnchor),
+                spinner.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+                widthAnchor.constraint(
+                    equalToConstant: DiffFilesViewConfiguration.expanderControlWidth
+                ),
+            ])
         }
 
         @available(*, unavailable)

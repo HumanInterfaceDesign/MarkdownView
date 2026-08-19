@@ -363,6 +363,9 @@ import Foundation
         }
 
         private func toggleCollapse(fileID: Int) {
+            #if !os(visionOS)
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            #endif
             let isCollapsed = collapsedFileIDs.contains(fileID)
             if isCollapsed {
                 collapsedFileIDs.remove(fileID)
