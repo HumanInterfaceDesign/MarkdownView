@@ -1251,13 +1251,14 @@ final class DiffViewTests: XCTestCase {
             #if canImport(AppKit)
                 view.layoutSubtreeIfNeeded()
                 self.assertEqualColor(NSColor(cgColor: view.layer?.backgroundColor ?? background.cgColor), background)
+                XCTAssertEqual(view.layer?.borderWidth, 3)
+                XCTAssertEqual(view.layer?.borderColor, border.cgColor)
             #elseif canImport(UIKit)
                 view.layoutIfNeeded()
                 self.assertEqualColor(view.backgroundColor, background)
+                XCTAssertEqual(view.layer.borderWidth, 3)
+                XCTAssertEqual(view.layer.borderColor, border.cgColor)
             #endif
-
-            XCTAssertEqual(view.layer?.borderWidth, 3)
-            XCTAssertEqual(view.layer?.borderColor, border.cgColor)
         }
     }
 
@@ -1316,6 +1317,16 @@ final class DiffViewTests: XCTestCase {
             XCTAssertTrue(diffView.barView.isHidden)
             XCTAssertTrue(diffView.copyButton.isHidden)
         }
+    }
+
+    func testExtremelyWideSingleLineDiffUsesTiledRendering() {
+        let ordinaryContent = CGSize(width: 320, height: 100)
+        let generatedBuildInfoContent = CGSize(width: 2_805_444, height: 100)
+        let tallContent = CGSize(width: 320, height: 2_049)
+
+        XCTAssertFalse(DiffViewConfiguration.shouldUseTiledContent(for: ordinaryContent))
+        XCTAssertTrue(DiffViewConfiguration.shouldUseTiledContent(for: generatedBuildInfoContent))
+        XCTAssertTrue(DiffViewConfiguration.shouldUseTiledContent(for: tallContent))
     }
 
     private func makeContent(from markdown: String) -> MarkdownTextView.PreprocessedContent {

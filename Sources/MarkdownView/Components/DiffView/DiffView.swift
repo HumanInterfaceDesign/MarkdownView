@@ -832,16 +832,15 @@ private func makeSideBySideAttributedText(
 
         // MARK: - TILED CONTENT (oversized diffs)
 
-        /// Past this laid-out height the content draws through
+        /// Past this laid-out width or height the content draws through
         /// `tiledContentView` instead of the three full-content layers (text
         /// label, row backgrounds, selection overlay). Those cost
         /// width × height × scale² × 4 bytes *each* — a 150-line lockfile
-        /// chunk is ~200MB per layer — and past ~5,400pt at 3x they cross
-        /// Core Animation's backing-store ceiling and render blank (#9).
+        /// chunk is ~200MB per layer, while a generated file can put megabytes
+        /// on one row. Either shape can cross Core Animation's backing-store
+        /// ceiling and render blank (#9).
         /// Typical transcript diffs stay below the threshold and keep the
         /// regular path, including the streaming reveal.
-        private static let tiledContentHeightThreshold: CGFloat = 2048
-
         private var usesTiledContent = false
         private var displayAttributedText = NSAttributedString()
         private var tiledTextLayout: LTXTextLayout?
@@ -1231,7 +1230,9 @@ private func makeSideBySideAttributedText(
         /// hidden layers never display, so they allocate no backing store,
         /// and `textView` keeps serving measurement and line-rect math.
         private func updateContentStrategy() {
-            let tiled = cachedTextHeight > Self.tiledContentHeightThreshold
+            let tiled = DiffViewConfiguration.shouldUseTiledContent(
+                for: textView.intrinsicContentSize
+            )
             usesTiledContent = tiled
             textView.isHidden = tiled
             backgroundView.isHidden = tiled

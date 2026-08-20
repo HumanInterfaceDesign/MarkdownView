@@ -17,6 +17,12 @@ enum DiffViewConfiguration {
     static let cornerRadius: CGFloat = 10
     static let minimumLineNumberText = "0"
     static let buttonSize = CGSize(width: 32, height: 32)
+    static let tiledContentDimensionThreshold: CGFloat = 2048
+
+    static func shouldUseTiledContent(for textSize: CGSize) -> Bool {
+        textSize.width > tiledContentDimensionThreshold
+            || textSize.height > tiledContentDimensionThreshold
+    }
 
     /// Content vertical padding, honoring the theme override when set. Defaults to
     /// `verticalPadding` so existing diff renders are unchanged.
