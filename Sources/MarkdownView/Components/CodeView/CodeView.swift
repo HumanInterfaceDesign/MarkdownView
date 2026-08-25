@@ -241,6 +241,27 @@ import Litext
             CodeViewConfiguration.intrinsicHeight(for: content, theme: theme)
         }
 
+        /// Height this view wants when laid out at `viewWidth`. With
+        /// `theme.wrapsCodeBlockLines` the text soft-wraps, so the height depends
+        /// on the width; otherwise this matches the line-count height.
+        func preferredHeight(forViewWidth viewWidth: CGFloat) -> CGFloat {
+            guard theme.wrapsCodeBlockLines, viewWidth > 0 else {
+                return CodeViewConfiguration.intrinsicHeight(
+                    for: content, lineCount: cachedLineCount, theme: theme
+                )
+            }
+            textView.preferredMaxLayoutWidth = CodeViewConfiguration.wrappedTextWidth(
+                forViewWidth: viewWidth,
+                lineNumberWidth: lineNumberView.intrinsicContentSize.width
+            )
+            let textHeight = textView.intrinsicContentSize.height
+            return ceil(
+                CodeViewConfiguration.barHeight(theme: theme)
+                    + textHeight
+                    + CodeViewConfiguration.codePadding * 2
+            )
+        }
+
         override var accessibilityLabel: String? {
             get {
                 let lang = language.isEmpty ? "Code" : language
@@ -568,6 +589,27 @@ import Litext
 
         static func intrinsicHeight(for content: String, theme: MarkdownTheme = .default) -> CGFloat {
             CodeViewConfiguration.intrinsicHeight(for: content, theme: theme)
+        }
+
+        /// Height this view wants when laid out at `viewWidth`. With
+        /// `theme.wrapsCodeBlockLines` the text soft-wraps, so the height depends
+        /// on the width; otherwise this matches the line-count height.
+        func preferredHeight(forViewWidth viewWidth: CGFloat) -> CGFloat {
+            guard theme.wrapsCodeBlockLines, viewWidth > 0 else {
+                return CodeViewConfiguration.intrinsicHeight(
+                    for: content, lineCount: cachedLineCount, theme: theme
+                )
+            }
+            textView.preferredMaxLayoutWidth = CodeViewConfiguration.wrappedTextWidth(
+                forViewWidth: viewWidth,
+                lineNumberWidth: lineNumberView.intrinsicContentSize.width
+            )
+            let textHeight = textView.intrinsicContentSize.height
+            return ceil(
+                CodeViewConfiguration.barHeight(theme: theme)
+                    + textHeight
+                    + CodeViewConfiguration.codePadding * 2
+            )
         }
 
         override func layout() {

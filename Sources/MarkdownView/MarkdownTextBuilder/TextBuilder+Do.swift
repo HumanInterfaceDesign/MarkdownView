@@ -81,6 +81,7 @@ extension TextBuilder {
 
         let builder = TextBuilder(nodes: context.blocks, context: context, viewProvider: viewProvider)
             .withTheme(theme)
+            .withLayoutWidth(view.textView.preferredMaxLayoutWidth)
             .withBulletDrawing { context, line, lineOrigin, depth in
                 let radius: CGFloat = 3
                 let boundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
@@ -167,16 +168,16 @@ extension TextBuilder {
                 }
 
                 if codeView.superview != view { view.addSubview(codeView) }
-                let intrinsicContentSize = codeView.intrinsicContentSize
                 let lineBoundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
                 var leftIndent: CGFloat = 0
                 if let paragraphStyle = attributes[.paragraphStyle] as? NSParagraphStyle {
                     leftIndent = paragraphStyle.headIndent
                 }
 
+                let codeViewWidth = view.bounds.width - leftIndent
                 codeView.frame = .init(
                     origin: .init(x: lineOrigin.x + leftIndent, y: view.bounds.height - lineBoundingBox.maxY),
-                    size: .init(width: view.bounds.width - leftIndent, height: intrinsicContentSize.height)
+                    size: .init(width: codeViewWidth, height: codeView.preferredHeight(forViewWidth: codeViewWidth))
                 )
                 codeView.previewAction = view.codePreviewHandler
                 codeView.isLineSelectionEnabled = view.lineSelectionHandler != nil

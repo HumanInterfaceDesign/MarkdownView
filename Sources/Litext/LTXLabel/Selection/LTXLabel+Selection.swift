@@ -35,6 +35,11 @@ public extension LTXLabel {
             convertRectFromTextLayout($0, insetForInteraction: false)
         }
     }
+
+    /// String range of each laid-out line, parallel to `lineRects()`.
+    func lineStringRanges() -> [NSRange] {
+        textLayout.lineStringRanges()
+    }
 }
 
 extension LTXLabel {

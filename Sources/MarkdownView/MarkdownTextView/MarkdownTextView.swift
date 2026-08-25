@@ -39,6 +39,7 @@ enum ContentPipelineMode {
         public internal(set) weak var trackedScrollView: UIScrollView? // for selection updating
 
         var contextViews: [UIView] = []
+        var lastBuildLayoutWidth: CGFloat = 0
         var cancellables = Set<AnyCancellable>()
         let contentSubject = CurrentValueSubject<PreprocessedContent, Never>(.init())
         let rawContentSubject = PassthroughSubject<String, Never>()
@@ -106,6 +107,7 @@ enum ContentPipelineMode {
         override public func layoutSubviews() {
             super.layoutSubviews()
             textView.preferredMaxLayoutWidth = bounds.width
+            rebuildForLayoutWidthChangeIfNeeded()
         }
 
         override public var intrinsicContentSize: CGSize {
@@ -114,6 +116,7 @@ enum ContentPipelineMode {
 
         public func boundingSize(for width: CGFloat) -> CGSize {
             textView.preferredMaxLayoutWidth = width
+            rebuildForLayoutWidthChangeIfNeeded()
             return textView.intrinsicContentSize
         }
 
@@ -247,6 +250,7 @@ enum ContentPipelineMode {
         public internal(set) weak var trackedScrollView: NSScrollView? // for selection updating
 
         var contextViews: [NSView] = []
+        var lastBuildLayoutWidth: CGFloat = 0
         var cancellables = Set<AnyCancellable>()
         let contentSubject = CurrentValueSubject<PreprocessedContent, Never>(.init())
         let rawContentSubject = PassthroughSubject<String, Never>()
@@ -322,6 +326,7 @@ enum ContentPipelineMode {
         override public func layout() {
             super.layout()
             textView.preferredMaxLayoutWidth = bounds.width
+            rebuildForLayoutWidthChangeIfNeeded()
         }
 
         override public var intrinsicContentSize: CGSize {
@@ -330,6 +335,7 @@ enum ContentPipelineMode {
 
         public func boundingSize(for width: CGFloat) -> CGSize {
             textView.preferredMaxLayoutWidth = width
+            rebuildForLayoutWidthChangeIfNeeded()
             return textView.intrinsicContentSize
         }
 

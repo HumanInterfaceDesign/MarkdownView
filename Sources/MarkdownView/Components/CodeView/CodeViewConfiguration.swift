@@ -55,6 +55,12 @@ enum CodeViewConfiguration {
         return ceil(barHeight + codeHeight)
     }
 
+    /// Width available for wrapped code text inside a view of `viewWidth`,
+    /// after the line-number gutter and horizontal padding.
+    static func wrappedTextWidth(forViewWidth viewWidth: CGFloat, lineNumberWidth: CGFloat) -> CGFloat {
+        max(viewWidth - lineNumberWidth - codePadding * 2, 40)
+    }
+
     static func barHeight(theme: MarkdownTheme = .default) -> CGFloat {
         guard theme.showsBlockHeaders else { return 0 }
         let font = theme.fonts.code
@@ -218,7 +224,6 @@ enum CodeViewConfiguration {
         }
 
         private func layoutScrollViewAndTextView(barHeight: CGFloat) {
-            let textContentSize = textView.intrinsicContentSize
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
 
             scrollView.frame = CGRect(
@@ -228,15 +233,25 @@ enum CodeViewConfiguration {
                 height: bounds.height - barHeight
             )
 
+            let availableTextWidth = scrollView.bounds.width - CodeViewConfiguration.codePadding * 2
+            textView.preferredMaxLayoutWidth = theme.wrapsCodeBlockLines
+                ? max(availableTextWidth, 40)
+                : .infinity
+            let textContentSize = textView.intrinsicContentSize
+
             textView.frame = CGRect(
                 x: CodeViewConfiguration.codePadding,
                 y: CodeViewConfiguration.codePadding,
-                width: max(scrollView.bounds.width - CodeViewConfiguration.codePadding * 2, textContentSize.width),
+                width: theme.wrapsCodeBlockLines
+                    ? max(availableTextWidth, 40)
+                    : max(availableTextWidth, textContentSize.width),
                 height: textContentSize.height
             )
 
             scrollView.contentSize = CGSize(
-                width: textView.frame.width + CodeViewConfiguration.codePadding * 2,
+                width: theme.wrapsCodeBlockLines
+                    ? scrollView.bounds.width
+                    : textView.frame.width + CodeViewConfiguration.codePadding * 2,
                 height: 0
             )
 
@@ -246,7 +261,7 @@ enum CodeViewConfiguration {
                 textView.lineRects(),
                 by: textView.frame.origin
             )
-            lineNumberView.updateLineRects(resolvedLineRects)
+            lineNumberView.updateLineRects(logicalLineStartRects(from: resolvedLineRects))
 
             selectionOverlay.frame = CGRect(
                 origin: .zero,
@@ -260,6 +275,26 @@ enum CodeViewConfiguration {
             let selectionColor = theme.colors.lineSelectionBackground
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
+        }
+
+        /// With soft wrapping a logical line spans several visual rows; the
+        /// gutter should number only the row each logical line starts on.
+        func logicalLineStartRects(from visualRects: [CGRect]) -> [CGRect] {
+            guard theme.wrapsCodeBlockLines else { return visualRects }
+            let ranges = textView.lineStringRanges()
+            guard ranges.count == visualRects.count else { return visualRects }
+            let text = content as NSString
+            var starts: [CGRect] = []
+            starts.reserveCapacity(ranges.count)
+            for (index, range) in ranges.enumerated() {
+                let location = range.location
+                if location == 0
+                    || (location - 1 < text.length && text.character(at: location - 1) == 0x0A)
+                {
+                    starts.append(visualRects[index])
+                }
+            }
+            return starts
         }
     }
 
@@ -426,7 +461,6 @@ enum CodeViewConfiguration {
         }
 
         private func layoutScrollViewAndTextView(barHeight: CGFloat) {
-            let textContentSize = textView.intrinsicContentSize
             let lineNumberWidth = lineNumberView.intrinsicContentSize.width
 
             scrollView.frame = CGRect(
@@ -436,10 +470,18 @@ enum CodeViewConfiguration {
                 height: bounds.height - barHeight
             )
 
+            let availableTextWidth = scrollView.bounds.width - CodeViewConfiguration.codePadding * 2
+            textView.preferredMaxLayoutWidth = theme.wrapsCodeBlockLines
+                ? max(availableTextWidth, 40)
+                : .infinity
+            let textContentSize = textView.intrinsicContentSize
+
             textView.frame = CGRect(
                 x: 0,
                 y: 0,
-                width: max(scrollView.bounds.width - CodeViewConfiguration.codePadding * 2, textContentSize.width),
+                width: theme.wrapsCodeBlockLines
+                    ? max(availableTextWidth, 40)
+                    : max(availableTextWidth, textContentSize.width),
                 height: textContentSize.height
             )
 
@@ -449,7 +491,7 @@ enum CodeViewConfiguration {
                 textView.lineRects(),
                 by: textView.frame.origin
             )
-            lineNumberView.updateLineRects(resolvedLineRects)
+            lineNumberView.updateLineRects(logicalLineStartRects(from: resolvedLineRects))
 
             selectionOverlay.frame = CGRect(
                 origin: .zero,
@@ -463,6 +505,26 @@ enum CodeViewConfiguration {
             let selectionColor = theme.colors.lineSelectionBackground
                 ?? theme.colors.selectionTint.withAlphaComponent(0.15)
             selectionOverlay.selectionColor = selectionColor
+        }
+
+        /// With soft wrapping a logical line spans several visual rows; the
+        /// gutter should number only the row each logical line starts on.
+        func logicalLineStartRects(from visualRects: [CGRect]) -> [CGRect] {
+            guard theme.wrapsCodeBlockLines else { return visualRects }
+            let ranges = textView.lineStringRanges()
+            guard ranges.count == visualRects.count else { return visualRects }
+            let text = content as NSString
+            var starts: [CGRect] = []
+            starts.reserveCapacity(ranges.count)
+            for (index, range) in ranges.enumerated() {
+                let location = range.location
+                if location == 0
+                    || (location - 1 < text.length && text.character(at: location - 1) == 0x0A)
+                {
+                    starts.append(visualRects[index])
+                }
+            }
+            return starts
         }
     }
 #endif

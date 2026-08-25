@@ -16,6 +16,7 @@ final class TextBuilder {
     private let nodes: [MarkdownBlockNode]
     private let viewProvider: ReusableViewProvider
     private var theme: MarkdownTheme = .default
+    private var layoutWidth: CGFloat = 0
     private let text: NSMutableAttributedString = .init()
     private let context: MarkdownTextView.PreprocessedContent
 
@@ -41,6 +42,13 @@ final class TextBuilder {
 
     func withTheme(_ theme: MarkdownTheme) -> TextBuilder {
         self.theme = theme
+        return self
+    }
+
+    /// Width the document will be laid out at; lets width-dependent blocks
+    /// (wrapped code) reserve the right height. 0 means unknown.
+    func withLayoutWidth(_ width: CGFloat) -> TextBuilder {
+        layoutWidth = width
         return self
     }
 
@@ -199,6 +207,7 @@ extension TextBuilder {
                 theme: theme,
                 viewProvider: viewProvider,
                 context: context,
+                layoutWidth: layoutWidth,
                 thematicBreakDrawing: thematicBreakDrawing,
                 codeDrawing: codeDrawing,
                 diffDrawing: diffDrawing,

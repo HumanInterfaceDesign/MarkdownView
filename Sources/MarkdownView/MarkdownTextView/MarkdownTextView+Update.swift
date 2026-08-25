@@ -95,6 +95,7 @@ extension MarkdownTextView {
         contextViews = artifacts.subviews
         lastRenderedBlocks = document.blocks
         lastBuildResult = artifacts
+        lastBuildLayoutWidth = textView.preferredMaxLayoutWidth
 
         for view in artifacts.subviews {
             if let view = view as? CodeView {
@@ -112,5 +113,24 @@ extension MarkdownTextView {
         for goneView in oldViews where !artifacts.subviews.contains(goneView) {
             goneView.removeFromSuperview()
         }
+    }
+
+    /// Wrapped code blocks reserve a height that depends on the layout width,
+    /// which is baked into the attributed string at build time. When the width
+    /// changes after a build, rebuild so those reservations stay correct.
+    func rebuildForLayoutWidthChangeIfNeeded() {
+        guard theme.wrapsCodeBlockLines else { return }
+        let width = textView.preferredMaxLayoutWidth
+        guard width > 0, width != lastBuildLayoutWidth else { return }
+        let hasCodeBlock = document.blocks.contains { block in
+            if case .codeBlock = block { return true }
+            return false
+        }
+        guard hasCodeBlock else {
+            lastBuildLayoutWidth = width
+            return
+        }
+        autoreleasepool { updateTextExecute() }
+        invalidateIntrinsicContentSize()
     }
 }

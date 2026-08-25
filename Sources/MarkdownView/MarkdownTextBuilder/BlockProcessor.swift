@@ -18,6 +18,7 @@ final class BlockProcessor {
     private let theme: MarkdownTheme
     private let viewProvider: ReusableViewProvider
     private let context: MarkdownTextView.PreprocessedContent
+    private let layoutWidth: CGFloat
     private let thematicBreakDrawing: TextBuilder.DrawingCallback?
     private let codeDrawing: TextBuilder.DrawingCallback?
     private let diffDrawing: TextBuilder.DiffDrawingCallback?
@@ -30,6 +31,7 @@ final class BlockProcessor {
         theme: MarkdownTheme,
         viewProvider: ReusableViewProvider,
         context: MarkdownTextView.PreprocessedContent,
+        layoutWidth: CGFloat,
         thematicBreakDrawing: TextBuilder.DrawingCallback?,
         codeDrawing: TextBuilder.DrawingCallback?,
         diffDrawing: TextBuilder.DiffDrawingCallback?,
@@ -40,6 +42,7 @@ final class BlockProcessor {
         self.theme = theme
         self.viewProvider = viewProvider
         self.context = context
+        self.layoutWidth = layoutWidth
         self.thematicBreakDrawing = thematicBreakDrawing
         self.codeDrawing = codeDrawing
         self.diffDrawing = diffDrawing
@@ -101,7 +104,9 @@ final class BlockProcessor {
         codeView.content = content
         let drawer = codeDrawing!
         let text = buildWithParagraphSync(modifier: { paragraph in
-            let height = CodeViewConfiguration.intrinsicHeight(for: content, theme: self.theme)
+            let height = self.theme.wrapsCodeBlockLines && self.layoutWidth > 0
+                ? codeView.preferredHeight(forViewWidth: self.layoutWidth)
+                : CodeViewConfiguration.intrinsicHeight(for: content, theme: self.theme)
             paragraph.minimumLineHeight = height
         }) {
             .init(string: LTXReplacementText, attributes: [

@@ -297,6 +297,16 @@ public nonisolated class LTXTextLayout: NSObject {
         return rects
     }
 
+    /// String range of each laid-out line, parallel to `lineRects()`. With soft
+    /// wrapping enabled a single logical line can span several entries.
+    public func lineStringRanges() -> [NSRange] {
+        guard let lines else { return [] }
+        return lines.map { line in
+            let range = CTLineGetStringRange(line)
+            return NSRange(location: range.location, length: range.length)
+        }
+    }
+
     public func enumerateTextRects(in range: NSRange, using block: (CGRect) -> Void) {
         guard let lines, let origins = lineOrigins else { return }
 

@@ -109,6 +109,12 @@ public struct MarkdownTheme: Equatable {
     public var colors: Colors = .init()
     public var showsBlockHeaders: Bool = true
 
+    /// Soft-wraps code block lines to the available width instead of scrolling
+    /// horizontally. Line numbers still count logical lines. Hosts whose width
+    /// can change after content is set should re-measure via `boundingSize(for:)`
+    /// (the view rebuilds automatically when the layout width changes).
+    public var wrapsCodeBlockLines: Bool = false
+
     /// Underline style applied to links. Used only when `linkUnderlineDash` is
     /// `nil`. Defaults to a solid single line; set to e.g. `[.single, .patternDot]`
     /// for a system dotted underline (whose dash length is not configurable).
