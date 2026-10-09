@@ -18,6 +18,10 @@ public class LTXHighlightRegion {
         self.stringRange = stringRange
     }
 
+    // Avoid the isolated-deinit runtime crash when synchronous layout releases a region.
+    // https://github.com/swiftlang/swift/issues/85663
+    nonisolated deinit {}
+
     func addRect(_ rect: CGRect) {
         #if canImport(UIKit)
             rects.append(NSValue(cgRect: rect))
