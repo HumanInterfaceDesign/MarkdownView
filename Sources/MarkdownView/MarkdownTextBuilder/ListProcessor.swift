@@ -15,6 +15,9 @@ import MarkdownParser
 // MARK: - ListProcessor
 
 final class ListProcessor {
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     private let theme: MarkdownTheme
     private let context: MarkdownTextView.PreprocessedContent
     private let viewProvider: ReusableViewProvider
