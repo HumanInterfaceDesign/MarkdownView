@@ -18,6 +18,9 @@ import SwiftMath
 /// Cached attribute dictionaries to avoid repeated allocations.
 /// Keyed by theme identity (font + color) which changes infrequently.
 final class InlineAttributeCache {
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     let bodyAttributes: [NSAttributedString.Key: Any]
     let codeAttributes: [NSAttributedString.Key: Any]
 
