@@ -46,21 +46,21 @@ final class HighlighterTests: XCTestCase {
 
     func testHighlightReturnsMap() {
         let highlighter = CodeHighlighter.current
-        let code = "def greet(name):\n    return f\"Hello, {name}!\""
-        let map = highlighter.highlight(key: nil, content: code, language: "python")
-        // Should produce some color ranges for Python syntax
-        XCTAssertFalse(map.isEmpty, "Highlight map should contain color entries for Python code")
+        let code = "function greet(name) { return `Hello, ${name}!`; }"
+        let map = highlighter.highlight(key: nil, content: code, language: "javascript")
+        XCTAssertFalse(map.isEmpty, "Highlight map should contain color entries for JavaScript code")
     }
 
     func testHighlightCacheHit() {
         let highlighter = CodeHighlighter.current
-        let code = "def cache_hit():\n    return 42"
-        let key = highlighter.key(for: code, language: "python")
+        let code = "function cacheHit() { return 42; }"
+        let key = highlighter.key(for: code, language: "javascript")
 
-        let map1 = highlighter.highlight(key: key, content: code, language: "python")
-        let map2 = highlighter.highlight(key: key, content: code, language: "python")
+        let map1 = highlighter.highlight(key: key, content: code, language: "javascript")
+        let map2 = highlighter.highlight(key: key, content: code, language: "javascript")
 
         // Both should return the same ranges (from cache on second call)
+        XCTAssertFalse(map1.isEmpty, "Cache test must exercise highlighted content")
         XCTAssertEqual(map1.count, map2.count)
         for (range, _) in map1 {
             XCTAssertNotNil(map2[range], "Cached map should contain same ranges")

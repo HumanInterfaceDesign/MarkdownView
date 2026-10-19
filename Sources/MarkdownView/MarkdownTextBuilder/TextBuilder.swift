@@ -13,6 +13,9 @@ import MarkdownParser
 #endif
 
 final class TextBuilder {
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     private let nodes: [MarkdownBlockNode]
     private let viewProvider: ReusableViewProvider
     private var theme: MarkdownTheme = .default

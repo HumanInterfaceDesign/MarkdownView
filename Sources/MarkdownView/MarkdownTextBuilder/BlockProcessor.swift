@@ -15,6 +15,9 @@ import MarkdownParser
 // MARK: - BlockProcessor
 
 final class BlockProcessor {
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     private let theme: MarkdownTheme
     private let viewProvider: ReusableViewProvider
     private let context: MarkdownTextView.PreprocessedContent

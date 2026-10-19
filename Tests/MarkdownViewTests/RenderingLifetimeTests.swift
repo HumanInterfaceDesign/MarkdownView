@@ -30,6 +30,71 @@ final class RenderingLifetimeTests: XCTestCase {
         }
     }
 
+    func testBlockProcessorAndOwnedCacheReleaseInsideSynchronousTaskLocalScope() {
+        let theme = MarkdownTheme.default
+        let context = MarkdownTextView.PreprocessedContent(markdown: "**Hello** `world`", theme: theme)
+        let viewProvider = ReusableViewProvider()
+        checkSynchronousRelease {
+            let processor = BlockProcessor(
+                theme: theme,
+                viewProvider: viewProvider,
+                context: context,
+                layoutWidth: 320,
+                thematicBreakDrawing: nil,
+                codeDrawing: nil,
+                diffDrawing: nil,
+                tableDrawing: nil,
+                blockquoteMarking: nil,
+                blockquoteDrawing: nil
+            )
+            let text = processor.processParagraph(contents: [.text("Hello world")])
+            XCTAssertTrue(text.string.contains("Hello world"))
+            return processor
+        }
+    }
+
+    func testTextBuilderReleaseInsideSynchronousTaskLocalScope() {
+        let context = MarkdownTextView.PreprocessedContent(markdown: "Hello", theme: .default)
+        let viewProvider = ReusableViewProvider()
+        checkSynchronousRelease {
+            TextBuilder(nodes: context.blocks, context: context, viewProvider: viewProvider)
+        }
+    }
+
+    func testTextBuilderAndOwnedProviderReleaseAfterSynchronousRender() {
+        let context = MarkdownTextView.PreprocessedContent(markdown: "**Hello** `world`", theme: .default)
+        checkSynchronousRelease {
+            let builder = TextBuilder(
+                nodes: context.blocks,
+                context: context,
+                viewProvider: ReusableViewProvider()
+            )
+            let result = builder.build()
+            XCTAssertTrue(result.document.string.contains("Hello world"))
+            return builder
+        }
+    }
+
+    func testTextBuilderAndOwnedProviderReleaseAfterSynchronousIncrementalRender() {
+        let context = MarkdownTextView.PreprocessedContent(markdown: "**Hello** `world`", theme: .default)
+        checkSynchronousRelease {
+            let builder = TextBuilder(
+                nodes: context.blocks,
+                context: context,
+                viewProvider: ReusableViewProvider()
+            )
+            let result = builder.buildIncremental(changes: [.rebuild(newIndex: 0)], cachedSegments: [])
+            XCTAssertTrue(result.document.string.contains("Hello world"))
+            return builder
+        }
+    }
+
+    func testReusableViewProviderReleaseInsideSynchronousTaskLocalScope() {
+        checkSynchronousRelease {
+            ReusableViewProvider()
+        }
+    }
+
     // Keep this synchronous to match UIKit layout callbacks outside a Swift task.
     private func checkSynchronousRelease<T: AnyObject>(_ makeObject: () -> T) {
         for _ in 0 ..< 100 {
