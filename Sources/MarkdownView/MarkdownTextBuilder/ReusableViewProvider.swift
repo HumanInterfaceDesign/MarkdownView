@@ -51,6 +51,9 @@ private class ObjectPool<T: Equatable & Hashable> {
 }
 
 public final class ReusableViewProvider {
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     private let codeViewPool: ObjectPool<CodeView> = .init {
         CodeView(frame: .zero)
     }
