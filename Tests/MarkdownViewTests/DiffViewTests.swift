@@ -121,10 +121,10 @@ final class DiffViewTests: XCTestCase {
     func testSingleTokenFenceAutoDetectsUnifiedDiffAndUsesInnerLanguage() {
         let content = makeContent(
             from: """
-            ```swift
+            ```javascript
             @@ -1 +1 @@
-            -let title = "Design Engineer"
-            +let title = "Designer"
+            -const title = "Design Engineer";
+            +const title = "Designer";
             ```
             """
         )
@@ -136,7 +136,7 @@ final class DiffViewTests: XCTestCase {
             return XCTFail("Expected auto-detected diff render block")
         }
 
-        XCTAssertEqual(renderBlock.language, "swift")
+        XCTAssertEqual(renderBlock.language, "javascript")
         XCTAssertEqual(renderBlock.rows[1].kind, .removed)
         XCTAssertFalse(renderBlock.rows[1].syntaxHighlights.isEmpty)
     }
