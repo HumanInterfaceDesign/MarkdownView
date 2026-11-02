@@ -175,6 +175,17 @@ import Foundation
             document.files.map(\.displayPath)
         }
 
+        public var firstVisibleDiffCell: UICollectionViewCell? {
+            guard isViewLoaded else { return nil }
+            collectionView.layoutIfNeeded()
+            for indexPath in collectionView.indexPathsForVisibleItems.sorted() {
+                if case .hunk? = dataSource.itemIdentifier(for: indexPath) {
+                    return collectionView.cellForItem(at: indexPath)
+                }
+            }
+            return nil
+        }
+
         override public func viewDidLoad() {
             super.viewDidLoad()
             view.backgroundColor = DiffFilesViewConfiguration.backgroundColor(theme: theme)
