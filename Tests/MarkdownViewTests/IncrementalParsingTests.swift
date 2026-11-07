@@ -5,6 +5,69 @@ final class IncrementalParsingTests: XCTestCase {
 
     private let parser = MarkdownParser()
 
+    func testCombinedParseMatchesStandaloneParsingAndRanges() {
+        let fixtures = [
+            "", "你好\r\n\r\nCafe\u{301}",
+            "# Title\n\nText **bold**\n\n```js\nconst x = 1;\n```",
+            "- Item\n\n  ```js\n  const x = 1;\n  ```\n\nAfter",
+            "| A | B |\n|---|---|\n| C | D |\n\n> Quote"
+        ]
+        for markdown in fixtures {
+            let combined = parser.parseWithBlockRanges(markdown)
+            let standalone = parser.parse(markdown)
+            XCTAssertEqual(combined.result.document, standalone.document)
+            XCTAssertEqual(combined.result.mathContext, standalone.mathContext)
+            XCTAssertEqual(combined.blockRanges.reduce(0) { $0 + $1.outputBlockCount }, combined.result.document.count)
+            let ranges = parser.parseBlockRange(markdown)
+            XCTAssertEqual(combined.blockRanges.map(\.startIndex), ranges.map(\.startIndex))
+            XCTAssertEqual(combined.blockRanges.map(\.endIndex), ranges.map(\.endIndex))
+            XCTAssertEqual(combined.blockRanges.map(\.outputBlockCount), ranges.map(\.outputBlockCount))
+        }
+    }
+
+    func testCombinedParseMapsMultilineMathToOriginalUnicodeSource() {
+        let blocks = ["前言 cafe\u{301}", "$$\nx + y\n$$", "間 $$z$$ 後", "End"]
+        for newline in ["\n", "\r\n"] {
+            let expected = blocks.map { $0.replacingOccurrences(of: "\n", with: newline) }
+            let markdown = expected.joined(separator: newline + newline)
+            let combined = parser.parseWithBlockRanges(markdown)
+            XCTAssertEqual(combined.result.document, parser.parse(markdown).document)
+            XCTAssertEqual(combined.result.mathContext.count, 2)
+            XCTAssertEqual(combined.blockRanges.map { String(markdown[$0.startIndex...$0.endIndex]) }, expected)
+            XCTAssertEqual(combined.blockRanges.reduce(0) { $0 + $1.outputBlockCount }, combined.result.document.count)
+        }
+    }
+
+    func testMathSourceRangesSurviveRepeatedIncrementalUpdates() throws {
+        var markdown = "前言\n\n$$\nx + y\n$$\n\nAlpha\n\nBravo\n\nCharlie\n\nDelta"
+        let initial = parser.parseWithBlockRanges(markdown)
+        var blocks = initial.result.document
+        var ranges = initial.blockRanges
+        for suffix in [" more", "\n\nEcho", " text"] {
+            let next = markdown + suffix
+            let incremental = try XCTUnwrap(parser.parseIncremental(
+                previousMarkdown: markdown, newMarkdown: next,
+                previousBlocks: blocks, previousRanges: ranges
+            ))
+            blocks = Array(blocks.prefix(incremental.stablePrefixBlockCount)) + incremental.tailResult.document
+            ranges = incremental.blockRanges
+            let full = parser.parseWithBlockRanges(next)
+            XCTAssertEqual(blocks, full.result.document)
+            XCTAssertEqual(ranges.map { String(next[$0.startIndex...$0.endIndex]) },
+                           full.blockRanges.map { String(next[$0.startIndex...$0.endIndex]) })
+            markdown = next
+        }
+    }
+
+    func testUnicodeInlineMathPreservesTrailingText() {
+        let result = parser.parse("你好 $x$ 後文")
+        XCTAssertEqual(Array(result.mathContext.values), ["x"])
+        guard let first = result.document.first,
+              case let .paragraph(content) = first else { return XCTFail("Expected paragraph") }
+        XCTAssertEqual(content.first, .text("你好 "))
+        XCTAssertEqual(content.last, .text(" 後文"))
+    }
+
     func testBlockRangesHandleUnicodeAndLineEndings() {
         for newline in ["\n", "\r\n", "\r"] {
             let blocks = ["你好", "cafe\u{301}", "終わり"]
