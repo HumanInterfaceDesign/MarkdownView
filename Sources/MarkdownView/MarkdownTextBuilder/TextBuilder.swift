@@ -20,7 +20,7 @@ final class TextBuilder {
     private let viewProvider: ReusableViewProvider
     private var theme: MarkdownTheme = .default
     private var layoutWidth: CGFloat = 0
-    private let text: NSMutableAttributedString = .init()
+    private var text: NSMutableAttributedString = .init()
     private let context: MarkdownTextView.PreprocessedContent
 
     private var bulletDrawing: BulletDrawingCallback?
@@ -105,6 +105,7 @@ final class TextBuilder {
         let subviews: [PlatformView]
         /// Per-block attributed strings, parallel to the input block array.
         let blockSegments: [NSAttributedString]
+        var preservedPrefixUTF16Length: Int = 0
     }
 
     private var previouslyBuilt = false
@@ -133,10 +134,30 @@ final class TextBuilder {
     /// Build only specific block indices, reusing cached segments for unchanged blocks.
     func buildIncremental(
         changes: [ASTDiff.Change],
-        cachedSegments: [NSAttributedString]
+        cachedSegments: [NSAttributedString],
+        cachedDocument: NSAttributedString? = nil
     ) -> BuildResult {
         assert(!previouslyBuilt, "TextBuilder can only be built once.")
         previouslyBuilt = true
+
+        var prefixCount = 0
+        var prefixLength = 0
+        if let cachedDocument {
+            for change in changes {
+                guard case let .keep(oldIndex, newIndex) = change,
+                      oldIndex == prefixCount, newIndex == prefixCount,
+                      oldIndex < cachedSegments.count else { break }
+                prefixCount += 1
+                prefixLength += cachedSegments[oldIndex].length
+            }
+            if prefixLength <= cachedDocument.length {
+                text = cachedDocument.mutableCopy() as! NSMutableAttributedString
+                text.deleteCharacters(in: NSRange(location: prefixLength, length: text.length - prefixLength))
+            } else {
+                prefixCount = 0
+                prefixLength = 0
+            }
+        }
 
         var subviewCollector = [PlatformView]()
         var segments = [NSAttributedString]()
@@ -150,7 +171,7 @@ final class TextBuilder {
                 if oldIndex < cachedSegments.count {
                     let segment = cachedSegments[oldIndex]
                     segments.append(segment)
-                    text.append(segment)
+                    if newIndex >= prefixCount { text.append(segment) }
                     // Also collect any subviews from the cached segment
                     collectSubviews(from: segment, into: &subviewCollector)
                 } else {
@@ -181,8 +202,13 @@ final class TextBuilder {
             }
         }
 
-        text.fixAttributes(in: .init(location: 0, length: text.length))
-        return .init(document: text, subviews: subviewCollector, blockSegments: segments)
+        text.fixAttributes(in: .init(location: prefixLength, length: text.length - prefixLength))
+        return .init(
+            document: text,
+            subviews: subviewCollector,
+            blockSegments: segments,
+            preservedPrefixUTF16Length: prefixLength
+        )
     }
 
     /// Extract context views (CodeView, TableView) embedded in an attributed string.
