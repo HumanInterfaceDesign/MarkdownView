@@ -205,8 +205,8 @@ enum ContentPipelineMode {
         }
 
         /// Sets raw markdown string. Parsing and highlighting run on a background queue;
-        /// math rendering stays on the main actor. Pending inputs are coalesced and
-        /// superseded results are discarded before rendering.
+        /// math rendering stays on the main actor. Pending inputs are coalesced while
+        /// completed parses render progressively. Reset or mode changes invalidate results.
         public func setMarkdown(string: String) {
             if contentPipelineMode != .raw {
                 setupRawCombine()
@@ -427,8 +427,8 @@ enum ContentPipelineMode {
         }
 
         /// Sets raw markdown string. Parsing and highlighting run on a background queue;
-        /// math rendering stays on the main actor. Pending inputs are coalesced and
-        /// superseded results are discarded before rendering.
+        /// math rendering stays on the main actor. Pending inputs are coalesced while
+        /// completed parses render progressively. Reset or mode changes invalidate results.
         public func setMarkdown(string: String) {
             if contentPipelineMode != .raw {
                 setupRawCombine()

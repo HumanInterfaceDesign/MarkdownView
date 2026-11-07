@@ -162,8 +162,9 @@ extension MarkdownTextView {
                 guard let self else { return }
                 self.isRawPreprocessing = false
                 if self.rawPipelineGeneration == generation,
-                   self.contentPipelineMode == .raw,
-                   self.pendingRawMarkdown == nil {
+                   self.contentPipelineMode == .raw {
+                    // Publish progress even while newer input is pending; otherwise
+                    // continuous streams can starve rendering until input stops.
                     self.applyRawMarkdownUpdate(update)
                 }
                 self.processPendingRawMarkdown()

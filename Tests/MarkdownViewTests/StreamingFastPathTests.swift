@@ -21,6 +21,41 @@ final class StreamingFastPathTests: XCTestCase {
         XCTAssertEqual(view.document.blocks, parser.parse("Latest **input 99**").document)
     }
 
+    func testCompletedParseRendersWhileNewerInputIsQueued() {
+        let view = MarkdownTextView()
+        view.throttleInterval = nil
+        let first = "First **input**"
+        let latest = "Latest **input 99**"
+        view.setMarkdown(string: first)
+
+        // The serial queue finishes the first parse but cannot start the next one
+        // until released. This makes intermediate progress deterministic, independent
+        // of parser speed, rather than accidentally observing only the final result.
+        let releaseNextParse = DispatchSemaphore(value: 0)
+        MarkdownTextView.preprocessingQueue.async {
+            releaseNextParse.wait()
+        }
+        defer { releaseNextParse.signal() }
+        for index in 0..<100 {
+            view.setMarkdown(string: "Latest **input \(index)**")
+        }
+        XCTAssertEqual(view.pendingRawMarkdown, latest)
+
+        let deadline = Date().addingTimeInterval(5)
+        while view.pendingRawMarkdown != nil, Date() < deadline {
+            _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.001))
+        }
+        XCTAssertNil(view.pendingRawMarkdown, "The completed parse must schedule the latest input")
+        XCTAssertTrue(view.isRawPreprocessing)
+        XCTAssertEqual(view.lastRawMarkdown, first, "Progress must render before the stream becomes idle")
+        XCTAssertEqual(view.document.blocks, parser.parse(first).document)
+
+        releaseNextParse.signal()
+        waitForPreprocessing(view)
+        XCTAssertEqual(view.lastRawMarkdown, latest)
+        XCTAssertEqual(view.document.blocks, parser.parse(latest).document)
+    }
+
     func testResetDiscardsInFlightResult() {
         let view = MarkdownTextView()
         view.throttleInterval = nil
