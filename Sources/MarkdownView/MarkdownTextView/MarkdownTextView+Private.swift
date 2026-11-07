@@ -12,14 +12,17 @@ import MarkdownParser
 
 extension MarkdownTextView {
     // Flows through the background preprocessing queue, so both the context and the
-    // pipeline's update enum are nonisolated (they only carry Sendable payloads).
+    // pipeline's update enum are nonisolated immutable snapshots.
     nonisolated struct IncrementalParsingContext {
         let previousRawMarkdown: String
         let previousContent: PreprocessedContent
         let previousRanges: [MarkdownParser.RootBlockRange]?
     }
 
-    nonisolated enum RawMarkdownUpdate {
+    // Immutable snapshots cross the serial worker boundary. Background processing
+    // reads AST data and builds new content; UI rendering stays on the main actor.
+    // Platform colors/images in these snapshots lack checked Sendable conformance.
+    nonisolated enum RawMarkdownUpdate: @unchecked Sendable {
         case ready(content: PreprocessedContent, rawMarkdown: String)
         case parse(markdown: String, theme: MarkdownTheme, incrementalContext: IncrementalParsingContext?)
         case parsedFull(
@@ -91,6 +94,8 @@ extension MarkdownTextView {
     )
 
     func resetCombine() {
+        rawPipelineGeneration &+= 1
+        pendingRawMarkdown = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
         contentPipelineMode = .none
@@ -125,57 +130,76 @@ extension MarkdownTextView {
         }
 
         pipeline
-            .map { [weak self] rawMarkdown -> RawMarkdownUpdate in
-                let markdown = RawDiffMarkdownNormalizer.normalizeForParsing(rawMarkdown)
-                guard let self else {
-                    return .parse(markdown: markdown, theme: .default, incrementalContext: nil)
-                }
-                if let content = self.makePlainTextAppendFastPath(for: markdown) {
-                    return .ready(content: content, rawMarkdown: markdown)
-                }
-                return .parse(
-                    markdown: markdown,
-                    theme: self.theme,
-                    incrementalContext: self.makeIncrementalParsingContext()
-                )
-            }
-            .receive(on: Self.preprocessingQueue)
-            // Runs on `preprocessingQueue` (off the main actor), so it must be a
-            // `nonisolated` function — a main-actor-isolated closure here would trap
-            // the runtime isolation check when Combine delivers it on that queue.
-            .map(Self.processOnPreprocessingQueue)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] update in
+            .sink { [weak self] markdown in
                 guard let self else { return }
-                switch update {
-                case let .ready(content, rawMarkdown):
-                    self.lastRawMarkdown = rawMarkdown
-                    self.lastRootBlockRanges = nil
-                    self.use(content)
-                case let .parsedFull(result, content, theme, rawMarkdown):
-                    // Complete math rendering on main thread where UI context is available
-                    let finalContent = content.completeMathRendering(parserResult: result, theme: theme)
-                    self.lastRawMarkdown = rawMarkdown
-                    self.lastRootBlockRanges = nil
-                    self.use(finalContent)
-                case let .parsedIncremental(result, tailContent, context, theme, rawMarkdown):
-                    let completedTailContent = tailContent.completeMathRendering(
-                        parserResult: result.tailResult,
-                        theme: theme
-                    )
-                    let mergedContent = PreprocessedContent.incrementalMerged(
-                        prefix: context.previousContent,
-                        stablePrefixBlockCount: result.stablePrefixBlockCount,
-                        tail: completedTailContent
-                    )
-                    self.lastRawMarkdown = rawMarkdown
-                    self.lastRootBlockRanges = result.blockRanges
-                    self.use(mergedContent)
-                case .parse:
-                    assertionFailure("Unexpected raw markdown parse request on main thread")
-                }
+                self.pendingRawMarkdown = markdown
+                self.processPendingRawMarkdown()
             }
             .store(in: &cancellables)
+    }
+
+    private func processPendingRawMarkdown() {
+        guard !isRawPreprocessing, contentPipelineMode == .raw,
+              let rawMarkdown = pendingRawMarkdown else { return }
+        pendingRawMarkdown = nil
+        let markdown = RawDiffMarkdownNormalizer.normalizeForParsing(rawMarkdown)
+        if let content = makePlainTextAppendFastPath(for: markdown) {
+            applyRawMarkdownUpdate(.ready(content: content, rawMarkdown: markdown))
+            return
+        }
+        let generation = rawPipelineGeneration
+        let request = RawMarkdownUpdate.parse(
+            markdown: markdown,
+            theme: theme,
+            incrementalContext: makeIncrementalParsingContext()
+        )
+        isRawPreprocessing = true
+        // Only one job per view is queued. The main actor retains just the latest
+        // pending input, and reset invalidates results without racing the worker.
+        Self.preprocessingQueue.async { [weak self] in
+            let update = Self.processOnPreprocessingQueue(request)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isRawPreprocessing = false
+                if self.rawPipelineGeneration == generation,
+                   self.contentPipelineMode == .raw {
+                    // Publish progress even while newer input is pending; otherwise
+                    // continuous streams can starve rendering until input stops.
+                    self.applyRawMarkdownUpdate(update)
+                }
+                self.processPendingRawMarkdown()
+            }
+        }
+    }
+
+    private func applyRawMarkdownUpdate(_ update: RawMarkdownUpdate) {
+        switch update {
+        case let .ready(content, rawMarkdown):
+            lastRawMarkdown = rawMarkdown
+            lastRootBlockRanges = nil
+            use(content, layoutImmediately: false)
+        case let .parsedFull(result, content, theme, rawMarkdown):
+            // Complete math rendering on main thread where UI context is available
+            let finalContent = content.completeMathRendering(parserResult: result, theme: theme)
+            lastRawMarkdown = rawMarkdown
+            lastRootBlockRanges = nil
+            use(finalContent, layoutImmediately: false)
+        case let .parsedIncremental(result, tailContent, context, theme, rawMarkdown):
+            let completedTailContent = tailContent.completeMathRendering(
+                parserResult: result.tailResult,
+                theme: theme
+            )
+            let mergedContent = PreprocessedContent.incrementalMerged(
+                prefix: context.previousContent,
+                stablePrefixBlockCount: result.stablePrefixBlockCount,
+                tail: completedTailContent
+            )
+            lastRawMarkdown = rawMarkdown
+            lastRootBlockRanges = result.blockRanges
+            use(mergedContent, layoutImmediately: false)
+        case .parse:
+            assertionFailure("Unexpected raw markdown parse request on main thread")
+        }
     }
 
     private func makeIncrementalParsingContext() -> IncrementalParsingContext? {
@@ -276,7 +300,7 @@ extension MarkdownTextView {
         use(document)
     }
 
-    func use(_ content: PreprocessedContent) {
+    func use(_ content: PreprocessedContent, layoutImmediately: Bool = true) {
         assert(Thread.isMainThread)
         document = content
         // due to a bug in model gemini-flash
@@ -287,9 +311,11 @@ extension MarkdownTextView {
         invalidateIntrinsicContentSize()
 
         #if canImport(UIKit)
-            layoutIfNeeded()
+            setNeedsLayout()
+            if layoutImmediately { layoutIfNeeded() }
         #elseif canImport(AppKit)
-            layoutSubtreeIfNeeded()
+            needsLayout = true
+            if layoutImmediately { layoutSubtreeIfNeeded() }
         #endif
     }
 }

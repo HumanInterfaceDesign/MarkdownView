@@ -17,7 +17,7 @@ final class PerformanceTests: XCTestCase {
             case 1:
                 lines.append("Paragraph \(i) with **bold** and *italic* and `inline code` and [a link](https://example.com).\n")
             case 2:
-                lines.append("```python\nfunc f\(i)() -> Int { return \(i) }\n```\n")
+                lines.append("```javascript\nfunction f\(i)() { return \(i); }\n```\n")
             case 3:
                 lines.append("- Item A\(i)\n- Item B\(i)\n- Item C\(i)\n")
             case 4:
@@ -31,28 +31,11 @@ final class PerformanceTests: XCTestCase {
         return lines.joined(separator: "\n")
     }
 
-    /// Generates a large Python code block.
+    /// Generates JavaScript covered by the package's default grammar traits.
     private func generateLargeCode(lineCount: Int) -> String {
-        var lines: [String] = []
-        lines.append("import os")
-        lines.append("")
-        for i in 0 ..< lineCount {
-            switch i % 5 {
-            case 0:
-                lines.append("def compute_\(i)(x: int) -> int:")
-            case 1:
-                lines.append("    result = x * \(i) + 42")
-            case 2:
-                lines.append("    if result <= 0:")
-            case 3:
-                lines.append("        return -1")
-            case 4:
-                lines.append("    return result")
-            default:
-                break
-            }
-        }
-        return lines.joined(separator: "\n")
+        (0 ..< lineCount).map {
+            "function compute_\($0)(x) { const result = x * \($0) + 42; return result > 0 ? result : -1; }"
+        }.joined(separator: "\n")
     }
 
     /// Generates markdown with deeply nested blockquotes containing code blocks.
@@ -64,7 +47,7 @@ final class PerformanceTests: XCTestCase {
         }
         // Add code blocks at various levels
         for i in 0 ..< codeBlocksPerLevel {
-            md += "\n```python\nlet nested\(i) = \(i)\n```\n"
+            md += "\n```javascript\nlet nested\(i) = \(i)\n```\n"
         }
         return md
     }
@@ -165,40 +148,63 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
+    func testBlockRangeIndexPerformance_1000Blocks() {
+        let markdown = generateLargeMarkdown(blockCount: 1000)
+        let parser = MarkdownParser()
+        measure {
+            XCTAssertFalse(parser.parseBlockRange(markdown).isEmpty)
+        }
+    }
+
+    func testRepeatedParsingMemoryPerformance() {
+        let markdown = generateLargeMarkdown(blockCount: 100)
+        let parser = MarkdownParser()
+        measure(metrics: [XCTMemoryMetric()]) {
+            for _ in 0..<100 {
+                autoreleasepool {
+                    _ = parser.parse(markdown)
+                    _ = parser.parseBlockRange(markdown)
+                }
+            }
+        }
+    }
+
     // MARK: - Code Highlighting Performance
 
     func testHighlightPerformance_SmallCode() {
         let code = generateLargeCode(lineCount: 50)
         let highlighter = CodeHighlighter.current
+        XCTAssertFalse(highlighter.highlight(key: nil, content: code, language: "javascript").isEmpty)
 
         measure {
             // Use unique key each iteration to bypass cache
             let key = Int.random(in: Int.min ... Int.max)
-            _ = highlighter.highlight(key: key, content: code, language: "python")
+            _ = highlighter.highlight(key: key, content: code, language: "javascript")
         }
     }
 
     func testHighlightPerformance_LargeCode() {
         let code = generateLargeCode(lineCount: 500)
         let highlighter = CodeHighlighter.current
+        XCTAssertFalse(highlighter.highlight(key: nil, content: code, language: "javascript").isEmpty)
 
         measure {
             let key = Int.random(in: Int.min ... Int.max)
-            _ = highlighter.highlight(key: key, content: code, language: "python")
+            _ = highlighter.highlight(key: key, content: code, language: "javascript")
         }
     }
 
     func testHighlightCachePerformance() {
         let code = generateLargeCode(lineCount: 200)
         let highlighter = CodeHighlighter.current
-        let key = highlighter.key(for: code, language: "python")
+        let key = highlighter.key(for: code, language: "javascript")
 
-        // Prime the cache
-        _ = highlighter.highlight(key: key, content: code, language: "python")
+        // Prime the cache and verify this is not an unsupported-language fallback.
+        XCTAssertFalse(highlighter.highlight(key: key, content: code, language: "javascript").isEmpty)
 
         measure {
             // All iterations should be cache hits
-            _ = highlighter.highlight(key: key, content: code, language: "python")
+            _ = highlighter.highlight(key: key, content: code, language: "javascript")
         }
     }
 
@@ -207,7 +213,7 @@ final class PerformanceTests: XCTestCase {
     func testPreprocessedContentPerformance_ManyCodeBlocks() {
         var md = ""
         for i in 0 ..< 50 {
-            md += "Paragraph \(i).\n\n```python\nlet v\(i) = \(i)\n```\n\n"
+            md += "Paragraph \(i).\n\n```javascript\nlet v\(i) = \(i)\n```\n\n"
         }
         let parser = MarkdownParser()
         let result = parser.parse(md)
@@ -254,7 +260,7 @@ final class PerformanceTests: XCTestCase {
 
         measure {
             for code in codes {
-                _ = highlighter.key(for: code, language: "python")
+                _ = highlighter.key(for: code, language: "javascript")
             }
         }
     }
@@ -328,10 +334,12 @@ final class PerformanceTests: XCTestCase {
         let previous = paragraphs.joined(separator: "\n\n")
         let stableTail = previous + " extended"
 
-        measure {
-            let view = makeRawBenchmarkView()
+        let view = makeRawBenchmarkView()
+        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
             sendRawMarkdownAndWait(previous, to: view)
+            startMeasuring()
             sendRawMarkdownAndWait(stableTail, to: view)
+            stopMeasuring()
         }
     }
 
@@ -340,10 +348,12 @@ final class PerformanceTests: XCTestCase {
         let previous = paragraphs.joined(separator: "\n\n")
         let openFenceTail = previous + "\n\n```swift\nlet streamed = 1"
 
-        measure {
-            let view = makeRawBenchmarkView()
+        let view = makeRawBenchmarkView()
+        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
             sendRawMarkdownAndWait(previous, to: view)
+            startMeasuring()
             sendRawMarkdownAndWait(openFenceTail, to: view)
+            stopMeasuring()
         }
     }
 
