@@ -48,6 +48,7 @@ public class MarkdownParser {
                 return cmark_parser_finish(parser)
             }
         }
+        defer { if let nodes { cmark_node_free(nodes) } }
         var blocks = dumpBlocks(root: nodes)
         blocks = finalizeMathBlocks(blocks, mathContext: math)
         return .init(document: blocks, mathContext: math.contents)
@@ -80,6 +81,9 @@ public class MarkdownParser {
             return ranges
         }
 
+        defer { cmark_node_free(root) }
+        let sourceLines = SourceLineIndex(markdown)
+
         assert(root.pointee.type == CMARK_NODE_DOCUMENT.rawValue)
         for block in root.children {
             let node = block.pointee
@@ -89,8 +93,8 @@ public class MarkdownParser {
             let endLine = Int(node.end_line)
             let endColumn = Int(node.end_column)
 
-            guard let startIndex = getIndex(forLine: startLine, column: startColumn, in: markdown),
-                  let endIndex = getIndex(forLine: endLine, column: endColumn, in: markdown)
+            guard let startIndex = sourceLines.index(line: startLine, column: startColumn),
+                  let endIndex = sourceLines.index(line: endLine, column: endColumn)
             else {
                 assertionFailure()
                 continue
@@ -160,38 +164,45 @@ public class MarkdownParser {
     }
 }
 
-private func getIndex(forLine targetLine: Int, column targetColumn: Int, in text: String) -> String.Index? {
-    var currentLine = 1
-    var lineStartIndex = text.startIndex
+private struct SourceLineIndex {
+    let text: String
+    let lines: [Range<String.UTF8View.Index>]
 
-    while currentLine < targetLine {
-        guard let newlineIndex = text[lineStartIndex...].firstIndex(of: "\n") else {
-            return nil
+    init(_ text: String) {
+        self.text = text
+        let bytes = text.utf8
+        var lines: [Range<String.UTF8View.Index>] = []
+        var start = bytes.startIndex
+        var cursor = start
+        while cursor < bytes.endIndex {
+            let byte = bytes[cursor]
+            if byte == 10 || byte == 13 {
+                lines.append(start..<cursor)
+                cursor = bytes.index(after: cursor)
+                if byte == 13, cursor < bytes.endIndex, bytes[cursor] == 10 {
+                    cursor = bytes.index(after: cursor)
+                }
+                start = cursor
+            } else {
+                cursor = bytes.index(after: cursor)
+            }
         }
-        lineStartIndex = text.index(after: newlineIndex)
-        currentLine += 1
+        lines.append(start..<bytes.endIndex)
+        self.lines = lines
     }
 
-    // cmark 使用 1-based 列号，需要减1转换为 0-based
-    let targetOffset = targetColumn - 1
-
-    let lineEndIndex: String.Index = if let newlineIndex = text[lineStartIndex...].firstIndex(of: "\n") {
-        newlineIndex
-    } else {
-        text.endIndex
+    func index(line: Int, column: Int) -> String.Index? {
+        guard line > 0, line <= lines.count else { return nil }
+        let range = lines[line - 1]
+        let bytes = text.utf8
+        let offset = min(max(column - 1, 0), bytes.distance(from: range.lowerBound, to: range.upperBound))
+        var position = bytes.index(range.lowerBound, offsetBy: offset)
+        // cmark columns are UTF-8 bytes; inclusive ends can land inside a scalar.
+        while String.Index(position, within: text) == nil, position > range.lowerBound {
+            position = bytes.index(before: position)
+        }
+        return String.Index(position, within: text)
     }
-
-    let maxOffset = text.distance(from: lineStartIndex, to: lineEndIndex)
-
-    if targetOffset > maxOffset {
-        return lineEndIndex
-    }
-
-    if targetOffset < 0 {
-        return lineStartIndex
-    }
-
-    return text.index(lineStartIndex, offsetBy: targetOffset)
 }
 
 private extension MarkdownParser {
@@ -360,12 +371,12 @@ private extension MarkdownParser {
         at boundary: String.Index
     ) -> [RootBlockRange] {
         ranges.map { range in
-            let startOffset = tailMarkdown.distance(from: tailMarkdown.startIndex, to: range.startIndex)
-            let endOffset = tailMarkdown.distance(from: tailMarkdown.startIndex, to: range.endIndex)
+            let startOffset = tailMarkdown.utf8.distance(from: tailMarkdown.startIndex, to: range.startIndex)
+            let endOffset = tailMarkdown.utf8.distance(from: tailMarkdown.startIndex, to: range.endIndex)
             return .init(
                 type: range.type,
-                startIndex: fullMarkdown.index(boundary, offsetBy: startOffset),
-                endIndex: fullMarkdown.index(boundary, offsetBy: endOffset),
+                startIndex: fullMarkdown.utf8.index(boundary, offsetBy: startOffset),
+                endIndex: fullMarkdown.utf8.index(boundary, offsetBy: endOffset),
                 outputBlockCount: range.outputBlockCount
             )
         }

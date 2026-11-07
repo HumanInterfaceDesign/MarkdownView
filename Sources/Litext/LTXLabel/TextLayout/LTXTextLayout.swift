@@ -45,6 +45,8 @@ public nonisolated class LTXTextLayout: NSObject {
     private var framesetter: CTFramesetter
     private var lines: [CTLine]?
     private var lineOrigins: [CGPoint]?
+    private var lineBands: [LineBand] = []
+    private var hasOrderedLineBands = true
     private var _highlightRegions: [Int: LTXHighlightRegion]
     private var cachedSuggestedSize: CGSize?
     private var cachedSuggestedSizeConstraint: CGSize?
@@ -409,6 +411,8 @@ public nonisolated class LTXTextLayout: NSObject {
     private func generateLayout() {
         lines = nil
         lineOrigins = nil
+        lineBands.removeAll(keepingCapacity: true)
+        hasOrderedLineBands = true
 
         let containerBounds = CGRect(
             origin: .zero,
@@ -433,6 +437,22 @@ public nonisolated class LTXTextLayout: NSObject {
                 var origins = [CGPoint](repeating: .zero, count: frameLines.count)
                 CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
                 lineOrigins = origins
+                lineBands.reserveCapacity(frameLines.count)
+                for (index, line) in frameLines.enumerated() {
+                    var ascent: CGFloat = 0
+                    var descent: CGFloat = 0
+                    var leading: CGFloat = 0
+                    CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+                    let band = LineBand(
+                        minY: origins[index].y - descent,
+                        maxY: origins[index].y + ascent + leading
+                    )
+                    if let previous = lineBands.last,
+                       band.minY > previous.minY || band.maxY > previous.maxY {
+                        hasOrderedLineBands = false
+                    }
+                    lineBands.append(band)
+                }
             }
         }
     }
@@ -515,18 +535,26 @@ public nonisolated class LTXTextLayout: NSObject {
     ) {
         guard let lines, let lineOrigins else { return }
 
-        for i in 0 ..< lines.count {
+        var start = 0
+        if let band, hasOrderedLineBands {
+            var end = lineBands.count
+            while start < end {
+                let middle = start + (end - start) / 2
+                if lineBands[middle].minY > band.maxY {
+                    start = middle + 1
+                } else {
+                    end = middle
+                }
+            }
+        }
+        for i in start ..< lines.count {
             if let band {
-                let origin = lineOrigins[i]
-                var ascent: CGFloat = 0
-                var descent: CGFloat = 0
-                var leading: CGFloat = 0
-                _ = CTLineGetTypographicBounds(lines[i], &ascent, &descent, &leading)
-                // Same vertical extents as `lineRects()`. Origins descend as
-                // the index grows (CoreText is bottom-up), so once a line falls
-                // below the band no later line can re-enter it.
-                if origin.y - descent > band.maxY { continue }
-                if origin.y + ascent + leading < band.minY { break }
+                let bounds = lineBands[i]
+                if bounds.minY > band.maxY { continue }
+                if bounds.maxY < band.minY {
+                    if hasOrderedLineBands { break }
+                    continue
+                }
             }
             block(lines[i], i, lineOrigins[i])
         }

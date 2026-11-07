@@ -49,6 +49,9 @@ enum ContentPipelineMode {
 
         let viewProvider: ReusableViewProvider
         var contentPipelineMode: ContentPipelineMode = .none
+        var rawPipelineGeneration: UInt64 = 0
+        var pendingRawMarkdown: String?
+        var isRawPreprocessing = false
         var lastRawMarkdown: String?
         var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
@@ -201,9 +204,9 @@ enum ContentPipelineMode {
             contentSubject.send(content)
         }
 
-        /// Sets raw markdown string. Parsing, syntax highlighting, and math rendering
-        /// are performed on a background queue. Cancels any in-flight preprocessing
-        /// when new content arrives.
+        /// Sets raw markdown string. Parsing and highlighting run on a background queue;
+        /// math rendering stays on the main actor. Pending inputs are coalesced and
+        /// superseded results are discarded before rendering.
         public func setMarkdown(string: String) {
             if contentPipelineMode != .raw {
                 setupRawCombine()
@@ -260,6 +263,9 @@ enum ContentPipelineMode {
 
         let viewProvider: ReusableViewProvider
         var contentPipelineMode: ContentPipelineMode = .none
+        var rawPipelineGeneration: UInt64 = 0
+        var pendingRawMarkdown: String?
+        var isRawPreprocessing = false
         var lastRawMarkdown: String?
         var lastRootBlockRanges: [MarkdownParser.RootBlockRange]?
         var lastRenderedBlocks: [MarkdownBlockNode] = []
@@ -420,9 +426,9 @@ enum ContentPipelineMode {
             contentSubject.send(content)
         }
 
-        /// Sets raw markdown string. Parsing, syntax highlighting, and math rendering
-        /// are performed on a background queue. Cancels any in-flight preprocessing
-        /// when new content arrives.
+        /// Sets raw markdown string. Parsing and highlighting run on a background queue;
+        /// math rendering stays on the main actor. Pending inputs are coalesced and
+        /// superseded results are discarded before rendering.
         public func setMarkdown(string: String) {
             if contentPipelineMode != .raw {
                 setupRawCombine()

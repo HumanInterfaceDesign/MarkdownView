@@ -110,7 +110,8 @@ extension MarkdownTextView {
             }
         }
 
-        for goneView in oldViews where !artifacts.subviews.contains(goneView) {
+        let currentViewIDs = Set(artifacts.subviews.map { ObjectIdentifier($0) })
+        for goneView in oldViews where !currentViewIDs.contains(ObjectIdentifier(goneView)) {
             goneView.removeFromSuperview()
         }
     }

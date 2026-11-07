@@ -5,6 +5,44 @@ final class IncrementalParsingTests: XCTestCase {
 
     private let parser = MarkdownParser()
 
+    func testBlockRangesHandleUnicodeAndLineEndings() {
+        for newline in ["\n", "\r\n", "\r"] {
+            let blocks = ["你好", "cafe\u{301}", "終わり"]
+            let markdown = blocks.joined(separator: newline + newline)
+            let ranges = parser.parseBlockRange(markdown)
+            XCTAssertEqual(ranges.count, blocks.count)
+            for (range, expected) in zip(ranges, blocks) {
+                XCTAssertEqual(String(markdown[range.startIndex...range.endIndex]), expected)
+            }
+        }
+    }
+
+    func testUnicodeIncrementalRangesMatchFullParsing() throws {
+        let previous = ["你好", "cafe\u{301}", "第三段", "最後"].joined(separator: "\r\n\r\n")
+        let new = previous + " extended"
+        let original = parser.parse(previous)
+        let result = try XCTUnwrap(parser.parseIncremental(
+            previousMarkdown: previous,
+            newMarkdown: new,
+            previousBlocks: original.document,
+            previousRanges: parser.parseBlockRange(previous)
+        ))
+        XCTAssertEqual(mergedBlocks(from: original, incremental: result), parser.parse(new).document)
+        XCTAssertEqual(
+            result.blockRanges.map { String(new[$0.startIndex...$0.endIndex]) },
+            parser.parseBlockRange(new).map { String(new[$0.startIndex...$0.endIndex]) }
+        )
+    }
+
+    func testParsedValuesOutliveNativeTrees() {
+        let markdown = "# Title\n\nA **bold** paragraph.\n\n| A | B |\n|---|---|\n| C | D |"
+        let expected = parser.parse(markdown).document
+        for _ in 0..<100 {
+            XCTAssertEqual(parser.parse(markdown).document, expected)
+            XCTAssertEqual(parser.parseBlockRange(markdown).count, 3)
+        }
+    }
+
     func testParseIncrementalMatchesFullParseForTrailingPlainTextAppend() {
         let paragraphs = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"]
         let previous = paragraphs.joined(separator: "\n\n")
