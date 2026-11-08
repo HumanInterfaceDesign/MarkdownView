@@ -94,6 +94,13 @@ public class MarkdownParser {
         public let startIndex: String.Index
         public let endIndex: String.Index
         public let outputBlockCount: Int
+
+        public init(type: MarkdownNodeType, startIndex: String.Index, endIndex: String.Index, outputBlockCount: Int) {
+            self.type = type
+            self.startIndex = startIndex
+            self.endIndex = endIndex
+            self.outputBlockCount = outputBlockCount
+        }
     }
 
     public struct IncrementalParseResult {
