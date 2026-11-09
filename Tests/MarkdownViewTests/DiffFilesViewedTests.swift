@@ -89,7 +89,13 @@
             XCTAssertTrue(viewed.accessibilityActivate())
             XCTAssertEqual(viewedTaps, 1)
             XCTAssertEqual(collapseTaps, 0)
-            collapse.sendActions(for: .touchUpInside)
+            let collapseActions = try XCTUnwrap(collapse.actions(forTarget: header, forControlEvent: .touchUpInside))
+            XCTAssertEqual(collapseActions.count, 1)
+            let collapseAction = NSSelectorFromString(try XCTUnwrap(collapseActions.first))
+            XCTAssertTrue(header.responds(to: collapseAction))
+            // Package tests have no UIApplication host to dispatch sendActions.
+            // Invoke the registered selector directly to verify the actual wiring.
+            _ = header.perform(collapseAction)
             XCTAssertEqual(collapseTaps, 1)
             XCTAssertEqual(viewedTaps, 1)
 
