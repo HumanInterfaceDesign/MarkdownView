@@ -79,10 +79,19 @@
         // MARK: - State Toggle Support
 
         /// Replaces the current symbol with a new one using the `.replace` content transition.
-        func replaceSymbol(systemName: String) {
-            guard #available(iOS 17.0, visionOS 1.0, *) else { return }
+        func replaceSymbol(systemName: String, animated: Bool = true) {
             let newImage = UIImage(systemName: systemName, withConfiguration: symbolConfig)!
-            setSymbolImage(newImage, contentTransition: .replace)
+            if #available(iOS 17.0, visionOS 1.0, *), animated, !UIAccessibility.isReduceMotionEnabled {
+                setSymbolImage(newImage, contentTransition: .replace)
+            } else {
+                image = newImage
+            }
+        }
+
+        override func accessibilityActivate() -> Bool {
+            guard action != nil else { return false }
+            handleTap()
+            return true
         }
 
         /// Adds an ongoing variable color effect (e.g., for active speaker).

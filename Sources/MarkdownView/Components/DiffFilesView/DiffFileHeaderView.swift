@@ -21,6 +21,13 @@ import Foundation
             effect: UIBlurEffect(style: .systemChromeMaterial)
         )
         private var tapHandler: (() -> Void)?
+        private let collapseButton = UIButton(type: .custom)
+        private let viewedControl = SymbolActionView(
+            systemName: "circle",
+            config: UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+        )
+        private var representedPath: String?
+        private var wasViewed = false
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -36,9 +43,26 @@ import Foundation
             file: DiffFilePatch,
             theme: MarkdownTheme,
             isCollapsed: Bool,
-            onToggle: @escaping () -> Void
+            isViewed: Bool,
+            showsViewedControl: Bool,
+            onToggle: @escaping () -> Void,
+            onToggleViewed: @escaping () -> Void
         ) {
             tapHandler = onToggle
+            viewedControl.isHidden = !showsViewedControl
+            viewedControl.onTap(onToggleViewed)
+            viewedControl.tintColor = isViewed ? theme.diff.addedIndicatorText : theme.diff.fileMetadataText
+            if representedPath != file.displayPath || wasViewed != isViewed {
+                viewedControl.replaceSymbol(
+                    systemName: isViewed ? "checkmark.circle.fill" : "circle",
+                    animated: representedPath == file.displayPath
+                )
+            }
+            viewedControl.accessibilityLabel = "Mark \(file.displayPath) as \(isViewed ? "not viewed" : "viewed")"
+            viewedControl.accessibilityValue = isViewed ? "Viewed" : "Not viewed"
+            viewedControl.accessibilityTraits = isViewed ? [.button, .selected] : .button
+            representedPath = file.displayPath
+            wasViewed = isViewed
             separator.backgroundColor = theme.diff.borderColor
 
             let radius = theme.diff.fileHeaderCornerRadius
@@ -74,13 +98,14 @@ import Foundation
                 ? CGAffineTransform(rotationAngle: Self.collapsedChevronRotation)
                 : .identity
 
-            accessibilityLabel = "\(file.displayPath), \(file.additions) added, \(file.deletions) removed"
-            accessibilityHint = isCollapsed ? "Expands the file" : "Collapses the file"
+            collapseButton.accessibilityLabel = "\(file.displayPath), \(file.additions) added, \(file.deletions) removed"
+            collapseButton.accessibilityValue = isCollapsed ? "Collapsed" : "Expanded"
+            collapseButton.accessibilityHint = isCollapsed ? "Expands the file" : "Collapses the file"
         }
 
         private func configureSubviews() {
-            isAccessibilityElement = true
-            accessibilityTraits = .button
+            isAccessibilityElement = false
+            viewedControl.isAccessibilityElement = true
 
             backgroundBlur.translatesAutoresizingMaskIntoConstraints = false
             addSubview(backgroundBlur)
@@ -109,17 +134,34 @@ import Foundation
             stack.alignment = .center
             stack.spacing = 8
             stack.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(stack)
+            stack.isUserInteractionEnabled = false
+            collapseButton.addSubview(stack)
+            collapseButton.addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+            let controls = UIStackView(arrangedSubviews: [collapseButton, viewedControl])
+            controls.axis = .horizontal
+            controls.alignment = .fill
+            controls.spacing = 8
+            controls.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(controls)
+            let viewedWidth = viewedControl.widthAnchor.constraint(equalToConstant: 44)
+            viewedWidth.priority = .init(999)
+            NSLayoutConstraint.activate([
+                viewedWidth,
+                controls.leadingAnchor.constraint(equalTo: leadingAnchor, constant: DiffFilesViewConfiguration.headerPadding),
+                controls.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -DiffFilesViewConfiguration.headerPadding),
+                controls.topAnchor.constraint(equalTo: topAnchor),
+                controls.bottomAnchor.constraint(equalTo: bottomAnchor),
+                collapseButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            ])
 
             separator.translatesAutoresizingMaskIntoConstraints = false
             addSubview(separator)
 
-            let padding = DiffFilesViewConfiguration.headerPadding
             NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: padding),
-                stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -padding),
-                stack.topAnchor.constraint(equalTo: topAnchor),
-                stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+                stack.leadingAnchor.constraint(equalTo: collapseButton.leadingAnchor),
+                stack.trailingAnchor.constraint(equalTo: collapseButton.trailingAnchor),
+                stack.topAnchor.constraint(equalTo: collapseButton.topAnchor),
+                stack.bottomAnchor.constraint(equalTo: collapseButton.bottomAnchor),
 
                 separator.leadingAnchor.constraint(equalTo: leadingAnchor),
                 separator.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -128,19 +170,10 @@ import Foundation
                     equalToConstant: DiffFilesViewConfiguration.hairlineWidth
                 ),
             ])
-
-            addGestureRecognizer(
-                UITapGestureRecognizer(target: self, action: #selector(handleTap))
-            )
         }
 
         @objc private func handleTap() {
             tapHandler?()
-        }
-
-        override func accessibilityActivate() -> Bool {
-            tapHandler?()
-            return tapHandler != nil
         }
     }
 #endif
