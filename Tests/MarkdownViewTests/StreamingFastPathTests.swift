@@ -56,6 +56,25 @@ final class StreamingFastPathTests: XCTestCase {
         XCTAssertEqual(view.document.blocks, parser.parse(latest).document)
     }
 
+    func testPlainAppendKeepsRangesForNextStructuralUpdate() throws {
+        let view = MarkdownTextView()
+        view.throttleInterval = nil
+        let initial = "Alpha\n\nBravo\n\nCharlie\n\nDelta\n\nEcho\n\nFoxtrot"
+        view.setMarkdown(string: initial)
+        waitForPreprocessing(view)
+        XCTAssertNotNil(view.lastRootBlockRanges)
+        let appended = initial + " more"
+        view.setMarkdown(string: appended)
+        waitForPreprocessing(view)
+        let ranges = try XCTUnwrap(view.lastRootBlockRanges)
+        XCTAssertEqual(ranges.map { String(appended[$0.startIndex...$0.endIndex]) },
+                       parser.parseWithBlockRanges(appended).blockRanges.map { String(appended[$0.startIndex...$0.endIndex]) })
+        let structural = appended + " **bold**"
+        view.setMarkdown(string: structural)
+        waitForPreprocessing(view)
+        XCTAssertEqual(view.document.blocks, parser.parse(structural).document)
+    }
+
     func testResetDiscardsInFlightResult() {
         let view = MarkdownTextView()
         view.throttleInterval = nil

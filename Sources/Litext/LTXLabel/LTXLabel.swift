@@ -18,9 +18,23 @@ public class LTXLabel: LTXPlatformView, Identifiable {
             // Rebuilding the layout recreates the CTFramesetter and triggers a
             // full relayout; skip it when the content is unchanged.
             guard !attributedText.isEqual(to: oldValue) else { return }
-            textLayout = LTXTextLayout(attributedString: attributedText)
+            let nextLayout = LTXTextLayout(attributedString: attributedText)
+            if let pendingPrefixUTF16Length {
+                nextLayout.reusePrefix(from: textLayout, utf16Length: pendingPrefixUTF16Length)
+            }
+            textLayout = nextLayout
             handleRevealTextChange()
         }
+    }
+
+    private var pendingPrefixUTF16Length: Int?
+
+    /// Updates content with a candidate unchanged prefix. The layout validates
+    /// attributes and paragraph boundaries before reusing immutable CoreText lines.
+    public func setAttributedText(_ text: NSAttributedString, preservingPrefixUTF16Length length: Int) {
+        pendingPrefixUTF16Length = length
+        defer { pendingPrefixUTF16Length = nil }
+        attributedText = text
     }
 
     // MARK: - Streaming reveal

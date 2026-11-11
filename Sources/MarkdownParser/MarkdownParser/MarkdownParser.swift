@@ -38,20 +38,55 @@ public class MarkdownParser {
         public let mathContext: [Int: String]
     }
 
+    public struct RangedParseResult {
+        public let result: ParseResult
+        /// Ranges in the original source, including math before placeholder substitution.
+        public let blockRanges: [RootBlockRange]
+    }
+
     public func parse(_ markdown: String) -> ParseResult {
+        parseSource(markdown, includingRanges: false).result
+    }
+
+    public func parseWithBlockRanges(_ markdown: String) -> RangedParseResult {
+        parseSource(markdown, includingRanges: true)
+    }
+
+    private func parseSource(_ markdown: String, includingRanges: Bool) -> RangedParseResult {
         let math = MathContext(preprocessText: markdown)
         math.process()
-        let markdown = math.indexedContent ?? markdown
-        let nodes = withParser { parser in
-            markdown.withCString { str in
-                cmark_parser_feed(parser, str, strlen(str))
-                return cmark_parser_finish(parser)
+        let source = math.indexedContent ?? markdown
+        return withParser { parser in
+            source.withCString { cmark_parser_feed(parser, $0, source.utf8.count) }
+            guard let root = cmark_parser_finish(parser) else {
+                assertionFailure("Unable to finish markdown parsing")
+                return .init(result: .init(document: [], mathContext: [:]), blockRanges: [])
             }
+            defer { cmark_node_free(root) }
+            let sourceLines = includingRanges ? SourceLineIndex(source) : nil
+            var blocks: [MarkdownBlockNode] = []
+            var ranges: [RootBlockRange] = []
+            for child in root.children {
+                let context = SpecializeContext()
+                if let node = MarkdownBlockNode(unsafeNode: child) { context.append(node) }
+                let transformed = finalizeMathBlocks(context.complete(), mathContext: math)
+                blocks.append(contentsOf: transformed)
+                if let sourceLines,
+                   let start = sourceLines.index(line: Int(child.pointee.start_line), column: Int(child.pointee.start_column)),
+                   let end = sourceLines.index(line: Int(child.pointee.end_line), column: Int(child.pointee.end_column)) {
+                    ranges.append(.init(
+                        type: child.nodeType,
+                        startIndex: math.originalIndex(for: start, in: source, isEnd: false),
+                        endIndex: math.originalIndex(for: end, in: source, isEnd: true),
+                        outputBlockCount: transformed.count
+                    ))
+                }
+            }
+            return .init(
+                result: .init(document: blocks, mathContext: math.contents),
+                blockRanges: ranges
+            )
         }
-        defer { if let nodes { cmark_node_free(nodes) } }
-        var blocks = dumpBlocks(root: nodes)
-        blocks = finalizeMathBlocks(blocks, mathContext: math)
-        return .init(document: blocks, mathContext: math.contents)
     }
 
     public struct RootBlockRange {
@@ -59,6 +94,13 @@ public class MarkdownParser {
         public let startIndex: String.Index
         public let endIndex: String.Index
         public let outputBlockCount: Int
+
+        public init(type: MarkdownNodeType, startIndex: String.Index, endIndex: String.Index, outputBlockCount: Int) {
+            self.type = type
+            self.startIndex = startIndex
+            self.endIndex = endIndex
+            self.outputBlockCount = outputBlockCount
+        }
     }
 
     public struct IncrementalParseResult {
@@ -120,7 +162,7 @@ public class MarkdownParser {
         guard !previousMarkdown.isEmpty else { return nil }
         guard newMarkdown.count > previousMarkdown.count else { return nil }
 
-        let ranges = previousRanges ?? parseBlockRange(previousMarkdown)
+        let ranges = previousRanges ?? parseWithBlockRanges(previousMarkdown).blockRanges
         guard !ranges.isEmpty else { return nil }
 
         let tailRootBlockCount = preferredTailRootBlockCount(
@@ -147,8 +189,9 @@ public class MarkdownParser {
 
         let tailMarkdown = String(newMarkdown[stablePrefixStartIndex...])
         let mathIdentifierOffset = maxMathIdentifier(in: previousBlocks.prefix(stablePrefixBlockCount)) + 1
-        let tailResult = shiftMathIdentifiers(in: parse(tailMarkdown), by: mathIdentifierOffset)
-        let tailRanges = parseBlockRange(tailMarkdown)
+        let tail = parseWithBlockRanges(tailMarkdown)
+        let tailResult = shiftMathIdentifiers(in: tail.result, by: mathIdentifierOffset)
+        let tailRanges = tail.blockRanges
         let shiftedTailRanges = shiftRanges(
             tailRanges,
             from: tailMarkdown,
