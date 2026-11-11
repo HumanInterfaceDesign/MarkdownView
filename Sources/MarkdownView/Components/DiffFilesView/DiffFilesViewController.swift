@@ -84,6 +84,40 @@ import Foundation
         /// the file.
         public var fileCollapseHandler: ((String, Bool) -> Void)?
 
+        /// Shows a viewed toggle in each file header. Enabled by default.
+        public var showsFileViewedControl = true {
+            didSet { reloadEverything() }
+        }
+
+        /// Checking a file collapses it; unchecking expands it. Changes apply
+        /// to subsequent viewed toggles, not files already reviewed.
+        public var collapsesViewedFiles = true
+
+        /// Called after a viewed state changes, allowing hosts to persist it.
+        public var fileViewedHandler: ((String, Bool) -> Void)?
+
+        /// Viewed paths survive `setPatch` for files still present. Hosts should
+        /// use a new controller for a different review, or unmark paths explicitly.
+        public private(set) var viewedFilePaths: Set<String> = []
+
+        /// Marks a rendered file as viewed (or not viewed), including before the
+        /// view loads. Unknown paths and unchanged values are ignored.
+        public func setFileViewed(_ isViewed: Bool, at path: String) {
+            guard let file = document.files.first(where: { $0.displayPath == path }),
+                  viewedFilePaths.contains(path) != isViewed else { return }
+            if isViewed {
+                viewedFilePaths.insert(path)
+            } else {
+                viewedFilePaths.remove(path)
+            }
+            if collapsesViewedFiles {
+                setCollapsed(isViewed, fileID: file.id)
+            } else {
+                reconfigureHeader(fileID: file.id)
+            }
+            fileViewedHandler?(path, isViewed)
+        }
+
         /// Live line-selection updates: the display path of the file being
         /// selected in, and the selection (`nil` when it clears). A selection
         /// spans one hunk; selecting in another hunk clears the previous one.
@@ -148,12 +182,14 @@ import Foundation
             fatalError("init(coder:) has not been implemented")
         }
 
-        /// Replaces the rendered patch, resetting collapse and expansion state.
+        /// Replaces the rendered patch and resets context expansion. Explicit
+        /// collapse choices and viewed paths are retained for progressive loads.
         public func setPatch(_ patch: String, language: String? = nil) {
             self.patch = patch
             document = DiffPatchDocument(patch: patch, language: language)
                 ?? .init(files: [], language: language)
             documentGeneration += 1
+            viewedFilePaths.formIntersection(document.files.map(\.displayPath))
             collapsedFileIDs = Set(document.files.compactMap { file in
                 if userCollapsedPaths.contains(file.displayPath) { return file.id }
                 if userExpandedPaths.contains(file.displayPath) { return nil }
@@ -310,13 +346,7 @@ import Foundation
             ) { [weak self] header, _, indexPath in
                 guard let self, document.files.indices.contains(indexPath.section) else { return }
                 let file = document.files[indexPath.section]
-                header.configure(
-                    file: file,
-                    theme: theme,
-                    isCollapsed: collapsedFileIDs.contains(file.id)
-                ) { [weak self] in
-                    self?.toggleCollapse(fileID: file.id)
-                }
+                configureHeader(header, file: file)
             }
 
             dataSource.supplementaryViewProvider = { collectionView, _, indexPath in
@@ -377,20 +407,20 @@ import Foundation
             #if !os(visionOS)
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             #endif
-            let isCollapsed = collapsedFileIDs.contains(fileID)
+            setCollapsed(!collapsedFileIDs.contains(fileID), fileID: fileID)
+        }
+
+        private func setCollapsed(_ isCollapsed: Bool, fileID: Int) {
+            guard let file = document.file(withID: fileID) else { return }
+            let didChange = collapsedFileIDs.contains(fileID) != isCollapsed
             if isCollapsed {
-                collapsedFileIDs.remove(fileID)
-            } else {
                 collapsedFileIDs.insert(fileID)
-            }
-            if let path = document.file(withID: fileID)?.displayPath {
-                if isCollapsed {
-                    userExpandedPaths.insert(path)
-                    userCollapsedPaths.remove(path)
-                } else {
-                    userCollapsedPaths.insert(path)
-                    userExpandedPaths.remove(path)
-                }
+                userCollapsedPaths.insert(file.displayPath)
+                userExpandedPaths.remove(file.displayPath)
+            } else {
+                collapsedFileIDs.remove(fileID)
+                userExpandedPaths.insert(file.displayPath)
+                userCollapsedPaths.remove(file.displayPath)
             }
             // Toggles snap deliberately (GitHub-app behavior). Every animated
             // variant misbehaves against translucent rows and pinned headers:
@@ -401,25 +431,39 @@ import Foundation
             // Headers are supplementary views, so no item update reaches them;
             // reconfigure the visible one so its chevron follows the state.
             reconfigureHeader(fileID: fileID)
-            if let file = document.file(withID: fileID) {
-                fileCollapseHandler?(file.displayPath, !isCollapsed)
+            if didChange {
+                fileCollapseHandler?(file.displayPath, isCollapsed)
             }
         }
 
         private func reconfigureHeader(fileID: Int) {
-            guard let section = document.files.firstIndex(where: { $0.id == fileID }),
+            guard isViewLoaded, let section = document.files.firstIndex(where: { $0.id == fileID }),
                   let header = collectionView.supplementaryView(
                       forElementKind: UICollectionView.elementKindSectionHeader,
                       at: IndexPath(item: 0, section: section)
                   ) as? DiffFileHeaderView
             else { return }
+            configureHeader(header, file: document.files[section])
+        }
+
+        private func configureHeader(_ header: DiffFileHeaderView, file: DiffFilePatch) {
             header.configure(
-                file: document.files[section],
+                file: file,
                 theme: theme,
-                isCollapsed: collapsedFileIDs.contains(fileID)
-            ) { [weak self] in
-                self?.toggleCollapse(fileID: fileID)
-            }
+                isCollapsed: collapsedFileIDs.contains(file.id),
+                isViewed: viewedFilePaths.contains(file.displayPath),
+                showsViewedControl: showsFileViewedControl,
+                onToggle: { [weak self] in
+                    self?.toggleCollapse(fileID: file.id)
+                },
+                onToggleViewed: { [weak self] in
+                    guard let self else { return }
+                    #if !os(visionOS)
+                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                    #endif
+                    setFileViewed(!viewedFilePaths.contains(file.displayPath), at: file.displayPath)
+                }
+            )
         }
 
         // MARK: - Line selection

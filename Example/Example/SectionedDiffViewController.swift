@@ -19,6 +19,7 @@ final class SectionedDiffViewController: UIViewController {
         super.viewDidLoad()
         title = "Files Changed"
         view.backgroundColor = .systemBackground
+        updateSettingsMenu()
 
         diffController.fileLineCountProvider = { path in
             SectionedDiffFixture.originalLines(for: path)?.count
@@ -45,5 +46,32 @@ final class SectionedDiffViewController: UIViewController {
             diffController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         diffController.didMove(toParent: self)
+    }
+
+    private func updateSettingsMenu() {
+        let showViewed = UIAction(
+            title: "Show Viewed Toggle",
+            image: UIImage(systemName: "checkmark.circle"),
+            state: diffController.showsFileViewedControl ? .on : .off
+        ) { [weak self] _ in
+            guard let self else { return }
+            diffController.showsFileViewedControl.toggle()
+            updateSettingsMenu()
+        }
+        let collapseViewed = UIAction(
+            title: "Collapse Viewed Files",
+            image: UIImage(systemName: "chevron.up"),
+            state: diffController.collapsesViewedFiles ? .on : .off
+        ) { [weak self] _ in
+            guard let self else { return }
+            diffController.collapsesViewedFiles.toggle()
+            updateSettingsMenu()
+        }
+        let settings = UIBarButtonItem(
+            image: UIImage(systemName: "gearshape"),
+            menu: UIMenu(children: [showViewed, collapseViewed])
+        )
+        settings.accessibilityLabel = "Diff settings"
+        navigationItem.rightBarButtonItem = settings
     }
 }
