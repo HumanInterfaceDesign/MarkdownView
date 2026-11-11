@@ -137,7 +137,7 @@ import Foundation
             stack.isUserInteractionEnabled = false
             collapseButton.addSubview(stack)
             collapseButton.addTarget(self, action: #selector(handleTap), for: .touchUpInside)
-            let controls = UIStackView(arrangedSubviews: [collapseButton, viewedControl])
+            let controls = UIStackView(arrangedSubviews: [viewedControl, collapseButton])
             controls.axis = .horizontal
             controls.alignment = .fill
             controls.spacing = 8
