@@ -51,7 +51,18 @@ import Foundation
             tapHandler = onToggle
             viewedControl.isHidden = !showsViewedControl
             viewedControl.onTap(onToggleViewed)
-            viewedControl.tintColor = isViewed ? theme.diff.addedIndicatorText : theme.diff.fileMetadataText
+            let checkedColor = theme.diff.addedIndicatorText
+            viewedControl.tintColor = isViewed ? UIColor { traits in
+                let resolved = checkedColor.resolvedColor(with: traits)
+                var red: CGFloat = 0
+                var green: CGFloat = 0
+                var blue: CGFloat = 0
+                var alpha: CGFloat = 0
+                guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+                    return resolved
+                }
+                return UIColor(red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
+            } : theme.diff.fileMetadataText
             if representedPath != file.displayPath || wasViewed != isViewed {
                 viewedControl.replaceSymbol(
                     systemName: isViewed ? "checkmark.circle.fill" : "circle",

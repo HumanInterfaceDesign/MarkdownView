@@ -104,7 +104,23 @@
             XCTAssertEqual(collapseTaps, 1)
             XCTAssertEqual(viewedTaps, 1)
 
-            configure(viewed: true)
+            for style in [UIUserInterfaceStyle.light, .dark] {
+                let traits = UITraitCollection(userInterfaceStyle: style)
+                configure(viewed: false)
+                XCTAssertEqual(
+                    viewed.tintColor.resolvedColor(with: traits),
+                    MarkdownTheme.default.diff.fileMetadataText.resolvedColor(with: traits)
+                )
+                configure(viewed: true)
+                var red: CGFloat = 0
+                var green: CGFloat = 0
+                var blue: CGFloat = 0
+                var alpha: CGFloat = 0
+                XCTAssertTrue(MarkdownTheme.default.diff.addedIndicatorText.resolvedColor(with: traits)
+                    .getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+                let expected = UIColor(red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
+                XCTAssertEqual(viewed.tintColor.resolvedColor(with: traits), expected)
+            }
             XCTAssertEqual(viewed.accessibilityValue, "Viewed")
             XCTAssertTrue(viewed.accessibilityTraits.contains(.selected))
             configure(viewed: true, visible: false)
