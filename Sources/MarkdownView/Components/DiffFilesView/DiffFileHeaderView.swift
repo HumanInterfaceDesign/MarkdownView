@@ -61,7 +61,7 @@ import Foundation
                 guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
                     return resolved
                 }
-                return UIColor(red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
+                return UIColor(displayP3Red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
             } : theme.diff.fileMetadataText
             if representedPath != file.displayPath || wasViewed != isViewed {
                 viewedControl.replaceSymbol(

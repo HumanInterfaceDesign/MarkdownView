@@ -118,8 +118,10 @@
                 var alpha: CGFloat = 0
                 XCTAssertTrue(MarkdownTheme.default.diff.addedIndicatorText.resolvedColor(with: traits)
                     .getRed(&red, green: &green, blue: &blue, alpha: &alpha))
-                let expected = UIColor(red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
-                XCTAssertEqual(viewed.tintColor.resolvedColor(with: traits), expected)
+                let expected = UIColor(displayP3Red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
+                let resolved = viewed.tintColor.resolvedColor(with: traits)
+                XCTAssertEqual(resolved, expected)
+                XCTAssertEqual(resolved.cgColor.colorSpace?.name, CGColorSpace.displayP3)
             }
             XCTAssertEqual(viewed.accessibilityValue, "Viewed")
             XCTAssertTrue(viewed.accessibilityTraits.contains(.selected))
