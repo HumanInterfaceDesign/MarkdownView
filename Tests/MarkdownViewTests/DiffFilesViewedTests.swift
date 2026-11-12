@@ -81,8 +81,13 @@
             }
             configure(viewed: false)
             let controls = try XCTUnwrap(header.subviews.compactMap { $0 as? UIStackView }.first)
-            let collapse = try XCTUnwrap(controls.arrangedSubviews.first as? UIButton)
-            let viewed = try XCTUnwrap(controls.arrangedSubviews.last as? SymbolActionView)
+            let viewed = try XCTUnwrap(controls.arrangedSubviews.first as? SymbolActionView)
+            let collapse = try XCTUnwrap(controls.arrangedSubviews.last as? UIButton)
+            header.semanticContentAttribute = .forceLeftToRight
+            controls.semanticContentAttribute = .forceLeftToRight
+            header.layoutIfNeeded()
+            XCTAssertLessThanOrEqual(viewed.frame.maxX, collapse.frame.minX)
+            XCTAssertEqual(viewed.frame.width, 44, accuracy: 0.5)
             XCTAssertFalse(header.isAccessibilityElement)
             XCTAssertTrue(viewed.isAccessibilityElement)
             XCTAssertEqual(viewed.accessibilityValue, "Not viewed")
