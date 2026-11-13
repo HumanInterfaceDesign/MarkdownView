@@ -22,6 +22,7 @@ import Foundation
         )
         private var tapHandler: (() -> Void)?
         private let collapseButton = UIButton(type: .custom)
+        private var controlsLeadingConstraint: NSLayoutConstraint?
         private let viewedControl = SymbolActionView(
             systemName: "circle",
             config: UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
@@ -50,6 +51,8 @@ import Foundation
         ) {
             tapHandler = onToggle
             viewedControl.isHidden = !showsViewedControl
+            // The centered symbol already provides an inset inside its 44-point tap target.
+            controlsLeadingConstraint?.constant = showsViewedControl ? 0 : DiffFilesViewConfiguration.headerPadding
             viewedControl.onTap(onToggleViewed)
             let checkedColor = theme.diff.addedIndicatorText
             viewedControl.tintColor = isViewed ? UIColor { traits in
@@ -156,9 +159,11 @@ import Foundation
             addSubview(controls)
             let viewedWidth = viewedControl.widthAnchor.constraint(equalToConstant: 44)
             viewedWidth.priority = .init(999)
+            let controlsLeading = controls.leadingAnchor.constraint(equalTo: leadingAnchor)
+            controlsLeadingConstraint = controlsLeading
             NSLayoutConstraint.activate([
                 viewedWidth,
-                controls.leadingAnchor.constraint(equalTo: leadingAnchor, constant: DiffFilesViewConfiguration.headerPadding),
+                controlsLeading,
                 controls.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -DiffFilesViewConfiguration.headerPadding),
                 controls.topAnchor.constraint(equalTo: topAnchor),
                 controls.bottomAnchor.constraint(equalTo: bottomAnchor),

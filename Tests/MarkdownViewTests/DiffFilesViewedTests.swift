@@ -62,6 +62,39 @@
             XCTAssertTrue(controller.viewedFilePaths.isEmpty)
         }
 
+        func testHeaderLeadingInsetPreservesViewedTapTargetAndHiddenControlPadding() throws {
+            let document = try XCTUnwrap(DiffPatchDocument(patch: patch, language: "swift"))
+            let file = try XCTUnwrap(document.files.first)
+            for direction in [UISemanticContentAttribute.forceLeftToRight, .forceRightToLeft] {
+                let header = DiffFileHeaderView(frame: CGRect(x: 0, y: 0, width: 402, height: 48))
+                header.semanticContentAttribute = direction
+                let controls = try XCTUnwrap(header.subviews.compactMap { $0 as? UIStackView }.first)
+                controls.semanticContentAttribute = direction
+                let viewed = try XCTUnwrap(controls.arrangedSubviews.first as? SymbolActionView)
+                for visible in [true, false, true] {
+                    header.configure(
+                        file: file,
+                        theme: .default,
+                        isCollapsed: true,
+                        isViewed: true,
+                        showsViewedControl: visible,
+                        onToggle: {},
+                        onToggleViewed: {}
+                    )
+                    header.layoutIfNeeded()
+                    let isRTL = direction == .forceRightToLeft
+                    let leadingInset = isRTL ? header.bounds.width - controls.frame.maxX : controls.frame.minX
+                    let trailingInset = isRTL ? controls.frame.minX : header.bounds.width - controls.frame.maxX
+                    XCTAssertEqual(leadingInset, visible ? 0 : DiffFilesViewConfiguration.headerPadding, accuracy: 0.5)
+                    XCTAssertEqual(trailingInset, DiffFilesViewConfiguration.headerPadding, accuracy: 0.5)
+                    if visible {
+                        XCTAssertEqual(viewed.bounds.width, 44, accuracy: 0.5)
+                        XCTAssertGreaterThanOrEqual(viewed.bounds.height, 44)
+                    }
+                }
+            }
+        }
+
         func testHeaderExposesIndependentAccessibleActions() throws {
             let document = try XCTUnwrap(DiffPatchDocument(patch: patch, language: "swift"))
             let file = try XCTUnwrap(document.files.first)
