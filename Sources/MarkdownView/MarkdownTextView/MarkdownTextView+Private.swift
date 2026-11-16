@@ -27,6 +27,7 @@ extension MarkdownTextView {
         case parse(markdown: String, theme: MarkdownTheme, incrementalContext: IncrementalParsingContext?)
         case parsedFull(
             result: MarkdownParser.ParseResult,
+            ranges: [MarkdownParser.RootBlockRange],
             content: PreprocessedContent,
             theme: MarkdownTheme,
             rawMarkdown: String
@@ -75,11 +76,13 @@ extension MarkdownTextView {
                 )
             }
 
-            let result = parser.parse(markdown)
+            let parsed = parser.parseWithBlockRanges(markdown)
+            let result = parsed.result
             // Code highlighting runs on background; math rendering deferred to main
             let content = PreprocessedContent(parserResult: result, theme: theme, backgroundSafe: true)
             return .parsedFull(
                 result: result,
+                ranges: parsed.blockRanges,
                 content: content,
                 theme: theme,
                 rawMarkdown: markdown
@@ -175,14 +178,27 @@ extension MarkdownTextView {
     private func applyRawMarkdownUpdate(_ update: RawMarkdownUpdate) {
         switch update {
         case let .ready(content, rawMarkdown):
+            // The plain-text fast path changes only the final paragraph's end.
+            // Keep its source map so the next structural token does not reparse
+            // the entire previous document just to recover block ranges.
+            if var ranges = lastRootBlockRanges, let last = ranges.last,
+               last.outputBlockCount == 1, !rawMarkdown.isEmpty {
+                ranges[ranges.count - 1] = .init(
+                    type: last.type, startIndex: last.startIndex,
+                    endIndex: rawMarkdown.index(before: rawMarkdown.endIndex),
+                    outputBlockCount: last.outputBlockCount
+                )
+                lastRootBlockRanges = ranges
+            } else {
+                lastRootBlockRanges = nil
+            }
             lastRawMarkdown = rawMarkdown
-            lastRootBlockRanges = nil
             use(content, layoutImmediately: false)
-        case let .parsedFull(result, content, theme, rawMarkdown):
+        case let .parsedFull(result, ranges, content, theme, rawMarkdown):
             // Complete math rendering on main thread where UI context is available
             let finalContent = content.completeMathRendering(parserResult: result, theme: theme)
             lastRawMarkdown = rawMarkdown
-            lastRootBlockRanges = nil
+            lastRootBlockRanges = ranges
             use(finalContent, layoutImmediately: false)
         case let .parsedIncremental(result, tailContent, context, theme, rawMarkdown):
             let completedTailContent = tailContent.completeMathRendering(

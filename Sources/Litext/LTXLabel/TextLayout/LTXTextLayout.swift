@@ -47,6 +47,15 @@ public nonisolated class LTXTextLayout: NSObject {
     private var lineOrigins: [CGPoint]?
     private var lineBands: [LineBand] = []
     private var hasOrderedLineBands = true
+    private struct PrefixSnapshot {
+        let lines: [CTLine]
+        let origins: [CGPoint]
+        let size: CGSize
+        let anchorLocation: Int
+        let anchorOrigin: CGPoint
+    }
+    private var prefixSnapshot: PrefixSnapshot?
+    private(set) var reusedLineCount = 0
     private var _highlightRegions: [Int: LTXHighlightRegion]
     private var cachedSuggestedSize: CGSize?
     private var cachedSuggestedSizeConstraint: CGSize?
@@ -91,7 +100,34 @@ public nonisolated class LTXTextLayout: NSObject {
 
     deinit {}
 
+    func reusePrefix(from previous: LTXTextLayout, utf16Length length: Int) {
+        guard length > 0, length <= attributedString.length,
+              length <= previous.attributedString.length,
+              previous.containerSize.width > 0,
+              let oldLines = previous.lines, let oldOrigins = previous.lineOrigins else { return }
+        let prefixRange = NSRange(location: 0, length: length)
+        guard attributedString.attributedSubstring(from: prefixRange).isEqual(
+            to: previous.attributedString.attributedSubstring(from: prefixRange)
+        ) else { return }
+        let source = attributedString.string as NSString
+        let anchor = source.paragraphRange(for: NSRange(location: length - 1, length: 0))
+        // Re-layout one complete, unchanged paragraph at the join. Its baseline
+        // anchors paragraph spacing without independently stacking block heights.
+        guard NSMaxRange(anchor) <= length,
+              let anchorIndex = oldLines.firstIndex(where: {
+                  CTLineGetStringRange($0).location == anchor.location
+              }), anchorIndex > 0 else { return }
+        prefixSnapshot = PrefixSnapshot(
+            lines: Array(oldLines[..<anchorIndex]),
+            origins: Array(oldOrigins[..<anchorIndex]),
+            size: previous.containerSize,
+            anchorLocation: anchor.location,
+            anchorOrigin: oldOrigins[anchorIndex]
+        )
+    }
+
     public func invalidateLayout() {
+        prefixSnapshot = nil
         cachedSuggestedSize = nil
         cachedSuggestedSizeConstraint = nil
         generateLayout()
@@ -137,6 +173,12 @@ public nonisolated class LTXTextLayout: NSObject {
             drawGlyphs(in: context, glyphAlpha: glyphAlpha)
         } else if let ctFrame {
             CTFrameDraw(ctFrame, context)
+        } else {
+            context.textMatrix = .identity
+            enumerateLines { line, _, origin in
+                context.textPosition = origin
+                CTLineDraw(line, context)
+            }
         }
 
         processLineDrawingActions(in: context, glyphAlpha: glyphAlpha)
@@ -411,50 +453,65 @@ public nonisolated class LTXTextLayout: NSObject {
     private func generateLayout() {
         lines = nil
         lineOrigins = nil
+        ctFrame = nil
+        reusedLineCount = 0
         lineBands.removeAll(keepingCapacity: true)
         hasOrderedLineBands = true
 
-        let containerBounds = CGRect(
-            origin: .zero,
-            size: containerSize
-        )
-        let containerPath = CGPath(
-            rect: containerBounds,
-            transform: nil
-        )
-        ctFrame = CTFramesetterCreateFrame(
-            framesetter,
-            CFRange(location: 0, length: 0),
-            containerPath,
-            nil
-        )
-
-        if let ctFrame {
-            let frameLines = CTFrameGetLines(ctFrame) as? [CTLine]
+        let path = CGPath(rect: CGRect(origin: .zero, size: containerSize), transform: nil)
+        if !generateTailLayout(path: path) {
+            prefixSnapshot = nil
+            let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
+            ctFrame = frame
+            let frameLines = CTFrameGetLines(frame) as! [CTLine]
+            var origins = [CGPoint](repeating: .zero, count: frameLines.count)
+            if !origins.isEmpty { CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins) }
             lines = frameLines
-
-            if let frameLines {
-                var origins = [CGPoint](repeating: .zero, count: frameLines.count)
-                CTFrameGetLineOrigins(ctFrame, CFRange(location: 0, length: 0), &origins)
-                lineOrigins = origins
-                lineBands.reserveCapacity(frameLines.count)
-                for (index, line) in frameLines.enumerated() {
-                    var ascent: CGFloat = 0
-                    var descent: CGFloat = 0
-                    var leading: CGFloat = 0
-                    CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-                    let band = LineBand(
-                        minY: origins[index].y - descent,
-                        maxY: origins[index].y + ascent + leading
-                    )
-                    if let previous = lineBands.last,
-                       band.minY > previous.minY || band.maxY > previous.maxY {
-                        hasOrderedLineBands = false
-                    }
-                    lineBands.append(band)
-                }
-            }
+            lineOrigins = origins
         }
+        guard let lines, let lineOrigins else { return }
+        lineBands.reserveCapacity(lines.count)
+        for (index, line) in lines.enumerated() {
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            var leading: CGFloat = 0
+            CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+            let band = LineBand(minY: lineOrigins[index].y - descent, maxY: lineOrigins[index].y + ascent + leading)
+            if let previous = lineBands.last,
+               band.minY > previous.minY || band.maxY > previous.maxY {
+                hasOrderedLineBands = false
+            }
+            lineBands.append(band)
+        }
+    }
+
+    private func generateTailLayout(path: CGPath) -> Bool {
+        guard let prefix = prefixSnapshot, prefix.size.width == containerSize.width,
+              containerSize.height > 0 else { return false }
+        let frame = CTFramesetterCreateFrame(
+            framesetter, CFRange(location: prefix.anchorLocation, length: 0), path, nil
+        )
+        let visible = CTFrameGetVisibleStringRange(frame)
+        // Finite/truncated containers retain the full-frame implementation.
+        guard visible.location + visible.length == attributedString.length,
+              let tailLines = CTFrameGetLines(frame) as? [CTLine], !tailLines.isEmpty,
+              CTLineGetStringRange(tailLines[0]).location == prefix.anchorLocation else { return false }
+        var origins = [CGPoint](repeating: .zero, count: tailLines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        let heightDelta = containerSize.height - prefix.size.height
+        let translation = prefix.anchorOrigin.y + heightDelta - origins[0].y
+        for index in origins.indices {
+            origins[index].y += translation
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            CTLineGetTypographicBounds(tailLines[index], &ascent, &descent, nil)
+            guard origins[index].y - descent >= 0,
+                  origins[index].y + ascent <= containerSize.height else { return false }
+        }
+        lines = prefix.lines + tailLines
+        lineOrigins = prefix.origins.map { CGPoint(x: $0.x, y: $0.y + heightDelta) } + origins
+        reusedLineCount = prefix.lines.count
+        return true
     }
 
     @MainActor private func extractHighlightRegions() {

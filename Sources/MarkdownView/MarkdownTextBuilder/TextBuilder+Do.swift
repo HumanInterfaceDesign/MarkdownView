@@ -280,9 +280,10 @@ extension TextBuilder {
         view: MarkdownTextView,
         viewProvider: ReusableViewProvider,
         changes: [ASTDiff.Change],
-        cachedSegments: [NSAttributedString]
+        cachedSegments: [NSAttributedString],
+        cachedDocument: NSAttributedString? = nil
     ) -> BuildResult {
         configuredBuilder(view: view, viewProvider: viewProvider)
-            .buildIncremental(changes: changes, cachedSegments: cachedSegments)
+            .buildIncremental(changes: changes, cachedSegments: cachedSegments, cachedDocument: cachedDocument)
     }
 }

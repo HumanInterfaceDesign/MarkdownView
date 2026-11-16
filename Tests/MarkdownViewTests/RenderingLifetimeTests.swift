@@ -53,6 +53,26 @@ final class RenderingLifetimeTests: XCTestCase {
         }
     }
 
+    func testIncrementalBuilderPreservesPrefixAndOriginalSnapshot() {
+        let previous = MarkdownTextView.PreprocessedContent(markdown: "Alpha\n\nBravo\n\nCharlie", theme: .default)
+        let provider = ReusableViewProvider()
+        let original = TextBuilder(nodes: previous.blocks, context: previous, viewProvider: provider).build()
+        let originalSnapshot = NSAttributedString(attributedString: original.document)
+        for markdown in ["Alpha\n\nBravo\n\nChanged tail", "Alpha\n\nBravo", "Alpha\n\nInserted\n\nCharlie"] {
+            let next = MarkdownTextView.PreprocessedContent(markdown: markdown, theme: .default)
+            let incremental = TextBuilder(nodes: next.blocks, context: next, viewProvider: provider).buildIncremental(
+                changes: ASTDiff.diff(old: previous.blocks, new: next.blocks),
+                cachedSegments: original.blockSegments,
+                cachedDocument: original.document
+            )
+            let full = TextBuilder(nodes: next.blocks, context: next, viewProvider: ReusableViewProvider()).build()
+            XCTAssertTrue(incremental.document.isEqual(to: full.document))
+            XCTAssertTrue(original.document.isEqual(to: originalSnapshot))
+            XCTAssertGreaterThan(incremental.preservedPrefixUTF16Length, 0)
+            XCTAssertTrue(incremental.blockSegments[0] === original.blockSegments[0])
+        }
+    }
+
     func testTextBuilderReleaseInsideSynchronousTaskLocalScope() {
         let context = MarkdownTextView.PreprocessedContent(markdown: "Hello", theme: .default)
         let viewProvider = ReusableViewProvider()

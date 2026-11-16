@@ -148,6 +148,21 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
+    func testCombinedParsingPerformance_1000Blocks() {
+        let markdown = generateLargeMarkdown(blockCount: 1000)
+        let parser = MarkdownParser()
+        measure { _ = parser.parseWithBlockRanges(markdown) }
+    }
+
+    func testSeparateParsingAndRangesPerformance_1000Blocks() {
+        let markdown = generateLargeMarkdown(blockCount: 1000)
+        let parser = MarkdownParser()
+        measure {
+            _ = parser.parse(markdown)
+            _ = parser.parseBlockRange(markdown)
+        }
+    }
+
     func testBlockRangeIndexPerformance_1000Blocks() {
         let markdown = generateLargeMarkdown(blockCount: 1000)
         let parser = MarkdownParser()

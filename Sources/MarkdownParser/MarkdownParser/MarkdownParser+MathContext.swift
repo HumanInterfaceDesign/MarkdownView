@@ -34,6 +34,41 @@ public extension MarkdownParser {
         let document: String
         var indexedContent: String?
 
+        private struct Replacement {
+            let original: Range<Int>
+            let indexed: Range<Int>
+        }
+        private var replacements: [Replacement] = []
+
+        func originalIndex(for index: String.Index, in source: String, isEnd: Bool) -> String.Index {
+            let offset = source.utf8.distance(from: source.startIndex, to: index)
+            var lower = 0
+            var upper = replacements.count
+            while lower < upper {
+                let middle = lower + (upper - lower) / 2
+                if replacements[middle].indexed.lowerBound <= offset {
+                    lower = middle + 1
+                } else {
+                    upper = middle
+                }
+            }
+            var originalOffset = offset
+            if lower > 0 {
+                let replacement = replacements[lower - 1]
+                if replacement.indexed.contains(offset) {
+                    originalOffset = isEnd ? replacement.original.upperBound - 1 : replacement.original.lowerBound
+                } else {
+                    originalOffset += replacement.original.upperBound - replacement.indexed.upperBound
+                }
+            }
+            let bytes = document.utf8
+            var position = bytes.index(bytes.startIndex, offsetBy: min(originalOffset, bytes.count))
+            while String.Index(position, within: document) == nil, position > bytes.startIndex {
+                position = bytes.index(before: position)
+            }
+            return String.Index(position, within: document)!
+        }
+
         public fileprivate(set) var contents: [Int: String] = [:]
 
         init(preprocessText: String) {
@@ -51,11 +86,12 @@ public extension MarkdownParser {
             let matches = regex.matches(
                 in: document,
                 options: [],
-                range: NSRange(location: 0, length: document.count)
+                range: NSRange(location: 0, length: document.utf16.count)
             ).reversed()
             if matches.isEmpty { return }
 
             var indexer = 0
+            var substitutions: [(original: Range<Int>, length: Int)] = []
             for match in matches where match.numberOfRanges > 1 {
                 var mathContentRange: NSRange?
 
@@ -81,9 +117,22 @@ public extension MarkdownParser {
                 contents[mathIndex] = mathContent
 
                 let replacement = MarkdownParser.replacementText(for: .math, identifier: String(mathIndex))
+                if let originalRange = Range(fullMatchRange, in: self.document) {
+                    let bytes = self.document.utf8
+                    let start = bytes.distance(from: bytes.startIndex, to: originalRange.lowerBound)
+                    let end = bytes.distance(from: bytes.startIndex, to: originalRange.upperBound)
+                    substitutions.append((start..<end, replacement.utf8.count))
+                }
                 document.replaceSubrange(fullRange, with: replacement)
             }
 
+            var delta = 0
+            replacements = substitutions.reversed().map { substitution in
+                let start = substitution.original.lowerBound + delta
+                let indexed = start..<(start + substitution.length)
+                delta += substitution.length - substitution.original.count
+                return Replacement(original: substitution.original, indexed: indexed)
+            }
             indexedContent = document
         }
     }
@@ -211,7 +260,7 @@ extension MarkdownParser {
     private func processInlineMathInTextWithRegExMather(_ text: String, mathContext: MathContext) -> [MarkdownInlineNode] {
         guard let regex = mathPatternWithinBlock else { return [.text(text)] }
 
-        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.count))
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
         if matches.isEmpty { return [.text(text)] }
 
         var result: [MarkdownInlineNode] = []
@@ -248,7 +297,7 @@ extension MarkdownParser {
             lastEnd = fullMatchRange.location + fullMatchRange.length
         }
 
-        if lastEnd < text.count {
+        if lastEnd < text.utf16.count {
             let remainingText = (text as NSString).substring(from: lastEnd)
             if !remainingText.isEmpty {
                 result.append(.text(remainingText))

@@ -82,7 +82,8 @@ extension MarkdownTextView {
                 view: self,
                 viewProvider: viewProvider,
                 changes: incrementalRenderContext.changes,
-                cachedSegments: incrementalRenderContext.cachedSegments
+                cachedSegments: incrementalRenderContext.cachedSegments,
+                cachedDocument: lastBuildResult?.document
             )
         } else {
             artifacts = TextBuilder.build(
@@ -91,7 +92,10 @@ extension MarkdownTextView {
             )
         }
 
-        textView.attributedText = artifacts.document
+        textView.setAttributedText(
+            artifacts.document,
+            preservingPrefixUTF16Length: artifacts.preservedPrefixUTF16Length
+        )
         contextViews = artifacts.subviews
         lastRenderedBlocks = document.blocks
         lastBuildResult = artifacts
