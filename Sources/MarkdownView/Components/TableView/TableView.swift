@@ -9,6 +9,9 @@ import Litext
     import UIKit
 
     final class TableView: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         typealias Rows = [NSAttributedString]
 
         // MARK: - Constants

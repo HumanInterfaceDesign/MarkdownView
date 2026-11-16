@@ -9,6 +9,9 @@ import Litext
     import UIKit
 
     final class LineNumberView: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         private var suppressInvalidation = false
         private var lineRects: [CGRect] = []
 

@@ -12,6 +12,9 @@ import Litext
     import UIKit
 
     final class TableViewCellManager {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         // MARK: - Properties
 
         private(set) var cells: [LTXLabel] = []

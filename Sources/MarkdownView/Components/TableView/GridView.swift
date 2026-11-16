@@ -10,6 +10,9 @@
     import UIKit
 
     final class GridView: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         private var widths: [CGFloat] = []
         private var heights: [CGFloat] = []
         private var totalWidth: CGFloat = 0

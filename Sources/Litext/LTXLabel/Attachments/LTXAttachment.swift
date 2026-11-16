@@ -16,6 +16,11 @@ open class LTXAttachment {
         size = .zero
     }
 
+    // Avoid the isolated-deinit back-deployment path during synchronous rendering.
+    // Main-actor-isolated subclasses must also opt out; this is not inherited.
+    // Stored properties (including `view`) are released on the final releaser's thread.
+    nonisolated deinit {}
+
     open func attributedStringRepresentation() -> NSAttributedString {
         if let view = view as? LTXAttributeStringRepresentable {
             return view.attributedStringRepresentation()
