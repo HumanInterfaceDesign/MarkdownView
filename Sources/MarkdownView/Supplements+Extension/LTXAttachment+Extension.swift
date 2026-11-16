@@ -9,6 +9,8 @@ import Foundation
 import Litext
 
 private class LTXHolderAttachment: LTXAttachment {
+    nonisolated deinit {}
+
     let attrString: NSAttributedString
     init(attrString: NSAttributedString) {
         self.attrString = attrString

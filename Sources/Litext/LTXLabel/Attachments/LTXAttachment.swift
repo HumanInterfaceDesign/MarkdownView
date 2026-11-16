@@ -16,6 +16,9 @@ open class LTXAttachment {
         size = .zero
     }
 
+    // Synchronous rendering must avoid the isolated-deinit back-deployment path.
+    nonisolated deinit {}
+
     open func attributedStringRepresentation() -> NSAttributedString {
         if let view = view as? LTXAttributeStringRepresentable {
             return view.attributedStringRepresentation()

@@ -253,10 +253,12 @@ extension TextBuilder {
             .withBlockquoteDrawing { context, line, lineOrigin in
                 let boundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
                 defer { blockquoteMarkingStorage = nil }
-                let quotingLineHeight: CGFloat = blockquoteMarkingStorage! - boundingBox.minY
+                // A visible tile can include the end of a quote without its start marker.
+                guard let top = blockquoteMarkingStorage else { return }
+                let quotingLineHeight: CGFloat = top - boundingBox.minY
                 let lineRect = CGRect(
                     x: 0,
-                    y: blockquoteMarkingStorage! - quotingLineHeight,
+                    y: top - quotingLineHeight,
                     width: 4,
                     height: quotingLineHeight
                 )

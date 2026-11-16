@@ -1,11 +1,25 @@
 import Foundation
 import XCTest
+@testable import Litext
 @testable import MarkdownView
 
 @MainActor
 final class RenderingLifetimeTests: XCTestCase {
     private enum LayoutContext {
         @TaskLocal static var value = "outside"
+    }
+
+    func testAttachmentReleaseInsideSynchronousTaskLocalScope() {
+        checkSynchronousRelease { LTXAttachment() }
+    }
+
+    func testHolderAttachmentReleaseInsideSynchronousTaskLocalScope() {
+        checkSynchronousRelease {
+            let text = NSAttributedString(string: "Table contents")
+            let attachment = LTXAttachment.hold(attrString: text)
+            XCTAssertEqual(attachment.attributedStringRepresentation(), text)
+            return attachment
+        }
     }
 
     func testInlineAttributeCacheReleaseInsideSynchronousTaskLocalScope() {
