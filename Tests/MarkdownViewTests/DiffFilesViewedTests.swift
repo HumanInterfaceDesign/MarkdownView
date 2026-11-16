@@ -62,6 +62,39 @@
             XCTAssertTrue(controller.viewedFilePaths.isEmpty)
         }
 
+        func testHeaderLeadingInsetPreservesViewedTapTargetAndHiddenControlPadding() throws {
+            let document = try XCTUnwrap(DiffPatchDocument(patch: patch, language: "swift"))
+            let file = try XCTUnwrap(document.files.first)
+            for direction in [UISemanticContentAttribute.forceLeftToRight, .forceRightToLeft] {
+                let header = DiffFileHeaderView(frame: CGRect(x: 0, y: 0, width: 402, height: 48))
+                header.semanticContentAttribute = direction
+                let controls = try XCTUnwrap(header.subviews.compactMap { $0 as? UIStackView }.first)
+                controls.semanticContentAttribute = direction
+                let viewed = try XCTUnwrap(controls.arrangedSubviews.first as? SymbolActionView)
+                for visible in [true, false, true] {
+                    header.configure(
+                        file: file,
+                        theme: .default,
+                        isCollapsed: true,
+                        isViewed: true,
+                        showsViewedControl: visible,
+                        onToggle: {},
+                        onToggleViewed: {}
+                    )
+                    header.layoutIfNeeded()
+                    let isRTL = direction == .forceRightToLeft
+                    let leadingInset = isRTL ? header.bounds.width - controls.frame.maxX : controls.frame.minX
+                    let trailingInset = isRTL ? controls.frame.minX : header.bounds.width - controls.frame.maxX
+                    XCTAssertEqual(leadingInset, visible ? 0 : DiffFilesViewConfiguration.headerPadding, accuracy: 0.5)
+                    XCTAssertEqual(trailingInset, DiffFilesViewConfiguration.headerPadding, accuracy: 0.5)
+                    if visible {
+                        XCTAssertEqual(viewed.bounds.width, 44, accuracy: 0.5)
+                        XCTAssertGreaterThanOrEqual(viewed.bounds.height, 44)
+                    }
+                }
+            }
+        }
+
         func testHeaderExposesIndependentAccessibleActions() throws {
             let document = try XCTUnwrap(DiffPatchDocument(patch: patch, language: "swift"))
             let file = try XCTUnwrap(document.files.first)
@@ -104,7 +137,25 @@
             XCTAssertEqual(collapseTaps, 1)
             XCTAssertEqual(viewedTaps, 1)
 
-            configure(viewed: true)
+            for style in [UIUserInterfaceStyle.light, .dark] {
+                let traits = UITraitCollection(userInterfaceStyle: style)
+                configure(viewed: false)
+                XCTAssertEqual(
+                    viewed.tintColor.resolvedColor(with: traits),
+                    MarkdownTheme.default.diff.fileMetadataText.resolvedColor(with: traits)
+                )
+                configure(viewed: true)
+                var red: CGFloat = 0
+                var green: CGFloat = 0
+                var blue: CGFloat = 0
+                var alpha: CGFloat = 0
+                XCTAssertTrue(MarkdownTheme.default.diff.addedIndicatorText.resolvedColor(with: traits)
+                    .getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+                let expected = UIColor(displayP3Red: red * 0.8, green: green * 0.8, blue: blue * 0.8, alpha: alpha)
+                let resolved = viewed.tintColor.resolvedColor(with: traits)
+                XCTAssertEqual(resolved, expected)
+                XCTAssertEqual(resolved.cgColor.colorSpace?.name, CGColorSpace.displayP3)
+            }
             XCTAssertEqual(viewed.accessibilityValue, "Viewed")
             XCTAssertTrue(viewed.accessibilityTraits.contains(.selected))
             configure(viewed: true, visible: false)
