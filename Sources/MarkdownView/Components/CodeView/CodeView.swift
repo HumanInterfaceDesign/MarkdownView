@@ -9,6 +9,9 @@ import Litext
     import UIKit
 
     final class CodeView: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         // MARK: - CONTENT
 
         var theme: MarkdownTheme = .default {

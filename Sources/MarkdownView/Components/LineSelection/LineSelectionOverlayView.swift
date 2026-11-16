@@ -2,6 +2,9 @@
     import UIKit
 
     final class LineSelectionOverlayView: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         var selectionColor: UIColor = .systemBlue.withAlphaComponent(0.15) {
             didSet { setNeedsDisplay() }
         }

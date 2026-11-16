@@ -12,6 +12,9 @@ import Foundation
     }
 
     public class LTXSelectionHandle: UIView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
         static let knobRadius: CGFloat = 12
         static let knobExtraResponsiveArea: CGFloat = 20
 

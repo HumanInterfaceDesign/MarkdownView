@@ -8,6 +8,9 @@
     /// - **Bounce**: Bounces the icon in place (share)
     /// - **State toggle**: Replaces between two icons with optional ongoing effect (speaker)
     class SymbolActionView: UIImageView {
+        // Avoid the isolated-deinit back-deployment path during synchronous UIKit teardown.
+        nonisolated deinit {}
+
 
         enum Effect {
             /// Replaces icon with checkmark, then replaces back after completion.

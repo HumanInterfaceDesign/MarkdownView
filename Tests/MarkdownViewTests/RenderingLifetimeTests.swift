@@ -22,6 +22,32 @@ final class RenderingLifetimeTests: XCTestCase {
         }
     }
 
+    #if canImport(UIKit)
+        func testLabelReleaseInsideSynchronousTaskLocalScope() {
+            checkSynchronousRelease { LTXLabel() }
+        }
+
+        func testCodeViewReleaseInsideSynchronousTaskLocalScope() {
+            checkSynchronousRelease {
+                let view = CodeView()
+                view.content = "let value = 1"
+                return view
+            }
+        }
+
+        func testTableViewReleaseInsideSynchronousTaskLocalScope() {
+            checkSynchronousRelease {
+                let view = TableView()
+                view.setContents([[NSAttributedString(string: "Cell")]])
+                return view
+            }
+        }
+
+        func testMarkdownTextViewReleaseInsideSynchronousTaskLocalScope() {
+            checkSynchronousRelease { MarkdownTextView() }
+        }
+    #endif
+
     func testInlineAttributeCacheReleaseInsideSynchronousTaskLocalScope() {
         checkSynchronousRelease {
             InlineAttributeCache(theme: .default)
@@ -100,6 +126,22 @@ final class RenderingLifetimeTests: XCTestCase {
             let result = builder.buildIncremental(changes: [.rebuild(newIndex: 0)], cachedSegments: [])
             XCTAssertTrue(result.document.string.contains("Hello world"))
             return builder
+        }
+    }
+
+    func testTextBuilderSupportsBlocksWithoutDrawingCallbacks() {
+        let fixtures = [
+            "> Quote",
+            "```swift\nlet value = 1\n```",
+            "```diff\n@@ -1 +1 @@\n-old\n+new\n```",
+            "| Header |\n| --- |\n| Cell |",
+        ]
+        for markdown in fixtures {
+            let context = MarkdownTextView.PreprocessedContent(markdown: markdown, theme: .default)
+            let builder = TextBuilder(nodes: context.blocks, context: context, viewProvider: .init())
+            let result = builder.build()
+            XCTAssertGreaterThan(result.document.length, 0, markdown)
+            XCTAssertEqual(result.subviews.count, markdown.hasPrefix(">") ? 0 : 1, markdown)
         }
     }
 

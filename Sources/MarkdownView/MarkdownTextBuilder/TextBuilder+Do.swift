@@ -247,6 +247,8 @@ extension TextBuilder {
                 )
             }
             .withBlockquoteMarking { _, line, lineOrigin in
+                // RTL runs can visit the end first. Single-line quotes need no saved position.
+                guard !line.glyphRuns().contains(where: { $0.attributes[.blockquoteEnd] != nil }) else { return }
                 let boundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
                 blockquoteMarkingStorage = boundingBox.maxY
             }
@@ -254,7 +256,8 @@ extension TextBuilder {
                 let boundingBox = lineBoundingBox(line, lineOrigin: lineOrigin)
                 defer { blockquoteMarkingStorage = nil }
                 // A visible tile can include the end of a quote without its start marker.
-                guard let top = blockquoteMarkingStorage else { return }
+                let startsOnThisLine = line.glyphRuns().contains { $0.attributes[.blockquoteStart] != nil }
+                guard let top = startsOnThisLine ? boundingBox.maxY : blockquoteMarkingStorage else { return }
                 let quotingLineHeight: CGFloat = top - boundingBox.minY
                 let lineRect = CGRect(
                     x: 0,
